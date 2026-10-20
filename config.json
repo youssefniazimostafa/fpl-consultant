@@ -1,0 +1,10 @@
+{
+  "team_id": null,
+  "league_id": null,
+  "free_transfers": 1,
+  "bank_override": null,
+  "transfers_made": 0,
+  "avoid": [],
+  "strategy": "balanced",
+  "horizon": 5
+}
