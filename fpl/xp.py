@@ -78,15 +78,23 @@ DC_THRESHOLD = {"DEF": 10, "MID": 12, "FWD": 12, "GKP": None}
 # ---------------------------------------------------------------------------
 
 
-def find_prior_season_dir() -> Path | None:
+def find_prior_season_dir(before: str | None = None) -> Path | None:
     """The most recent *complete* season folder in the cloned vaastav repo --
     i.e. the one before whichever season folder is currently being updated
     live. Sorting season-folder names (``"2025-26"`` etc.) chronologically
     and taking the second-to-last one avoids hardcoding a season string that
-    goes stale every August."""
+    goes stale every August.
+
+    ``before``, if given, instead returns the season immediately preceding
+    that specific season string -- used by ``fpl.backtest`` to ask for
+    "whatever counted as last season" relative to a past season being
+    replayed, not relative to today."""
     if not EXTERNAL_DIR.exists():
         return None
     seasons = sorted(p.name for p in EXTERNAL_DIR.iterdir() if re.fullmatch(r"\d{4}-\d{2}", p.name))
+    if before is not None:
+        earlier = [s for s in seasons if s < before]
+        return EXTERNAL_DIR / earlier[-1] if earlier else None
     if len(seasons) < 2:
         return None
     return EXTERNAL_DIR / seasons[-2]
@@ -96,27 +104,30 @@ def _normalize_name(name: str) -> str:
     return re.sub(r"\s+", " ", str(name)).strip().lower()
 
 
-def build_prior_season_player_map(players: pd.DataFrame, prior_names: pd.Series) -> pd.Series:
-    """Fuzzy-match each current player's ``first_name second_name`` to a
-    unique name in last season's merged gameweek file, caching the result
-    (and its match score) to ``prior_season_player_map.csv`` so the leftovers
-    can be fixed by hand, same pattern as Step 4b's Understat name mapping.
+def build_prior_season_player_map(
+    full_names: pd.Series, prior_names: pd.Series, cache_path: Path = PLAYER_MAP_PATH
+) -> pd.Series:
+    """Fuzzy-match each of this season's player names (``full_names``,
+    indexed by player id) to a unique name in last season's merged gameweek
+    file, caching the result (and its match score) to ``cache_path`` so the
+    leftovers can be fixed by hand, same pattern as Step 4b's Understat name
+    mapping.
 
-    Returns a Series of prior-season names indexed by current ``player_id``,
+    Returns a Series of prior-season names indexed by current player id,
     with no entry for players below the match-score threshold (new signings,
     promoted-division players, youth debutants -- anyone with no sensible
     prior-season rate)."""
-    if PLAYER_MAP_PATH.exists():
-        cached = pd.read_csv(PLAYER_MAP_PATH).set_index("player_id")["prior_season_name"]
+    if cache_path.exists():
+        cached = pd.read_csv(cache_path).set_index("player_id")["prior_season_name"]
         return cached.dropna()
 
     choices = prior_names.unique().tolist()
     normalized_choices = {_normalize_name(c): c for c in choices}
     normalized_keys = list(normalized_choices.keys())
-    full_names = (players["first_name"] + " " + players["second_name"]).map(_normalize_name)
+    normalized_full_names = full_names.map(_normalize_name)
 
     rows = []
-    for player_id, full_name in zip(players["id"], full_names):
+    for player_id, full_name in normalized_full_names.items():
         if full_name in normalized_choices:
             rows.append((player_id, normalized_choices[full_name], 100.0))
             continue
@@ -127,17 +138,25 @@ def build_prior_season_player_map(players: pd.DataFrame, prior_names: pd.Series)
             rows.append((player_id, None, match[1] if match else 0.0))
 
     mapping = pd.DataFrame(rows, columns=["player_id", "prior_season_name", "match_score"])
-    mapping.to_csv(PLAYER_MAP_PATH, index=False)
+    mapping.to_csv(cache_path, index=False)
     return mapping.set_index("player_id")["prior_season_name"].dropna()
 
 
-def build_prior_season_rates(players: pd.DataFrame) -> pd.DataFrame:
+def build_prior_season_rates(
+    full_names: pd.Series, season_dir: Path | None = None, cache_path: Path = PLAYER_MAP_PATH
+) -> pd.DataFrame:
     """Season-long (no recency weighting -- there's no "recent" within a
     finished season) per-player rates from last season's merged gameweek
-    file, re-indexed onto this season's ``player_id``. Players with no
-    match get no row and simply fall back to this season's own
-    (position-shrunk) numbers in ``blend_with_prior_season``."""
-    season_dir = find_prior_season_dir()
+    file, re-indexed onto this season's player id (``full_names``'s index).
+    Players with no match get no row and simply fall back to this season's
+    own (position-shrunk) numbers in ``blend_with_prior_season``.
+
+    ``season_dir``/``cache_path`` default to "whatever's one season before
+    today" and the shared live cache file; ``fpl.backtest`` passes both
+    explicitly so it can ask for an arbitrary past season's "prior season"
+    without touching the live cache."""
+    if season_dir is None:
+        season_dir = find_prior_season_dir()
     empty = pd.DataFrame(columns=["player_id", *BLEND_COLUMNS]).set_index("player_id")
     if season_dir is None:
         return empty
@@ -150,7 +169,7 @@ def build_prior_season_rates(players: pd.DataFrame) -> pd.DataFrame:
     gw["position"] = gw["position"].map(POSITION_MAP)
     gw = gw.dropna(subset=["position"])
 
-    name_map = build_prior_season_player_map(players, gw["name"])
+    name_map = build_prior_season_player_map(full_names, gw["name"], cache_path)
     if name_map.empty:
         return empty
 
@@ -162,7 +181,13 @@ def build_prior_season_rates(players: pd.DataFrame) -> pd.DataFrame:
     team_match_xa = gw.groupby(["fixture", "team"])["expected_assists"].transform("sum")
     gw["match_share_xa"] = np.where(team_match_xa > 0, gw["expected_assists"] / team_match_xa, np.nan)
     threshold = gw["position"].map(DC_THRESHOLD)
-    gw["hit_defcon"] = (gw["defensive_contribution"] >= threshold).astype(float)
+    if "defensive_contribution" in gw.columns:
+        gw["hit_defcon"] = (gw["defensive_contribution"] >= threshold).astype(float)
+    else:
+        # defensive contribution points didn't exist before 2025/26; a
+        # season folder from before that rule simply contributes no
+        # evidence for this rate (callers fall back to this-season-only).
+        gw["hit_defcon"] = 0.0
     gw["played_60"] = (gw["minutes"] >= 60).astype(float)
 
     played = gw[gw["minutes"] > 0]
@@ -235,8 +260,20 @@ def expected_floor_half(lam: np.ndarray, k_max: int = 14) -> np.ndarray:
     return (pmf * (k // 2)[None, :]).sum(axis=1)
 
 
-def build_xp(features: pd.DataFrame, scoring: pd.DataFrame, players: pd.DataFrame, gw_so_far: int) -> pd.DataFrame:
-    prior = build_prior_season_rates(players)
+def build_xp(
+    features: pd.DataFrame,
+    scoring: pd.DataFrame,
+    players: pd.DataFrame,
+    gw_so_far: int,
+    prior: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """``prior`` defaults to last complete season's rates for today's
+    players (the live behaviour); ``fpl.backtest`` passes its own
+    pre-computed prior so a replayed gameweek blends toward *its* prior
+    season, not toward whatever's one season before today."""
+    if prior is None:
+        full_names = players.set_index("id")["first_name"] + " " + players.set_index("id")["second_name"]
+        prior = build_prior_season_rates(full_names)
     features = blend_with_prior_season(features, prior, gw_so_far)
 
     fitness_by_player = (players.set_index("id")["chance_of_playing_next_round"].fillna(100.0) / 100.0)
@@ -367,6 +404,26 @@ def build_xp_by_gameweek(xp: pd.DataFrame) -> pd.DataFrame:
     return players.merge(totals, on="player_id", how="left")
 
 
+PREDICTIONS_DIR = ROOT / "data" / "predictions"
+
+
+def log_live_predictions(xp: pd.DataFrame) -> Path:
+    """Snapshot this run's predictions with a timestamp (Step 7's "from this
+    season onward, log every live prediction... After each gameweek, score
+    it automatically" requirement). Every run gets its own file -- nothing
+    is overwritten -- since scoring a prediction later (Step 11) needs to
+    know exactly what was predicted and when, not just the latest one."""
+    PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
+    logged_at = pd.Timestamp.now("UTC")
+    snapshot = xp[
+        ["fixture_id", "event", "player_id", "web_name", "position", "team_short", "opponent_short", "xp"]
+    ].copy()
+    snapshot.insert(0, "logged_at", logged_at)
+    path = PREDICTIONS_DIR / f"{logged_at.strftime('%Y-%m-%dT%H%M%S')}.parquet"
+    snapshot.to_parquet(path, index=False)
+    return path
+
+
 def main() -> None:
     print("Building xp.parquet...")
     xp = build_xp_table()
@@ -378,6 +435,9 @@ def main() -> None:
     gw_path = TABLES_DIR / "xp_by_gameweek.parquet"
     by_gw.to_parquet(gw_path, index=False)
     print(f"  wrote {gw_path} ({len(by_gw)} players x {len(by_gw.columns) - 5} gameweeks)")
+
+    log_path = log_live_predictions(xp)
+    print(f"  logged predictions snapshot to {log_path}")
 
 
 if __name__ == "__main__":

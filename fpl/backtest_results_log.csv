@@ -1,0 +1,2 @@
+run_at,n_gameweeks,n_predictions,half_life_matches,shrinkage_matches,mae_xp,spearman_xp_overall,mae_fpl_xp,spearman_fpl_xp_overall,mae_ppg,spearman_ppg_overall,mae_last5,spearman_last5_overall
+2026-10-20T16:35:50.062292+00:00,37,28648,6,3,1.0442765168827524,0.667627677704499,1.0748010332309412,0.30703549460274004,1.06611134664959,0.7053917437460369,1.049606138881132,0.7428401514499783

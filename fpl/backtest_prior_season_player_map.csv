@@ -1,0 +1,842 @@
+player_id,prior_season_name,match_score
+1,David Raya Martin,94.11764705882352
+2,Kepa Arrizabalaga,90.0
+3,Karl Hein,100.0
+4,Tommy Setford,100.0
+5,Gabriel dos Santos Magalhães,100.0
+6,William Saliba,100.0
+7,Riccardo Calafiori,100.0
+8,Jurriën Timber,100.0
+9,Jakub Kiwior,100.0
+10,Myles Lewis-Skelly,100.0
+11,Benjamin White,100.0
+12,Oleksandr Zinchenko,100.0
+13,Brayden Clarke,100.0
+14,Maldini Kacurri,100.0
+15,Josh Nichols,100.0
+16,Bukayo Saka,100.0
+17,Martin Ødegaard,100.0
+18,Noni Madueke,100.0
+19,Gabriel Martinelli Silva,100.0
+20,Leandro Trossard,100.0
+21,Declan Rice,100.0
+22,Mikel Merino,90.0
+23,Fábio Ferreira Vieira,100.0
+24,Christian Nørgaard,100.0
+25,Ethan Nwaneri,100.0
+26,,54.0
+27,Reiss Nelson,100.0
+28,Ismeal Kabia,100.0
+29,,57.0
+30,Kai Havertz,100.0
+31,Gabriel Fernando de Jesus,100.0
+32,Emiliano Martínez Romero,100.0
+33,,66.66666666666667
+34,Joe Gauci,100.0
+35,Filip Marschall,100.0
+36,Matty Cash,100.0
+37,Lucas Digne,100.0
+38,Ezri Konsa Ngoyo,100.0
+39,Ian Maatsen,100.0
+40,Tyrone Mings,100.0
+41,Pau Torres,100.0
+42,Andrés García,100.0
+43,Álex Moreno Lopera,100.0
+44,Lamare Bogarde,100.0
+45,Lino da Cruz Sousa,100.0
+46,,63.63636363636363
+47,Morgan Rogers,100.0
+48,Youri Tielemans,100.0
+49,Leon Bailey,100.0
+50,Emiliano Buendía Stati,100.0
+51,Samuel Iling-Junior,100.0
+52,Jacob Ramsey,100.0
+53,Donyell Malen,100.0
+54,John McGinn,100.0
+55,Ross Barkley,100.0
+56,Enzo Barrenechea,100.0
+57,Lewis Dobbin,100.0
+58,Boubacar Kamara,100.0
+59,Amadou Onana,100.0
+60,Ben Broggio,100.0
+61,Leander Dendoncker,100.0
+62,,83.33333333333334
+63,Kadan Young,100.0
+64,Ollie Watkins,100.0
+65,,54.0
+66,Norberto Murara Neto,100.0
+67,Đorđe Petrović,100.0
+68,Will Dennis,100.0
+69,Callan McKenna,100.0
+70,Alex Paulsen,100.0
+71,Illia Zabarnyi,100.0
+72,Marcos Senesi,95.0
+73,Adam Smith,100.0
+74,,58.06451612903225
+75,Matai Akinmboni,100.0
+76,,66.66666666666667
+77,James Hill,100.0
+78,Julián Araujo Zúñiga,100.0
+79,Chris Mepham,100.0
+80,Julio Soler,90.0
+81,Justin Kluivert,100.0
+82,Antoine Semenyo,100.0
+83,Dango Ouattara,100.0
+84,Marcus Tavernier,100.0
+85,Tyler Adams,100.0
+86,David Brooks,100.0
+87,Ryan Christie,100.0
+88,Lewis Cook,100.0
+89,Philip Billing,100.0
+90,Alex Scott,100.0
+91,Luis Sinisterra,95.0
+92,Romain Faivre,100.0
+93,Hamed Traorè,100.0
+94,Dominic Sadi,100.0
+95,Zain Silcott-Duberry,100.0
+96,Ben Winterburn,100.0
+97,Francisco Evanilson de Lima Barbosa,100.0
+98,Enes Ünal,100.0
+99,Daniel Adu-Adjei,100.0
+100,,85.5
+101,Caoimhin Kelleher,94.11764705882352
+102,,61.07142857142858
+103,,58.33333333333333
+104,Julian Eyestone,100.0
+105,Hákon Valdimarsson,95.0
+106,Nathan Collins,100.0
+107,Keane Lewis-Potter,100.0
+108,Kristoffer Ajer,100.0
+109,Rico Henry,100.0
+110,Michael Kayode,100.0
+111,Ethan Pinnock,100.0
+112,Mads Roerslev Rasmussen,100.0
+113,Sepp van den Berg,100.0
+114,Benjamin Arthur,100.0
+115,Benjamin Fredrick,100.0
+116,Aaron Hickey,100.0
+117,Kim Ji-soo,100.0
+118,Jayden Meghoma,100.0
+119,Bryan Mbeumo,100.0
+120,Kevin Schade,100.0
+121,Mikkel Damsgaard,100.0
+122,,65.51724137931035
+123,Fábio Freitas Gouveia Carvalho,100.0
+124,,86.66666666666667
+125,Vitaly Janelt,100.0
+126,Mathias Jensen,100.0
+127,Gustavo Nunes Fernandes Gomes,100.0
+128,Frank Onyeka,100.0
+129,Yehor Yarmoliuk,100.0
+130,,56.25
+131,Yunus Emre Konak,100.0
+132,Paris Maghoma,100.0
+133,Myles Peart-Harris,100.0
+134,Ryan Trevitt,100.0
+135,Yoane Wissa,100.0
+136,Igor Thiago Nascimento Rodrigues,100.0
+137,Iwan Morgan,100.0
+138,Jason Steele,100.0
+139,Bart Verbruggen,100.0
+140,,57.14285714285714
+141,Carl Rushworth,100.0
+142,,56.00000000000001
+143,,64.28571428571428
+144,,85.5
+145,,85.5
+146,Lewis Dunk,100.0
+147,Pervis Estupiñán,90.0
+148,,85.71428571428572
+149,Igor Julio dos Santos de Paulo,100.0
+150,Tariq Lamptey,100.0
+151,Jan Paul van Hecke,100.0
+152,Joël Veltman,100.0
+153,Adam Webster,100.0
+154,Eiran Cashin,100.0
+155,Jacob Slater,100.0
+156,Charlie Tasker,100.0
+157,Mitoma Kaoru,100.0
+158,Georginio Rutter,100.0
+159,Solly March,100.0
+160,Yankuba Minteh,100.0
+161,Julio Enciso,90.0
+162,Brajan Gruda,100.0
+163,Jack Hinshelwood,100.0
+164,Matt O'Riley,100.0
+165,,56.25
+166,Yasin Ayari,100.0
+167,Carlos Baleba,100.0
+168,Facundo Buonanotte,100.0
+169,Diego Gómez,90.0
+170,James Milner,100.0
+171,Jeremy Sarmiento Morante,100.0
+172,,80.0
+173,Mats Wieffer,100.0
+174,,53.84615384615385
+175,Joe Knight,100.0
+176,Adrian Mazilu,100.0
+177,Andrew Moran,100.0
+178,Danny Welbeck,100.0
+179,Evan Ferguson,100.0
+180,,66.66666666666667
+181,,60.60606060606061
+182,,69.23076923076923
+183,,69.23076923076923
+184,,57.14285714285714
+185,,46.95652173913043
+186,,66.66666666666667
+187,Kyle Walker,100.0
+188,,66.66666666666667
+189,,60.86956521739131
+190,,58.33333333333333
+191,,58.33333333333333
+192,,54.4090909090909
+193,,72.72727272727273
+194,,78.26086956521739
+195,,85.5
+196,,53.84615384615385
+197,,67.5
+198,Axel Tuanzebe,100.0
+199,Joe Worrall,100.0
+200,Jaidon Anthony,100.0
+201,,85.5
+202,,85.5
+203,,54.0
+204,,54.54545454545454
+205,,85.5
+206,,68.96551724137932
+207,Hannibal Mejbri,100.0
+208,,85.5
+209,,85.5
+210,,60.86956521739131
+211,,84.61538461538461
+212,,55.16129032258064
+213,,66.66666666666667
+214,,60.00000000000001
+215,,60.00000000000001
+216,,54.54545454545454
+217,,64.0
+218,,76.92307692307692
+219,,71.42857142857143
+220,Robert Sánchez,95.0
+221,Filip Jørgensen,93.33333333333333
+222,,61.53846153846154
+223,,85.5
+224,Marc Cucurella Saseta,100.0
+225,Reece James,100.0
+226,Trevoh Chalobah,100.0
+227,,85.5
+228,Malo Gusto,100.0
+229,Benoît Badiashile,90.0
+230,Wesley Fofana,100.0
+231,,69.56521739130434
+232,Tosin Adarabioyo,100.0
+233,Josh Acheampong,100.0
+234,Aaron Anselmino,93.33333333333333
+235,Cole Palmer,100.0
+236,Pedro Lomba Neto,100.0
+237,Enzo Fernández,100.0
+238,,85.5
+239,,85.5
+240,Christopher Nkunku,100.0
+241,Moisés Caicedo Corozo,100.0
+242,Kiernan Dewsbury-Hall,100.0
+243,Tyrique George,100.0
+244,Roméo Lavia,100.0
+245,Mykhailo Mudryk,100.0
+246,Andrey Nascimento dos Santos,100.0
+247,,57.0
+248,,54.0
+249,João Pedro Junqueira de Jesus,100.0
+250,Liam Delap,100.0
+251,Nicolas Jackson,100.0
+252,Marc Guiu Paz,100.0
+253,Dean Henderson,100.0
+254,,57.14285714285714
+255,Remi Matthews,100.0
+256,Daniel Muñoz,90.0
+257,Maxence Lacroix,100.0
+258,Tyrick Mitchell,100.0
+259,,70.0
+260,Marc Guéhi,100.0
+261,Chris Richards,100.0
+262,Chadi Riad Dnanou,100.0
+263,Nathaniel Clyne,100.0
+264,Rob Holding,100.0
+265,Caleb Kporha,100.0
+266,Eberechi Eze,100.0
+267,Ismaïla Sarr,100.0
+268,Cheick Doucouré,100.0
+269,Romain Esse,100.0
+270,Will Hughes,100.0
+271,Daichi Kamada,100.0
+272,Jefferson Lerma Solís,100.0
+273,Adam Wharton,100.0
+274,Asher Agbinone,100.0
+275,Naouirou Ahamada,100.0
+276,Justin Devenny,100.0
+277,Malcolm Ebiowei,100.0
+278,Jesurun Rak-Sakyi,100.0
+279,Matheus França de Oliveira,100.0
+280,David Ozoh,100.0
+281,Kaden Rodney,100.0
+282,Franco Umeh-Chibueze,100.0
+283,Jean-Philippe Mateta,100.0
+284,Eddie Nketiah,100.0
+285,Odsonne Edouard,93.33333333333333
+286,Zach Marsh,100.0
+287,Jordan Pickford,100.0
+288,Mark Travers,100.0
+289,,69.56521739130434
+290,Jarrad Branthwaite,100.0
+291,James Tarkowski,100.0
+292,Vitalii Mykolenko,100.0
+293,Jake O'Brien,100.0
+294,Séamus Coleman,100.0
+295,Michael Keane,100.0
+296,Nathan Patterson,100.0
+297,Roman Dixon,100.0
+298,Reece Welch,100.0
+299,Iliman Ndiaye,100.0
+300,Dwight McNeil,100.0
+301,Carlos Alcaraz Durán,100.0
+302,Idrissa Gueye,95.0
+303,James Garner,100.0
+304,Tim Iroegbunam,100.0
+305,Harrison Armstrong,100.0
+306,Callum Bates,100.0
+307,Coby Ebere,100.0
+308,Isaac Heath,100.0
+309,Jenson Metcalfe,100.0
+310,,59.85
+311,Norberto Bercique Gomes Betuncal,100.0
+312,Youssef Ramalho Chermiti,100.0
+313,Martin Sherif,100.0
+314,Bernd Leno,100.0
+315,Steven Benda,100.0
+316,Antonee Robinson,100.0
+317,Joachim Andersen,100.0
+318,Calvin Bassey,100.0
+319,Timothy Castagne,100.0
+320,Issa Diop,100.0
+321,Jorge Cuenca Barreno,100.0
+322,Kenny Tete,100.0
+323,Samuel Amissah,100.0
+324,Alex Iwobi,100.0
+325,Emile Smith Rowe,100.0
+326,Adama Traoré,90.0
+327,Andreas Hoelgebaum Pereira,100.0
+328,Ryan Sessegnon,100.0
+329,Harry Wilson,100.0
+330,Sander Berge,100.0
+331,Tom Cairney,100.0
+332,Saša Lukić,100.0
+333,Martial Godo,100.0
+334,Luke Harris,100.0
+335,Josh King,100.0
+336,Harrison Reed,100.0
+337,Raúl Jiménez,90.0
+338,Rodrigo Muniz Carvalho,100.0
+339,,66.66666666666667
+340,,66.66666666666667
+341,,58.46153846153846
+342,,75.0
+343,,67.05882352941177
+344,,54.54545454545454
+345,,67.5
+346,,70.00000000000001
+347,,85.5
+348,,66.66666666666667
+349,,66.66666666666667
+350,,70.96774193548387
+351,,64.28571428571428
+352,Jack Harrison,100.0
+353,,85.5
+354,,63.333333333333336
+355,,52.17391304347826
+356,,63.0
+357,,57.14285714285714
+358,,60.0
+359,,70.0
+360,,66.66666666666667
+361,,59.85
+362,,54.54545454545454
+363,,71.42857142857143
+364,,85.5
+365,,60.86956521739131
+366,,85.5
+367,,57.0
+368,,54.54545454545454
+369,,68.96551724137932
+370,,71.42857142857143
+371,Milos Kerkez,100.0
+372,Andrew Robertson,100.0
+373,Virgil van Dijk,100.0
+374,Ibrahima Konaté,100.0
+375,Conor Bradley,100.0
+376,Joe Gomez,100.0
+377,Konstantinos Tsimikas,100.0
+378,Amara Nallo,100.0
+379,Rhys Williams,100.0
+380,,76.92307692307692
+381,Mohamed Salah,100.0
+382,,53.333333333333336
+383,Luis Díaz,90.0
+384,Cody Gakpo,100.0
+385,Federico Chiesa,100.0
+386,Alexis Mac Allister,100.0
+387,Dominik Szoboszlai,100.0
+388,Curtis Jones,100.0
+389,Harvey Elliott,100.0
+390,Ryan Gravenberch,100.0
+391,,85.5
+392,Endo Wataru,100.0
+393,Stefan Bajčetić Maquieira,100.0
+394,James McConnell,100.0
+395,Tyler Morton,100.0
+396,,85.5
+397,Darwin Núñez Ribeiro,100.0
+398,Jayden Danns,100.0
+399,Ederson Santana de Moraes,100.0
+400,Stefan Ortega Moreno,100.0
+401,Marcus Bettinelli,100.0
+402,Rayan Aït-Nouri,100.0
+403,Joško Gvardiol,100.0
+404,Manuel Akanji,100.0
+405,Nathan Aké,100.0
+406,Abdukodir Khusanov,100.0
+407,Matheus Luiz Nunes,95.0
+408,,85.5
+409,John Stones,100.0
+410,Rico Lewis,100.0
+411,Nico O'Reilly,100.0
+412,Vitor de Oliveira Nunes dos Reis,100.0
+413,Omar Marmoush,100.0
+414,Phil Foden,100.0
+415,Sávio 'Savinho' Moreira de Oliveira,95.0
+416,Bernardo Veiga de Carvalho e Silva,95.0
+417,,72.0
+418,Jérémy Doku,100.0
+419,Jack Grealish,100.0
+420,Ilkay Gündogan,89.65517241379311
+421,Rodrigo 'Rodri' Hernandez,95.0
+422,Mateo Kovačić,100.0
+423,Nico González,90.0
+424,Oscar Bobb,100.0
+425,Claudio Echeverri,100.0
+426,James McAtee,100.0
+427,,58.06451612903225
+428,,52.17391304347826
+429,Kalvin Phillips,100.0
+430,Erling Haaland,100.0
+431,,85.71428571428572
+432,André Onana,100.0
+433,Elyh Harrison,100.0
+434,Tom Heaton,100.0
+435,Dermot Mee,100.0
+436,Matthijs de Ligt,100.0
+437,Lisandro Martínez,100.0
+438,Noussair Mazraoui,100.0
+439,,85.5
+440,Diogo Dalot Teixeira,100.0
+441,Patrick Dorgu,100.0
+442,Harry Maguire,100.0
+443,Luke Shaw,100.0
+444,Leny Yoro,100.0
+445,Harry Amass,100.0
+446,Tyler Fredricson,100.0
+447,Ayden Heaven,100.0
+448,Tyrell Malacia,100.0
+449,Bruno Borges Fernandes,100.0
+450,Matheus Santos Carneiro Da Cunha,100.0
+451,Marcus Rashford,100.0
+452,Amad Diallo,100.0
+453,Alejandro Garnacho,90.0
+454,Antony Matheus dos Santos,95.0
+455,Mason Mount,100.0
+456,Jadon Sancho,100.0
+457,Carlos Henrique Casimiro,100.0
+458,Kobbie Mainoo,100.0
+459,Manuel Ugarte,90.0
+460,Toby Collyer,100.0
+461,Jayce Fitzgerald,100.0
+462,Jack Fletcher,100.0
+463,Sékou Koné,100.0
+464,Jack Moorhouse,100.0
+465,Rasmus Højlund,100.0
+466,Joshua Zirkzee,100.0
+467,Chido Obi-Martin,90.0
+468,Ethan Wheatley,100.0
+469,Nick Pope,100.0
+470,Martin Dúbravka,100.0
+471,,61.53846153846154
+472,Odysseas Vlachodimos,100.0
+473,Lewis Hall,100.0
+474,Fabian Schär,100.0
+475,Sven Botman,100.0
+476,Dan Burn,100.0
+477,Tino Livramento,100.0
+478,Kieran Trippier,100.0
+479,Emil Krafth,100.0
+480,Jamaal Lascelles,100.0
+481,Alex Murphy,100.0
+482,,72.38095238095238
+483,Miodrag Pivaš,100.0
+484,Matt Targett,100.0
+485,Anthony Gordon,100.0
+486,Anthony Elanga,100.0
+487,Harvey Barnes,100.0
+488,Bruno Guimarães Rodriguez Moura,100.0
+489,Jacob Murphy,100.0
+490,Joelinton Cássio Apolinário de Lira,100.0
+491,Sandro Tonali,100.0
+492,,62.7
+493,Sean Longstaff,100.0
+494,Joe Willock,100.0
+495,Isaac Hayden,100.0
+496,Garang Kuol,100.0
+497,Lewis Miley,100.0
+498,Joe White,100.0
+499,Alexander Isak,100.0
+500,William Osula,100.0
+501,Sean Neave,100.0
+502,Matz Sels,100.0
+503,Carlos Miguel dos Santos Pereira,100.0
+504,Matt Turner,100.0
+505,Nikola Milenković,100.0
+506,Murillo Santiago Costa dos Santos,95.0
+507,Ola Aina,100.0
+508,Neco Williams,100.0
+509,,85.5
+510,,60.00000000000001
+511,Felipe Rodrigues da Silva,100.0
+512,Omar Richards,100.0
+513,Zach Abbott,100.0
+514,Willy Boly,100.0
+515,Morgan Gibbs-White,100.0
+516,Callum Hudson-Odoi,100.0
+517,Elliot Anderson,100.0
+518,João Pedro Ferreira Silva,95.0
+519,Nicolás Domínguez,100.0
+520,Lewis O'Brien,100.0
+521,Ibrahim Sangaré,100.0
+522,Ryan Yates,100.0
+523,Eric da Silva Moreira,100.0
+524,,66.66666666666667
+525,Chris Wood,100.0
+526,,66.27906976744185
+527,Taiwo Awoniyi,100.0
+528,,84.84848484848484
+529,,63.63636363636363
+530,,51.42857142857142
+531,,85.5
+532,,63.333333333333336
+533,,63.1578947368421
+534,,76.0
+535,,67.05882352941177
+536,,57.0
+537,,66.66666666666667
+538,,75.0
+539,,69.56521739130434
+540,,50.0
+541,,64.28571428571428
+542,,75.0
+543,Simon Adingra,100.0
+544,,57.82608695652174
+545,,71.42857142857143
+546,,60.86956521739131
+547,,60.8
+548,,64.0
+549,,69.23076923076923
+550,,85.5
+551,,66.66666666666667
+552,,57.14285714285714
+553,,55.172413793103445
+554,,66.31578947368422
+555,,63.1578947368421
+556,,53.99999999999999
+557,,74.07407407407408
+558,,72.72727272727273
+559,,58.06451612903225
+560,,74.07407407407408
+561,,65.45454545454547
+562,,64.28571428571428
+563,,85.5
+564,,55.416666666666664
+565,Guglielmo Vicario,100.0
+566,Brandon Austin,100.0
+567,Antonín Kinsky,92.85714285714286
+568,Pedro Porro,90.0
+569,Cristian Romero,100.0
+570,Kevin Danso,100.0
+571,Ben Davies,100.0
+572,Radu Drăgușin,100.0
+573,Djed Spence,100.0
+574,Destiny Udogie,100.0
+575,Micky van de Ven,100.0
+576,Ashley Phillips,100.0
+577,,54.285714285714285
+578,,53.84615384615385
+579,Son Heung-min,100.0
+580,Brennan Johnson,100.0
+581,James Maddison,100.0
+582,Mohammed Kudus,100.0
+583,Dejan Kulusevski,100.0
+584,Mathys Tel,100.0
+585,Rodrigo Bentancur,100.0
+586,Lucas Bergvall,100.0
+587,Yves Bissouma,100.0
+588,Wilson Odobert,100.0
+589,Manor Solomon,100.0
+590,Bryan Gil Salvatierra,100.0
+591,Archie Gray,100.0
+592,Mikey Moore,100.0
+593,Pape Matar Sarr,100.0
+594,Min-Hyeok Yang,95.0
+595,Callum Olusesi,100.0
+596,Dominic Solanke-Mitchell,100.0
+597,Richarlison de Andrade,100.0
+598,Will Lankshear,100.0
+599,Dane Scarlett,100.0
+600,Alphonse Areola,100.0
+601,Wes Foderingham,100.0
+602,,60.35294117647058
+603,,60.00000000000001
+604,Emerson Palmieri dos Santos,100.0
+605,,85.5
+606,Konstantinos Mavropanos,100.0
+607,Nayef Aguerd,100.0
+608,Ollie Scarles,100.0
+609,Jean-Clair Todibo,100.0
+610,Aaron Wan-Bissaka,100.0
+611,Kaelan Casey,100.0
+612,Lucas Tolentino Coelho de Lima,100.0
+613,Tomáš Souček,100.0
+614,James Ward-Prowse,100.0
+615,Crysencio Summerville,100.0
+616,Edson Álvarez Velázquez,100.0
+617,Maxwel Cornet,100.0
+618,Guido Rodríguez,100.0
+619,Luis Guilherme Lira dos Santos,100.0
+620,George Earthy,100.0
+621,Andy Irving,100.0
+622,Lewis Orford,100.0
+623,,74.07407407407408
+624,Jarrod Bowen,100.0
+625,Niclas Füllkrug,100.0
+626,,66.66666666666667
+627,Sam Johnstone,100.0
+628,José Malheiro de Sá,100.0
+629,Daniel Bentley,100.0
+630,Tom King,100.0
+631,Emmanuel Agbadou,100.0
+632,Matt Doherty,100.0
+633,Hugo Bueno López,100.0
+634,Yerson Mosquera,90.0
+635,Rodrigo Martins Gomes,100.0
+636,,85.5
+637,,85.5
+638,Ki-Jana Hoever,100.0
+639,Bastien Meupiyou,90.0
+640,Pedro Cardoso de Lima,100.0
+641,Alfie Pond,100.0
+642,Hwang Hee-chan,100.0
+643,André Trindade da Costa Neto,100.0
+644,Jean-Ricner Bellegarde,100.0
+645,,72.38095238095238
+646,João Victor Gomes da Silva,100.0
+647,Gonçalo Manuel Ganchinho Guedes,100.0
+648,Marshall Munetsi,100.0
+649,Boubacar Traoré,100.0
+650,Tawanda Chirewa,100.0
+651,Tom Edozie,100.0
+652,Enso González,90.0
+653,Joe Hodge,100.0
+654,Jørgen Strand Larsen,100.0
+655,,85.5
+656,Saša Kalajdžić,100.0
+657,Leon Chiwome,100.0
+658,Nathan Fraser,100.0
+659,Kyle Walker-Peters,100.0
+660,,69.56521739130434
+661,,54.78260869565218
+662,,72.72727272727273
+663,,63.1578947368421
+664,,73.33333333333334
+665,,85.5
+666,,61.559999999999995
+667,,66.31578947368422
+668,,53.2
+669,,63.63636363636363
+670,,72.72727272727273
+671,Callum Wilson,100.0
+672,,60.0
+673,,85.5
+674,Aaron Ramsdale,100.0
+675,,55.55555555555556
+676,Lesley Ugochukwu,100.0
+677,,66.66666666666667
+678,,57.0
+679,Mads Hermansen,100.0
+680,Armando Broja,100.0
+681,,71.42857142857143
+682,,85.5
+683,,61.53846153846154
+684,,57.14285714285714
+685,,48.275862068965516
+686,,57.27272727272727
+687,Remy Rees-Dottin,100.0
+688,,75.0
+689,,49.25925925925927
+690,,67.5
+691,Dominic Calvert-Lewin,100.0
+692,,73.33333333333334
+693,,82.05128205128204
+694,,64.0
+695,,63.333333333333336
+696,,60.00000000000001
+697,,66.66666666666667
+698,,60.86956521739131
+699,,85.5
+700,,70.0
+701,,66.66666666666667
+702,,66.5
+703,,60.0
+704,,64.0
+705,,55.172413793103445
+706,James Justin,100.0
+707,Tyler Dibling,100.0
+708,Mateus Gonçalo Espanha Fernandes,100.0
+709,,52.94117647058824
+710,,75.0
+711,,67.5
+712,,85.5
+713,,85.5
+714,,85.5
+715,,85.5
+716,,64.28571428571428
+717,,65.45454545454547
+718,,57.27272727272727
+719,Victor Lindelöf,100.0
+720,,56.25
+721,,50.294117647058826
+722,,60.00000000000001
+723,,64.0
+724,,60.00000000000001
+725,,57.27272727272727
+726,,60.00000000000001
+727,,68.96551724137932
+728,,64.0
+729,,85.5
+730,,60.86956521739131
+731,,85.5
+732,,60.60606060606061
+733,,60.86956521739131
+734,,58.33333333333333
+735,,66.66666666666667
+736,,53.4375
+737,,58.82352941176471
+738,,87.5
+739,,80.0
+740,,58.46153846153846
+741,,69.56521739130434
+742,,66.66666666666667
+743,,68.96551724137932
+744,,57.0
+745,,57.14285714285714
+746,,62.06896551724138
+747,Ezra Mayers,100.0
+748,Josh Dasilva,100.0
+749,Mateus Mané,100.0
+750,,70.96774193548387
+751,,53.84615384615385
+752,,57.27272727272727
+753,John Ruddy,100.0
+754,,74.07407407407408
+755,,63.63636363636363
+756,,58.33333333333333
+757,,60.60606060606061
+758,,66.66666666666667
+759,,72.0
+760,,60.86956521739131
+761,Freddie Simmonds,100.0
+762,,68.57142857142857
+763,,78.26086956521739
+764,,59.25925925925925
+765,,63.1578947368421
+766,,51.85185185185186
+767,,66.66666666666667
+768,,63.1578947368421
+769,,65.51724137931035
+770,,60.00000000000001
+771,,72.38095238095238
+772,,66.66666666666667
+773,,67.5
+774,,69.56521739130434
+775,,51.61290322580645
+776,,63.33333333333332
+777,,54.285714285714285
+778,,60.0
+779,,61.53846153846154
+780,,85.5
+781,,57.14285714285714
+782,Fraser Forster,100.0
+783,Pascal Groß,100.0
+784,,71.42857142857143
+785,,85.5
+786,,63.33333333333332
+787,,66.66666666666667
+788,Godwill Kukonki,100.0
+789,,57.0
+790,Luca Williams-Barnett,95.23809523809523
+791,,69.09090909090908
+792,,85.5
+793,,69.56521739130434
+794,Max Alleyne,100.0
+795,Harry Howell,100.0
+796,Conor Gallagher,100.0
+797,,60.00000000000001
+798,,66.66666666666667
+799,,68.96551724137932
+800,,66.50000000000001
+801,,73.6842105263158
+802,,57.14285714285714
+803,,51.42857142857142
+804,,85.5
+805,,58.06451612903225
+806,,63.52941176470588
+807,,85.5
+808,,57.14285714285714
+809,,57.14285714285714
+810,,60.86956521739131
+811,,57.14285714285714
+812,,49.25925925925927
+813,,58.46153846153846
+814,,85.5
+815,Axel Disasi,100.0
+816,,85.5
+817,Adam Armstrong,100.0
+818,,76.92307692307692
+819,,64.0
+820,,64.125
+821,,64.0
+822,,69.56521739130434
+823,,73.33333333333334
+824,,69.23076923076923
+825,,52.61538461538461
+826,,60.0
+827,,66.31578947368422
+828,,75.0
+829,,63.0
+830,,67.05882352941177
+831,,85.5
+832,,72.0
+833,,69.23076923076923
+834,,85.5
+835,,70.00000000000001
+836,,52.5
+837,,66.66666666666667
+838,,53.84615384615385
+839,,85.5
+840,Shumaira Mheuka,100.0
+841,,63.0
