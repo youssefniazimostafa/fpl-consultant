@@ -147,6 +147,8 @@ def build_player_rates(pm: pd.DataFrame, players: pd.DataFrame) -> pd.DataFrame:
     # reconcile Understat's separate match ids here).
     team_match_xg = pm.groupby(["fixture", "team_id"])["expected_goals"].transform("sum")
     pm["match_share_xg"] = np.where(team_match_xg > 0, pm["expected_goals"] / team_match_xg, np.nan)
+    team_match_xa = pm.groupby(["fixture", "team_id"])["expected_assists"].transform("sum")
+    pm["match_share_xa"] = np.where(team_match_xa > 0, pm["expected_assists"] / team_match_xa, np.nan)
 
     threshold = pm["player_id"].map(position_by_player).map(DC_THRESHOLD)
     pm["hit_defcon"] = (pm["defensive_contribution"] >= threshold).astype(float)
@@ -158,13 +160,21 @@ def build_player_rates(pm: pd.DataFrame, players: pd.DataFrame) -> pd.DataFrame:
     rates["xa90"] = _weighted_rate_per90(pm, "expected_assists", position_by_player)
     rates["saves90"] = _weighted_rate_per90(pm, "saves", position_by_player)
     rates["bonus_rate"] = _weighted_rate_per90(pm, "bonus", position_by_player)
+    rates["yellow_rate90"] = _weighted_rate_per90(pm, "yellow_cards", position_by_player)
+    rates["red_rate90"] = _weighted_rate_per90(pm, "red_cards", position_by_player)
 
-    # share_xg and p_60 are match-level ratios, not per-90 counts: weight
-    # each match's evidence by (recency weight * minutes/90) instead.
-    share_pm = pm.dropna(subset=["match_share_xg"]).copy()
-    share_pm["weight"] = share_pm["weight"] * share_pm["minutes"] / 90.0
+    # share_xg, share_xa and p_60 are match-level ratios, not per-90 counts:
+    # weight each match's evidence by (recency weight * minutes/90) instead.
+    share_xg_pm = pm.dropna(subset=["match_share_xg"]).copy()
+    share_xg_pm["weight"] = share_xg_pm["weight"] * share_xg_pm["minutes"] / 90.0
     rates["share_xg"] = (
-        _weighted_rate(share_pm, "match_share_xg", position_by_player) if not share_pm.empty else np.nan
+        _weighted_rate(share_xg_pm, "match_share_xg", position_by_player) if not share_xg_pm.empty else np.nan
+    )
+
+    share_xa_pm = pm.dropna(subset=["match_share_xa"]).copy()
+    share_xa_pm["weight"] = share_xa_pm["weight"] * share_xa_pm["minutes"] / 90.0
+    rates["share_xa"] = (
+        _weighted_rate(share_xa_pm, "match_share_xa", position_by_player) if not share_xa_pm.empty else np.nan
     )
 
     started = pm[pm["starts"] == 1]
@@ -369,7 +379,8 @@ def build_features() -> pd.DataFrame:
         "fixture_id", "event", "kickoff_time", "is_home",
         "player_id", "web_name", "position", "now_cost",
         "team_id", "team_short", "opponent_id", "opponent_short",
-        "xg90", "xa90", "share_xg", "defcon_rate", "saves90", "bonus_rate",
+        "xg90", "xa90", "share_xg", "share_xa", "defcon_rate", "saves90", "bonus_rate",
+        "yellow_rate90", "red_rate90",
         "p_start", "p_60", "minutes_factor",
         "penalty_order", "direct_fk_order", "corner_fk_order", "takes_penalties",
         "lambda_for", "lambda_against", "clean_sheet_prob", "source",

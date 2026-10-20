@@ -101,6 +101,62 @@ def build_teams_table(bootstrap: dict[str, Any]) -> pd.DataFrame:
     return pd.DataFrame(bootstrap["teams"])
 
 
+# Fallback scoring rules, used only if a season's bootstrap-static response
+# ever drops the ``game_config`` key. Mirrors the values FPL itself returns
+# for 2026/27 so the pipeline degrades gracefully instead of crashing.
+_FALLBACK_SCORING = {
+    "long_play": 2,
+    "short_play": 1,
+    "assists": 3,
+    "saves": 1,
+    "penalties_saved": 5,
+    "penalties_missed": -2,
+    "yellow_cards": -1,
+    "red_cards": -3,
+    "own_goals": -2,
+    "goals_scored": {"GKP": 10, "DEF": 6, "MID": 5, "FWD": 4},
+    "clean_sheets": {"GKP": 4, "DEF": 4, "MID": 1, "FWD": 0},
+    "goals_conceded": {"GKP": -1, "DEF": -1, "MID": 0, "FWD": 0},
+    "defensive_contribution": {"GKP": 0, "DEF": 2, "MID": 2, "FWD": 2},
+}
+
+
+def build_scoring_table(bootstrap: dict[str, Any]) -> pd.DataFrame:
+    """One row per position with every points value the xP model needs,
+    read from ``bootstrap-static``'s ``game_config.scoring`` when present
+    (it has been present every season so far) and falling back to the
+    hardcoded rules above otherwise.
+
+    Per-event grouping rules that FPL does not expose in this payload (1
+    point per 3 saves, the defensive-contribution thresholds of 10/12) are
+    *not* stored here -- they're reverse-engineered, documented constants
+    in ``fpl/xp.py`` instead.
+    """
+    scoring = bootstrap.get("game_config", {}).get("scoring") or _FALLBACK_SCORING
+    positions = ["GKP", "DEF", "MID", "FWD"]
+    rows = []
+    for pos in positions:
+        rows.append(
+            {
+                "position": pos,
+                "points_per_appearance": scoring["short_play"],
+                "points_per_60_mins": scoring["long_play"],
+                "points_per_goal": scoring["goals_scored"][pos],
+                "points_per_assist": scoring["assists"],
+                "points_per_clean_sheet": scoring["clean_sheets"][pos],
+                "points_per_2_goals_conceded": scoring["goals_conceded"][pos],
+                "points_per_defensive_contribution": scoring["defensive_contribution"][pos],
+                "points_per_save_group": scoring["saves"],
+                "points_per_penalty_save": scoring["penalties_saved"],
+                "points_per_penalty_miss": scoring["penalties_missed"],
+                "points_per_yellow_card": scoring["yellow_cards"],
+                "points_per_red_card": scoring["red_cards"],
+                "points_per_own_goal": scoring["own_goals"],
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def completed_gameweeks(bootstrap: dict[str, Any]) -> list[int]:
     events = bootstrap["events"]
     return [e["id"] for e in events if e.get("finished") or e.get("is_current")]
@@ -257,6 +313,7 @@ def main() -> None:
     players = build_players_table(bootstrap)
     write_table(players, "players.parquet")
     write_table(build_teams_table(bootstrap), "teams.parquet")
+    write_table(build_scoring_table(bootstrap), "scoring_rules.parquet")
 
     print("Fetching fixtures...")
     write_table(build_fixtures_table(day_dir), "fixtures.parquet")
