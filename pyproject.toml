@@ -1,0 +1,26 @@
+[project]
+name = "fpl-consultant"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Youssef Mostafa", email = "ymostafa1@babson.edu" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "marimo>=0.25.2",
+    "numpy>=2.5.4",
+    "pandas>=3.0.6",
+    "pulp>=4.1.0",
+    "pyarrow>=26.0.0",
+    "requests>=2.34.2",
+    "scipy>=1.18.1",
+    "understatapi>=0.5.2",
+]
+
+[project.scripts]
+fpl-consultant = "fpl_consultant:main"
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"
