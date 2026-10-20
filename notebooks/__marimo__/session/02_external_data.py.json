@@ -1,0 +1,100 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.25.2",
+    "script_metadata_hash": null
+  },
+  "cells": [
+    {
+      "id": "Hbol",
+      "code_hash": "f0e88e7a070e2c2bfe8fa32506975eb0",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "MJUe",
+      "code_hash": "6ba3a661977c6e3e5443f640761a291c",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h1 id=\"step-4-checkpoint-fpl-difficulty-elo-rolling-xg-and-odds-implied-goals\">Step 4 checkpoint: FPL difficulty, Elo, rolling xG, and odds-implied goals</h1>\n<span class=\"paragraph\">For every fixture in the next unplayed gameweek, line up the four signals\nside by side:</span>\n<ul>\n<li><strong>FPL difficulty</strong> (<code>fixtures.parquet</code>) -- barely moves all season.</li>\n<li><strong>Elo gap</strong> (<code>elo.parquet</code>) -- reacts after every match.</li>\n<li><strong>Rolling xG</strong> (<code>team_xg.parquet</code>) -- attack/defence form over the last 6/12 games.</li>\n<li><strong>Odds-implied expected goals</strong> (<code>odds_goals.parquet</code>) -- the market's view, when available.</li>\n</ul>\n<span class=\"paragraph\">Where they disagree is where the edge lives.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "vblA",
+      "code_hash": "4b69a616eebf1f075d6e20ee692dae6c",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "bkHC",
+      "code_hash": "9e12533002510cb703496bb543f83751",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"gameweek-8\">Gameweek 8</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "lEQa",
+      "code_hash": "10ec190bccf6f8e63a448639f95fc62c",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "PKri",
+      "code_hash": "6c708adc34c43080b8f252ec31d852f2",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='PKri-0' random-id='9348227a-0e42-49f9-2b49-0d42b54566a0'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;_marimo_row_id&#92;&quot;:0,&#92;&quot;kickoff_time&#92;&quot;:&#92;&quot;2026-10-23T19:00:00Z&#92;&quot;,&#92;&quot;home&#92;&quot;:&#92;&quot;IPS&#92;&quot;,&#92;&quot;away&#92;&quot;:&#92;&quot;NFO&#92;&quot;,&#92;&quot;team_h_difficulty&#92;&quot;:3,&#92;&quot;team_a_difficulty&#92;&quot;:2,&#92;&quot;home_elo&#92;&quot;:1700.6878658624205,&#92;&quot;away_elo&#92;&quot;:1796.2746378801633,&#92;&quot;elo_gap&#92;&quot;:-95.58677201774276,&#92;&quot;home_attack_xg_6&#92;&quot;:1.3616970000000002,&#92;&quot;home_defence_xg_6&#92;&quot;:2.4862128333333335,&#92;&quot;away_attack_xg_6&#92;&quot;:2.0558486666666664,&#92;&quot;away_defence_xg_6&#92;&quot;:1.2847416666666667,&#92;&quot;lambda_home&#92;&quot;:NaN,&#92;&quot;lambda_away&#92;&quot;:NaN},{&#92;&quot;_marimo_row_id&#92;&quot;:1,&#92;&quot;kickoff_time&#92;&quot;:&#92;&quot;2026-10-24T11:30:00Z&#92;&quot;,&#92;&quot;home&#92;&quot;:&#92;&quot;AVL&#92;&quot;,&#92;&quot;away&#92;&quot;:&#92;&quot;MCI&#92;&quot;,&#92;&quot;team_h_difficulty&#92;&quot;:4,&#92;&quot;team_a_difficulty&#92;&quot;:3,&#92;&quot;home_elo&#92;&quot;:1904.0277083660892,&#92;&quot;away_elo&#92;&quot;:2025.1722230427483,&#92;&quot;elo_gap&#92;&quot;:-121.14451467665913,&#92;&quot;home_attack_xg_6&#92;&quot;:1.439144166666667,&#92;&quot;home_defence_xg_6&#92;&quot;:1.5090896666666664,&#92;&quot;away_attack_xg_6&#92;&quot;:2.3601733333333335,&#92;&quot;away_defence_xg_6&#92;&quot;:1.4334,&#92;&quot;lambda_home&#92;&quot;:NaN,&#92;&quot;lambda_away&#92;&quot;:NaN},{&#92;&quot;_marimo_row_id&#92;&quot;:2,&#92;&quot;kickoff_time&#92;&quot;:&#92;&quot;2026-10-24T14:00:00Z&#92;&quot;,&#92;&quot;home&#92;&quot;:&#92;&quot;ARS&#92;&quot;,&#92;&quot;away&#92;&quot;:&#92;&quot;EVE&#92;&quot;,&#92;&quot;team_h_difficulty&#92;&quot;:3,&#92;&quot;team_a_difficulty&#92;&quot;:5,&#92;&quot;home_elo&#92;&quot;:2047.9500523983102,&#92;&quot;away_elo&#92;&quot;:1815.3849025735706,&#92;&quot;elo_gap&#92;&quot;:232.5651498247396,&#92;&quot;home_attack_xg_6&#92;&quot;:1.7990849999999998,&#92;&quot;home_defence_xg_6&#92;&quot;:1.1401521666666667,&#92;&quot;away_attack_xg_6&#92;&quot;:1.7116415,&#92;&quot;away_defence_xg_6&#92;&quot;:1.3505585,&#92;&quot;lambda_home&#92;&quot;:NaN,&#92;&quot;lambda_away&#92;&quot;:NaN},{&#92;&quot;_marimo_row_id&#92;&quot;:3,&#92;&quot;kickoff_time&#92;&quot;:&#92;&quot;2026-10-24T14:00:00Z&#92;&quot;,&#92;&quot;home&#92;&quot;:&#92;&quot;COV&#92;&quot;,&#92;&quot;away&#92;&quot;:&#92;&quot;FUL&#92;&quot;,&#92;&quot;team_h_difficulty&#92;&quot;:2,&#92;&quot;team_a_difficulty&#92;&quot;:2,&#92;&quot;home_elo&#92;&quot;:1700.6585457449467,&#92;&quot;away_elo&#92;&quot;:1801.2508401964226,&#92;&quot;elo_gap&#92;&quot;:-100.59229445147594,&#92;&quot;home_attack_xg_6&#92;&quot;:1.2042300000000001,&#92;&quot;home_defence_xg_6&#92;&quot;:1.6540468333333331,&#92;&quot;away_attack_xg_6&#92;&quot;:1.7665421666666665,&#92;&quot;away_defence_xg_6&#92;&quot;:1.5391748333333333,&#92;&quot;lambda_home&#92;&quot;:NaN,&#92;&quot;lambda_away&#92;&quot;:NaN},{&#92;&quot;_marimo_row_id&#92;&quot;:4,&#92;&quot;kickoff_time&#92;&quot;:&#92;&quot;2026-10-24T16:30:00Z&#92;&quot;,&#92;&quot;home&#92;&quot;:&#92;&quot;CHE&#92;&quot;,&#92;&quot;away&#92;&quot;:&#92;&quot;TOT&#92;&quot;,&#92;&quot;team_h_difficulty&#92;&quot;:2,&#92;&quot;team_a_difficulty&#92;&quot;:4,&#92;&quot;home_elo&#92;&quot;:1895.1282895886563,&#92;&quot;away_elo&#92;&quot;:1803.4430895750813,&#92;&quot;elo_gap&#92;&quot;:91.68520001357501,&#92;&quot;home_attack_xg_6&#92;&quot;:1.5555765,&#92;&quot;home_defence_xg_6&#92;&quot;:1.8543431666666665,&#92;&quot;away_attack_xg_6&#92;&quot;:1.3449401666666667,&#92;&quot;away_defence_xg_6&#92;&quot;:1.1937815,&#92;&quot;lambda_home&#92;&quot;:NaN,&#92;&quot;lambda_away&#92;&quot;:NaN},{&#92;&quot;_marimo_row_id&#92;&quot;:5,&#92;&quot;kickoff_time&#92;&quot;:&#92;&quot;2026-10-25T14:00:00Z&#92;&quot;,&#92;&quot;home&#92;&quot;:&#92;&quot;CRY&#92;&quot;,&#92;&quot;away&#92;&quot;:&#92;&quot;NEW&#92;&quot;,&#92;&quot;team_h_difficulty&#92;&quot;:3,&#92;&quot;team_a_difficulty&#92;&quot;:3,&#92;&quot;home_elo&#92;&quot;:1818.2418351175975,&#92;&quot;away_elo&#92;&quot;:1860.1789779629887,&#92;&quot;elo_gap&#92;&quot;:-41.937142845391236,&#92;&quot;home_attack_xg_6&#92;&quot;:1.3714935,&#92;&quot;home_defence_xg_6&#92;&quot;:2.43085,&#92;&quot;away_attack_xg_6&#92;&quot;:1.181394,&#92;&quot;away_defence_xg_6&#92;&quot;:1.65913,&#92;&quot;lambda_home&#92;&quot;:NaN,&#92;&quot;lambda_away&#92;&quot;:NaN},{&#92;&quot;_marimo_row_id&#92;&quot;:6,&#92;&quot;kickoff_time&#92;&quot;:&#92;&quot;2026-10-25T14:00:00Z&#92;&quot;,&#92;&quot;home&#92;&quot;:&#92;&quot;HUL&#92;&quot;,&#92;&quot;away&#92;&quot;:&#92;&quot;BRE&#92;&quot;,&#92;&quot;team_h_difficulty&#92;&quot;:3,&#92;&quot;team_a_difficulty&#92;&quot;:2,&#92;&quot;home_elo&#92;&quot;:1636.0052070450538,&#92;&quot;away_elo&#92;&quot;:1858.6531141416526,&#92;&quot;elo_gap&#92;&quot;:-222.64790709659883,&#92;&quot;home_attack_xg_6&#92;&quot;:0.9829983333333333,&#92;&quot;home_defence_xg_6&#92;&quot;:1.7461133333333336,&#92;&quot;away_attack_xg_6&#92;&quot;:1.4354801666666666,&#92;&quot;away_defence_xg_6&#92;&quot;:1.687861833333333,&#92;&quot;lambda_home&#92;&quot;:NaN,&#92;&quot;lambda_away&#92;&quot;:NaN},{&#92;&quot;_marimo_row_id&#92;&quot;:7,&#92;&quot;kickoff_time&#92;&quot;:&#92;&quot;2026-10-25T14:00:00Z&#92;&quot;,&#92;&quot;home&#92;&quot;:&#92;&quot;LIV&#92;&quot;,&#92;&quot;away&#92;&quot;:&#92;&quot;BHA&#92;&quot;,&#92;&quot;team_h_difficulty&#92;&quot;:3,&#92;&quot;team_a_difficulty&#92;&quot;:4,&#92;&quot;home_elo&#92;&quot;:1937.0198110159824,&#92;&quot;away_elo&#92;&quot;:1904.5283249010122,&#92;&quot;elo_gap&#92;&quot;:32.49148611497026,&#92;&quot;home_attack_xg_6&#92;&quot;:1.2368881666666667,&#92;&quot;home_defence_xg_6&#92;&quot;:1.2983773333333335,&#92;&quot;away_attack_xg_6&#92;&quot;:2.1306116666666663,&#92;&quot;away_defence_xg_6&#92;&quot;:1.641362,&#92;&quot;lambda_home&#92;&quot;:NaN,&#92;&quot;lambda_away&#92;&quot;:NaN},{&#92;&quot;_marimo_row_id&#92;&quot;:8,&#92;&quot;kickoff_time&#92;&quot;:&#92;&quot;2026-10-25T14:00:00Z&#92;&quot;,&#92;&quot;home&#92;&quot;:&#92;&quot;MUN&#92;&quot;,&#92;&quot;away&#92;&quot;:&#92;&quot;BOU&#92;&quot;,&#92;&quot;team_h_difficulty&#92;&quot;:3,&#92;&quot;team_a_difficulty&#92;&quot;:4,&#92;&quot;home_elo&#92;&quot;:1871.0328904295125,&#92;&quot;away_elo&#92;&quot;:1858.0060043348844,&#92;&quot;elo_gap&#92;&quot;:13.026886094628026,&#92;&quot;home_attack_xg_6&#92;&quot;:1.7925746666666669,&#92;&quot;home_defence_xg_6&#92;&quot;:1.5273983333333332,&#92;&quot;away_attack_xg_6&#92;&quot;:2.2420310000000003,&#92;&quot;away_defence_xg_6&#92;&quot;:0.9980159000000001,&#92;&quot;lambda_home&#92;&quot;:NaN,&#92;&quot;lambda_away&#92;&quot;:NaN},{&#92;&quot;_marimo_row_id&#92;&quot;:9,&#92;&quot;kickoff_time&#92;&quot;:&#92;&quot;2026-10-25T16:30:00Z&#92;&quot;,&#92;&quot;home&#92;&quot;:&#92;&quot;SUN&#92;&quot;,&#92;&quot;away&#92;&quot;:&#92;&quot;LEE&#92;&quot;,&#92;&quot;team_h_difficulty&#92;&quot;:3,&#92;&quot;team_a_difficulty&#92;&quot;:3,&#92;&quot;home_elo&#92;&quot;:1730.4013884382896,&#92;&quot;away_elo&#92;&quot;:1814.644839200842,&#92;&quot;elo_gap&#92;&quot;:-84.24345076255236,&#92;&quot;home_attack_xg_6&#92;&quot;:1.6430390666666668,&#92;&quot;home_defence_xg_6&#92;&quot;:2.2158533333333335,&#92;&quot;away_attack_xg_6&#92;&quot;:1.5613866666666667,&#92;&quot;away_defence_xg_6&#92;&quot;:1.5263124999999997,&#92;&quot;lambda_home&#92;&quot;:NaN,&#92;&quot;lambda_away&#92;&quot;:NaN}]&quot;' data-total-rows='10' data-total-columns='14' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='false' data-page-size='10' data-field-types='[[&quot;kickoff_time&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;home&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;away&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;team_h_difficulty&quot;,[&quot;integer&quot;,&quot;int64&quot;]],[&quot;team_a_difficulty&quot;,[&quot;integer&quot;,&quot;int64&quot;]],[&quot;home_elo&quot;,[&quot;number&quot;,&quot;float64&quot;]],[&quot;away_elo&quot;,[&quot;number&quot;,&quot;float64&quot;]],[&quot;elo_gap&quot;,[&quot;number&quot;,&quot;float64&quot;]],[&quot;home_attack_xg_6&quot;,[&quot;number&quot;,&quot;float64&quot;]],[&quot;home_defence_xg_6&quot;,[&quot;number&quot;,&quot;float64&quot;]],[&quot;away_attack_xg_6&quot;,[&quot;number&quot;,&quot;float64&quot;]],[&quot;away_defence_xg_6&quot;,[&quot;number&quot;,&quot;float64&quot;]],[&quot;lambda_home&quot;,[&quot;string&quot;,&quot;object&quot;]],[&quot;lambda_away&quot;,[&quot;string&quot;,&quot;object&quot;]]]' data-selection='&quot;multi&quot;' data-show-filters='true' data-show-download='true' data-show-search='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='true' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-hidden-columns='[]' data-has-stable-row-id='true' data-lazy='false' data-preload='false'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Xref",
+      "code_hash": "299b548bf157667ac66714f6c7a09367",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><span class=\"paragraph\"><em><code>lambda_home</code>/<code>lambda_away</code> are blank above until <code>ODDS_API_KEY</code> is set and <code>uv run python -m fpl.odds</code> has been run; every other column works offline.</em></span></span>"
+          }
+        }
+      ],
+      "console": []
+    }
+  ]
+}

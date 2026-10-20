@@ -1,0 +1,450 @@
+understat_id,understat_name,understat_team,fpl_id,fpl_web_name,fpl_full_name,match_score,needs_review
+8260,Erling Haaland,Manchester City,411,Haaland,Erling Haaland,100.0,False
+5232,Alexander Isak,Liverpool,379,Isak,Alexander Isak,100.0,False
+8272,João Pedro,Chelsea,156,Neto,Pedro Lomba Neto,61.5,True
+6552,Bryan Mbeumo,Manchester United,427,Mbeumo,Bryan Mbeumo,100.0,False
+8094,Mathis Cherki,Manchester City,399,Cherki,Rayan Cherki,64.0,True
+10741,Marcus Tavernier,Bournemouth,68,Tavernier,Marcus Tavernier,100.0,False
+12412,Morgan Rogers,Chelsea,40,Rogers,Morgan Rogers,100.0,False
+239,Pascal Groß,Brighton,124,Groß,Pascal Groß,100.0,False
+1228,Bruno Fernandes,Manchester United,426,B.Fernandes,Bruno Borges Fernandes,81.1,True
+5555,Dominic Calvert-Lewin,Leeds,346,Calvert-Lewin,Dominic Calvert-Lewin,100.0,False
+6382,Pedro Neto,Chelsea,156,Neto,Pedro Lomba Neto,76.9,True
+7322,Bukayo Saka,Arsenal,12,Saka,Bukayo Saka,100.0,False
+9156,Kevin Schade,Brentford,94,Schade,Kevin Schade,100.0,False
+9789,Brian Brobbey,Sunderland,552,Brobbey,Brian Brobbey,100.0,False
+11269,Jack Hinshelwood,Brighton,123,Hinshelwood,Jack Hinshelwood,100.0,False
+12916,Thierno Barry,Everton,249,Barry,Thierno Barry,100.0,False
+14118,Charalampos Kostoulas,Brighton,138,Kostoulas,Charalampos Kostoulas,100.0,False
+14760,Mohamed Belloumi,Hull,286,Belloumi,Mohamed Belloumi,100.0,False
+605,Jordan Henderson,Chelsea,101,Henderson,Jordan Henderson,100.0,False
+2517,Martin Odegaard,Arsenal,15,Ødegaard,Martin Ødegaard,93.3,False
+5220,Kai Havertz,Arsenal,26,Havertz,Kai Havertz,100.0,False
+6630,Joe Willock,Newcastle United,460,Willock,Joe Willock,100.0,False
+8214,Tyrick Mitchell,Crystal Palace,204,Mitchell,Tyrick Mitchell,100.0,False
+8327,Bruno Guimarães,Arsenal,452,Bruno G.,Bruno Guimarães Rodriguez Moura,65.2,True
+8497,Cole Palmer,Chelsea,154,Palmer,Cole Palmer,100.0,False
+8662,Dan Ndoye,Nottingham Forest,483,Ndoye,Dan Ndoye,100.0,False
+8919,Leif Davis,Ipswich,305,Davis,Leif Davis,100.0,False
+9205,Jayden Bogle,Leeds,330,Bogle,Jayden Bogle,100.0,False
+9524,Anthony Elanga,Newcastle United,454,Elanga,Anthony Elanga,100.0,False
+9680,Vitaly Janelt,Brentford,98,Janelt,Vitaly Janelt,100.0,False
+9739,Kiernan Dewsbury-Hall,Everton,236,Dewsbury-Hall,Kiernan Dewsbury-Hall,100.0,False
+10048,Nicolas Jackson,Aston Villa,166,N.Jackson,Nicolas Jackson,100.0,False
+10809,Keane Lewis-Potter,Brentford,86,Lewis-Potter,Keane Lewis-Potter,100.0,False
+11363,Antoine Semenyo,Manchester City,397,Semenyo,Antoine Semenyo,100.0,False
+11385,Yasin Ayari,Brighton,129,Ayari,Yasin Ayari,100.0,False
+12410,Joshua King,Fulham,268,King,Josh King,90.0,False
+12963,Evanilson,Bournemouth,608,Jebbison,Daniel Jebbison,58.3,True
+13102,Johan Manzambi,Aston Villa,53,Manzambi,Johan Manzambi,100.0,False
+13279,Víctor Muñoz,Liverpool,377,Munoz,Victor Munoz,83.3,True
+13711,Maxim De Cuyper,Brighton,115,De Cuyper,Maxim De Cuyper,100.0,False
+13729,Zian Flemming,Ipswich,640,Flemming,Zian Flemming,100.0,False
+14082,Emersonn,Ipswich,316,Emersonn,Emersonn Correia da Silva,48.5,True
+14747,Jack Rudoni,Coventry,183,Rudoni,Jack Rudoni,100.0,False
+14856,Malick Yalcouyé,Brighton,605,Yalcouyé,Malick Yalcouyé,100.0,False
+500,Alex Iwobi,Fulham,261,Iwobi,Alex Iwobi,100.0,False
+660,Ben Davies,Tottenham,508,Davies,Ben Davies,100.0,False
+782,Ben Chilwell,Crystal Palace,643,Chilwell,Ben Chilwell,100.0,False
+1665,James Tarkowski,Everton,229,Tarkowski,James Tarkowski,100.0,False
+1679,Dominic Solanke,Tottenham,526,Solanke,Dominic Solanke-Mitchell,76.9,True
+1750,Ainsley Maitland-Niles,Everton,649,Maitland-Niles,Ainsley Maitland-Niles,100.0,False
+1790,Chuba Akpom,Ipswich,320,Akpom,Chuba Akpom,100.0,False
+2182,Jefferson Lerma,Crystal Palace,213,Lerma,Jefferson Lerma Solís,83.3,True
+2203,Emiliano Buendía,Aston Villa,41,Buendía,Emiliano Buendía Stati,84.2,True
+4490,Semi Ajayi,Hull,279,Ajayi,Semi Ajayi,100.0,False
+5786,Yoane Wissa,Newcastle United,464,Wissa,Yoane Wissa,100.0,False
+6048,Lewis Dunk,Brighton,116,Dunk,Lewis Dunk,100.0,False
+6055,Phil Foden,Manchester City,398,Foden,Phil Foden,100.0,False
+6145,Daichi Kamada,Crystal Palace,214,Kamada,Daichi Kamada,100.0,False
+6681,Harvey Barnes,Newcastle United,453,Barnes,Harvey Barnes,100.0,False
+6818,James Maddison,Tottenham,515,Maddison,James Maddison,100.0,False
+6837,Ryan Sessegnon,Fulham,269,Sessegnon,Ryan Sessegnon,100.0,False
+6857,Morgan Gibbs-White,Nottingham Forest,480,Gibbs-White,Morgan Gibbs-White,100.0,False
+6963,Justin Kluivert,Bournemouth,70,Kluivert,Justin Kluivert,100.0,False
+7080,Matheus Cunha,Manchester United,428,Cunha,Matheus Santos Carneiro da Cunha,57.8,True
+7148,Wilson Isidor,Sunderland,553,Isidor,Wilson Isidor,100.0,False
+7603,Marc Guehi,Manchester City,388,Guéhi,Marc Guéhi,90.0,False
+7723,John McGinn,Aston Villa,45,McGinn,John McGinn,100.0,False
+7753,James Justin,Leeds,332,Justin,James Justin,100.0,False
+8129,Riccardo Calafiori,Arsenal,8,Calafiori,Riccardo Calafiori,100.0,False
+8393,Omar Marmoush,Tottenham,401,Marmoush,Omar Marmoush,100.0,False
+8582,Ellis Simms,Coventry,195,Simms,Ellis Simms,100.0,False
+8635,Sven Botman,Newcastle United,447,Botman,Sven Botman,100.0,False
+8651,Enzo Le Fée,Sunderland,542,E.Le Fée,Enzo Le Fée,100.0,False
+8685,Mohamed Ali-Cho,Hull,617,Cho,Mohamed-Ali Cho,73.3,True
+8756,Dara O&#039;Shea,Ipswich,304,O'Shea,Dara O'Shea,74.1,True
+8868,Liam Delap,Nottingham Forest,167,Delap,Liam Delap,100.0,False
+8941,Jacob Ramsey,Newcastle United,456,J.Ramsey,Jacob Ramsey,100.0,False
+8981,Jéremy Doku,Manchester City,400,Doku,Jérémy Doku,90.9,False
+9024,Yeremi Pino,Crystal Palace,211,Yeremy,Yéremy Pino Santos,62.1,True
+9040,Conor Gallagher,Tottenham,519,Gallagher,Conor Gallagher,100.0,False
+9339,Joe Gelhardt,Hull,340,Gelhardt,Joe Gelhardt,100.0,False
+9501,Fabio Carvalho,Brentford,100,Carvalho,Fábio Freitas Gouveia Carvalho,63.6,True
+9677,Kristoffer Ajer,Brentford,87,Ajer,Kristoffer Ajer,100.0,False
+9788,Dominik Szoboszlai,Liverpool,368,Szoboszlai,Dominik Szoboszlai,100.0,False
+9790,Josko Gvardiol,Manchester City,391,Gvardiol,Joško Gvardiol,92.9,False
+9910,Anton Stach,Leeds,335,Stach,Anton Stach,100.0,False
+10004,Romeo Lavia,Chelsea,161,Lavia,Roméo Lavia,90.9,False
+10216,Lewis Hall,Newcastle United,449,Hall,Lewis Hall,100.0,False
+10485,Guemissongui Ouattara,Ipswich,592,Ouattara,Abdoul Ouattara,61.1,True
+10746,Jaidon Anthony,Brentford,105,Anthony,Jaidon Anthony,100.0,False
+10807,Jan Paul van Hecke,Tottenham,112,Van Hecke,Jan Paul van Hecke,100.0,False
+11070,Jørgen Strand Larsen,Crystal Palace,222,Strand Larsen,Jørgen Strand Larsen,100.0,False
+11281,Michael Kayode,Brentford,88,Kayode,Michael Kayode,100.0,False
+11296,Cody Gakpo,Liverpool,367,Gakpo,Cody Gakpo,100.0,False
+11344,Jaouen Hadjam,Brighton,614,Hadjam,Jaouen Hadjam,100.0,False
+11356,Enzo Fernández,"Chelsea,Manchester City",155,Enzo,Enzo Fernández,100.0,False
+11357,Noni Madueke,Arsenal,16,Madueke,Noni Madueke,100.0,False
+11772,Yehor Yarmolyuk,Brentford,102,Yarmoliuk,Yehor Yarmoliuk,93.3,False
+11966,Noah Okafor,Leeds,336,Okafor,Noah Okafor,100.0,False
+11974,Benjamin Sesko,Manchester United,439,Šeško,Benjamin Sesko,100.0,False
+12035,Gonzalo García,Fulham,569,Gonzalo,Gonzalo García,100.0,False
+12149,Alex Scott,Bournemouth,69,Scott,Alex Scott,100.0,False
+12286,Nobel Mendy,Hull,586,Mendy,Nobel Mendy,100.0,False
+12573,Tyrique George,Everton,242,George,Tyrique George,100.0,False
+12847,Sidiki Chérif,Coventry,599,Cherif,Sidiki Cherif,92.3,False
+13019,Jack Clarke,Ipswich,313,Clarke,Jack Clarke,100.0,False
+13078,Chema Andres,Brighton,652,Azeez,Femi Azeez,45.5,True
+13222,Thiago,Brentford,103,Dasilva,Josh Dasilva,33.3,True
+13364,Diego Gómez,Brighton,127,Gomez,Diego Gómez Amarilla,71.0,True
+13427,Bazoumana Touré,Newcastle United,461,Touré,Bazoumana Touré,100.0,False
+13725,Luka Vuskovic,Brighton,504,Vuskovic,Luka Vušković,84.6,True
+13778,Igor Jesus,Nottingham Forest,491,Igor Jesus,Igor Jesus Maciel da Cruz,57.1,True
+14054,Stephen Mfuni,Coventry,656,Mfuni,Stephen Mfuni,100.0,False
+14352,César Palacios,Fulham,570,Palacios,César Palacios,100.0,False
+14424,Nilson Angulo,Sunderland,551,N.Angulo,Nilson Angulo,100.0,False
+14446,Alysson Edward,Aston Villa,52,Alysson,Alysson Edward Franco da Rocha dos Santos,50.9,True
+14743,Jay Dasilva,Coventry,176,Dasilva,Jay Dasilva,100.0,False
+14764,Liam Millar,Hull,287,Millar,Liam Millar,100.0,False
+14770,Anan Khalaili,Crystal Palace,588,Khalaili,Anan Khalaili,100.0,False
+14772,Daizen Maeda,Ipswich,562,Maeda,Daizen Maeda,100.0,False
+76,Fabian Schär,Newcastle United,446,Schär,Fabian Schär,100.0,False
+87,Joelinton,Newcastle United,460,Willock,Joe Willock,50.0,True
+181,Bernd Leno,Fulham,250,Leno,Bernd Leno,100.0,False
+204,Granit Xhaka,Sunderland,544,Xhaka,Granit Xhaka,100.0,False
+212,Nico Elvedi,Leeds,598,Elvedi,Nico Elvedi,100.0,False
+335,Leon Goretzka,Aston Villa,618,Goretzka,Leon Goretzka,100.0,False
+468,Callum Wilson,Brentford,108,Wilson,Callum Wilson,100.0,False
+501,Danny Welbeck,Chelsea,136,Welbeck,Danny Welbeck,100.0,False
+556,Marcus Rashford,Manchester United,429,Rashford,Marcus Rashford,100.0,False
+559,Paddy McNair,Hull,285,McNair,Paddy McNair,100.0,False
+592,Ross Barkley,Aston Villa,46,Barkley,Ross Barkley,100.0,False
+675,Jack Grealish,"Everton,Manchester City",238,Grealish,Jack Grealish,100.0,False
+702,Tammy Abraham,Aston Villa,56,Abraham,Tammy Abraham,100.0,False
+725,Ola Aina,Nottingham Forest,473,Aina,Ola Aina,100.0,False
+741,Jordan Pickford,Everton,226,Pickford,Jordan Pickford,100.0,False
+825,Adam Smith,Bournemouth,64,Smith,Adam Smith,100.0,False
+833,Virgil van Dijk,Liverpool,356,Virgil,Virgil van Dijk,100.0,False
+884,Matt Targett,Hull,556,Targett,Matt Targett,100.0,False
+987,Joseph Gomez,Liverpool,359,Gomez,Joe Gomez,85.7,False
+1006,Luke Shaw,Manchester United,423,Shaw,Luke Shaw,100.0,False
+1024,Tyrone Mings,Aston Villa,33,Mings,Tyrone Mings,100.0,False
+1045,Matt Grimes,Coventry,184,Grimes,Matt Grimes,100.0,False
+1116,Gianluigi Donnarumma,Manchester City,384,Donnarumma,Gianluigi Donnarumma,100.0,False
+1257,Alisson,Liverpool,350,A.Becker,Alisson Becker,66.7,True
+1433,Federico Chiesa,Liverpool,370,Chiesa,Federico Chiesa,100.0,False
+1537,Sasa Lukic,Ipswich,267,Lukić,Saša Lukić,80.0,True
+1653,Michael Keane,Everton,231,Keane,Michael Keane,100.0,False
+1687,Harry Maguire,Manchester United,418,Maguire,Harry Maguire,100.0,False
+1688,Andrew Robertson,Tottenham,502,Robertson,Andrew Robertson,100.0,False
+1736,Oliver McBurnie,Hull,295,McBurnie,Oli McBurnie,88.9,False
+1789,Lewis Cook,Bournemouth,71,Cook,Lewis Cook,100.0,False
+2254,Mateo Kovacic,Manchester City,406,Kovačić,Mateo Kovačić,84.6,True
+3203,Issa Diop,Ipswich,259,Diop,Issa Diop,100.0,False
+3645,Olivier Boscagli,Brighton,114,Boscagli,Olivier Boscagli,100.0,False
+4391,Darnell Furlong,Ipswich,308,Furlong,Darnell Furlong,100.0,False
+4401,Emiliano Martinez,Chelsea,28,Martinez,Emiliano Martínez Romero,78.0,True
+4456,Chris Wood,Nottingham Forest,490,Wood,Chris Wood,100.0,False
+5261,Kevin Danso,Sunderland,501,Danso,Kevin Danso,100.0,False
+5304,Mikel Merino,Arsenal,17,Merino,Mikel Merino Zazón,80.0,True
+5553,Declan Rice,Arsenal,13,Rice,Declan Rice,100.0,False
+5584,Aaron Wan-Bissaka,Aston Villa,611,Wan-Bissaka,Aaron Wan-Bissaka,100.0,False
+5590,Tosin Adarabioyo,Tottenham,147,Tosin,Tosin Adarabioyo,100.0,False
+5595,Daniel James,Leeds,343,James,Daniel James,100.0,False
+5596,Harry Wilson,Leeds,260,Wilson,Harry Wilson,100.0,False
+5613,Gabriel,Arsenal,18,Martinelli,Gabriel Martinelli Silva,45.2,True
+5652,Walter Benítez,Crystal Palace,199,Benitez,Walter Benítez,100.0,False
+5659,Nordi Mukiele,Sunderland,533,Mukiele,Nordi Mukiele,100.0,False
+5675,Ismaila Sarr,Crystal Palace,208,Sarr,Ismaïla Sarr,91.7,False
+5680,Thomas Meunier,Sunderland,541,Meunier,Thomas Meunier,100.0,False
+5722,Ibrahim Sangare,Nottingham Forest,488,I.Sangaré,Ibrahim Sangaré,93.3,False
+5735,Jean-Philippe Mateta,Crystal Palace,223,Mateta,Jean-Philippe Mateta,100.0,False
+5789,Boubacar Kamara,Aston Villa,47,Kamara,Boubacar Kamara,100.0,False
+5956,Youri Tielemans,Manchester United,43,Tielemans,Youri Tielemans,100.0,False
+5973,Kenny Tete,Fulham,256,Tete,Kenny Tete,100.0,False
+6026,Richarlison,Tottenham,527,Richarlison,Richarlison de Andrade,66.7,True
+6063,Jacob Murphy,Newcastle United,457,J.Murphy,Jacob Murphy,100.0,False
+6080,Victor Lindelöf,Aston Villa,37,Lindelöf,Victor Lindelöf,100.0,False
+6104,Will Hughes,Crystal Palace,212,Hughes,Will Hughes,100.0,False
+6108,Rodrigo Bentancur,Tottenham,516,Bentancur,Rodrigo Bentancur,100.0,False
+6157,Timothy Castagne,Fulham,258,Castagne,Timothy Castagne,100.0,False
+6174,Nikola Milenkovic,Nottingham Forest,471,Milenković,Nikola Milenković,94.1,False
+6221,Pau Torres,Aston Villa,34,Pau,Pau Torres,100.0,False
+6314,Joachim Andersen,Fulham,253,Andersen,Joachim Andersen,100.0,False
+6369,Ethan Ampadu,Leeds,338,Ampadu,Ethan Ampadu,100.0,False
+6377,Joe Rodon,Leeds,329,Rodon,Joe Rodon,100.0,False
+6456,Callum Hudson-Odoi,Nottingham Forest,482,Hudson-Odoi,Callum Hudson-Odoi,100.0,False
+6482,Eddie Nketiah,Crystal Palace,224,Nketiah,Eddie Nketiah,100.0,False
+6544,Lukas Nmecha,Leeds,347,Nmecha,Lukas Nmecha,100.0,False
+6691,Dejan Kulusevski,Tottenham,521,Kulusevski,Dejan Kulusevski,100.0,False
+6756,Dwight McNeil,Crystal Palace,241,McNeil,Dwight McNeil,100.0,False
+6807,Jaka Bijol,Leeds,327,Bijol,Jaka Bijol,100.0,False
+6820,David Brooks,Bournemouth,74,Brooks,David Brooks,100.0,False
+6835,Tom Cairney,Fulham,266,Cairney,Tom Cairney,100.0,False
+6885,Axel Disasi,Crystal Palace,153,Disasi,Axel Disasi,100.0,False
+6903,Matz Sels,Nottingham Forest,467,Sels,Matz Sels,100.0,False
+6912,Pedro Porro,Tottenham,499,Pedro Porro,Pedro Porro Sauceda,73.3,True
+6937,Georginio Rutter,Brighton,125,Georginio,Georginio Rutter,100.0,False
+7078,Sean Longstaff,Leeds,339,Longstaff,Sean Longstaff,100.0,False
+7083,Christian Nørgaard,Everton,21,Nørgaard,Christian Nørgaard,100.0,False
+7166,Mathias Jensen,Brentford,97,Jensen,Mathias Jensen,100.0,False
+7230,Emile Smith-Rowe,Fulham,262,Smith Rowe,Emile Smith Rowe,68.8,True
+7254,Viktor Gyokeres,Arsenal,25,Gyökeres,Viktor Gyökeres,93.3,False
+7268,Bafode Diakite,Bournemouth,62,Diakité,Bafodé Diakité,85.7,False
+7277,Ryan John Giles,Hull,282,Giles,Ryan Giles,80.0,True
+7281,Diogo Dalot,Manchester United,417,Dalot,Diogo Dalot Teixeira,71.0,True
+7298,Ben White,Arsenal,10,White,Benjamin White,78.3,True
+7352,Tyler Adams,Bournemouth,73,Adams,Tyler Adams,100.0,False
+7382,Dan Burn,Newcastle United,448,Burn,Dan Burn,100.0,False
+7432,Reinildo,Sunderland,536,Reinildo,Reinildo Mandava,66.7,True
+7438,James Garner,Everton,239,Garner,James Garner,100.0,False
+7526,Martín Zubimendi,Arsenal,19,Zubimendi,Martín Zubimendi Ibáñez,82.1,True
+7589,Wesley Fofana,Chelsea,145,Fofana,Wesley Fofana,100.0,False
+7702,Dean Henderson,Crystal Palace,198,Henderson,Dean Henderson,100.0,False
+7703,John Egan,Hull,277,Egan,John Egan,100.0,False
+7726,Ezri Konsa Ngoyo,Arsenal,31,Konsa,Ezri Konsa Ngoyo,100.0,False
+7768,Mason Mount,Manchester United,430,Mount,Mason Mount,100.0,False
+7783,Xaver Schlager,Nottingham Forest,558,Schlager,Xaver Schlager,100.0,False
+7814,Taiwo Awoniyi,Coventry,492,Awoniyi,Taiwo Awoniyi,100.0,False
+7904,Caoimhin Kelleher,Brentford,82,Kelleher,Caoimhín Kelleher,94.1,False
+7931,Takehiro Tomiyasu,Crystal Palace,577,Tomiyasu,Takehiro Tomiyasu,100.0,False
+7958,Sandro Tonali,Tottenham,455,Tonali,Sandro Tonali,100.0,False
+8006,Evann Guessand,Crystal Palace,42,Guessand,Evann Guessand,100.0,False
+8044,Joshua Zirkzee,Manchester United,440,Zirkzee,Joshua Zirkzee,100.0,False
+8056,Arnaud Kalimuendo Muinga,Nottingham Forest,493,Kalimuendo,Arnaud Kalimuendo,82.9,True
+8067,Reece James,Chelsea,142,James,Reece James,100.0,False
+8091,Ronald Araújo,Liverpool,579,Araujo,Ronald Araujo,92.3,False
+8117,Nick Woltemade,Newcastle United,463,Woltemade,Nick Woltemade,100.0,False
+8127,Amad Diallo Traore,Manchester United,431,Amad,Amad Diallo,75.9,True
+8190,Melvin Bard,Leeds,641,Bard,Melvin Bard,100.0,False
+8204,Neco Williams,Nottingham Forest,469,N.Williams,Neco Williams,100.0,False
+8211,Amine Adli,Bournemouth,77,Adli,Amine Adli,100.0,False
+8252,Nicolás Domínguez,Nottingham Forest,487,Dominguez,Nicolás Domínguez,100.0,False
+8285,Sander Berge,Fulham,265,Berge,Sander Berge,100.0,False
+8325,Exequiel Palacios,Ipswich,619,Palacios,Exequiel Palacios,100.0,False
+8372,Lucas Gourna Douath,Hull,589,Gourna-Douath,Lucas Gourna-Douath,63.2,True
+8378,Malick Thiaw,Newcastle United,445,Thiaw,Malick Thiaw,100.0,False
+8379,Alexis Mac Allister,Liverpool,372,Mac Allister,Alexis Mac Allister,100.0,False
+8397,Florian Wirtz,Liverpool,366,Wirtz,Florian Wirtz,100.0,False
+8401,Luca Netz,Nottingham Forest,478,Netz,Luca Netz,100.0,False
+8409,Juanlu Sanchez,Bournemouth,573,Sanchez,Juanlu Sánchez,92.9,False
+8430,Chris Richards,Crystal Palace,202,Richards,Chris Richards,100.0,False
+8476,Jarrad Branthwaite,Everton,230,Branthwaite,Jarrad Branthwaite,100.0,False
+8483,Bobby Thomas,Coventry,173,Thomas,Bobby Thomas,100.0,False
+8489,Jorge Cuenca,Fulham,255,J.Cuenca,Jorge Cuenca Barreno,75.0,True
+8640,Adrien Truffert,Bournemouth,61,Truffert,Adrien Truffert,100.0,False
+8706,Eberechi Eze,Arsenal,14,Eze,Eberechi Eze,100.0,False
+8717,Pascal Struijk,Brighton,328,Struijk,Pascal Struijk,100.0,False
+8831,Iyenoma Destiny Udogie,Tottenham,506,Udogie,Destiny Udogie,77.8,True
+8852,Konstantinos Tsimikas,Liverpool,364,Tsimikas,Kostas Tsimikas,83.3,True
+8853,Maxence Lacroix,Chelsea,200,Lacroix,Maxence Lacroix,100.0,False
+8859,Mikkel Damsgaard,Brentford,96,Damsgaard,Mikkel Damsgaard,100.0,False
+8864,Matthew Cash,Aston Villa,32,Cash,Matty Cash,81.8,True
+8872,Matteo Ruggeri,Aston Villa,596,Ruggeri,Matteo Ruggeri,100.0,False
+8940,Antonee Robinson,Fulham,254,Robinson,Antonee Robinson,100.0,False
+8942,Aaron Hickey,Brentford,90,Hickey,Aaron Hickey,100.0,False
+8961,Rúben Dias,Manchester City,390,Rúben,Rúben dos Santos Gato Alves Dias,47.6,True
+8969,Florentino Luís,Ipswich,571,Florentino,Florentino Ibrain Morris Luís,68.2,True
+8986,Omar Alderete,Sunderland,535,Alderete,Omar Alderete,100.0,False
+9011,Óscar Mingueza,Crystal Palace,207,Mingueza,Oscar Mingueza,92.9,False
+9017,Malo Gusto,Chelsea,144,Gusto,Malo Gusto,100.0,False
+9077,James Trafford,Leeds,385,Trafford,James Trafford,100.0,False
+9098,Robert Sánchez,Chelsea,140,Sánchez,Robert Lynch Sánchez,82.4,True
+9154,Elliot Anderson,Manchester City,481,Anderson,Elliot Anderson,100.0,False
+9251,Christian Walton,Ipswich,300,Walton,Christian Walton,100.0,False
+9307,Iliman Ndiaye,"Everton,Manchester City",237,Ndiaye,Iliman Ndiaye,100.0,False
+9328,Jeremie Frimpong,Liverpool,357,Frimpong,Jeremie Frimpong,100.0,False
+9409,Kaine Hayden,Coventry,192,Andrews,Kai Andrews,52.2,True
+9415,Jaden Philogene-Bidace,Ipswich,318,Philogene,Jaden Philogene,81.1,True
+9453,Moisés Caicedo,Chelsea,159,Caicedo,Moisés Caicedo Corozo,80.0,True
+9499,Cody Drameh,Hull,281,Drameh,Cody Drameh,100.0,False
+9509,Daniel Jebbison,Bournemouth,608,Jebbison,Daniel Jebbison,100.0,False
+9512,Valentino Livramento,Newcastle United,450,Livramento,Tino Livramento,80.0,True
+9554,Tim Iroegbunam,"Everton,Hull",240,Iroegbunam,Tim Iroegbunam,100.0,False
+9556,William Osula,Newcastle United,465,Osula,William Osula,100.0,False
+9614,Marco Bizot,Aston Villa,29,M.Bizot,Marco Bizot,100.0,False
+9662,Dango Ouattara,Brentford,95,O.Dango,Dango Ouattara,100.0,False
+9676,David Raya,Arsenal,1,Raya,David Raya Martín,74.1,True
+9678,Ethan Pinnock,Coventry,91,Pinnock,Ethan Pinnock,100.0,False
+9679,Rico Henry,Brentford,89,Henry,Rico Henry,100.0,False
+9681,Frank Onyeka,Coventry,104,Onyeka,Frank Onyeka,100.0,False
+9733,Nathan Collins,Brentford,84,Collins,Nathan Collins,100.0,False
+9746,Christos Tzolis,Arsenal,557,Tzolis,Christos Tzolis,100.0,False
+9767,Habib Diarra,Sunderland,543,Diarra,Habib Diarra,100.0,False
+9780,Mathys Tel,Tottenham,514,Tel,Mathys Tel,100.0,False
+9802,Nico González,Newcastle United,405,N.Gonzalez,Nico González Iglesias,74.3,True
+9887,Michael Svoboda,Brighton,120,Svoboda,Michael Svoboda,100.0,False
+9911,Piero Hincapié,Arsenal,9,Hincapie,Piero Hincapié,100.0,False
+9944,Gabriel Gudmundsson,Leeds,331,Gudmundsson,Gabriel Gudmundsson,100.0,False
+9960,Kjell Scherpen,Ipswich,564,Scherpen,Kjell Scherpen,100.0,False
+9977,Loum Tchaouna,Coventry,190,Tchaouna,Loum Tchaouna,100.0,False
+9978,Azor Matusiwa,Ipswich,310,Matusiwa,Azor Matusiwa,100.0,False
+9983,Beto,Everton,249,Barry,Thierno Barry,35.3,True
+10016,Bradley Barcola,Liverpool,627,Barcola,Bradley Barcola,100.0,False
+10024,Cristhian Mosquera,Arsenal,11,Mosquera,Cristhian Mosquera,100.0,False
+10025,Lamare Bogarde,Aston Villa,35,Bogarde,Lamare Bogarde,100.0,False
+10050,Micky van de Ven,Tottenham,503,Van de Ven,Micky van de Ven,100.0,False
+10126,James McAtee,Nottingham Forest,486,McAtee,James McAtee,100.0,False
+10166,Kasey McAteer,Ipswich,323,McAteer,Kasey McAteer,100.0,False
+10184,Archie Gray,Tottenham,522,Gray,Archie Gray,100.0,False
+10291,Vitalii Mykolenko,Everton,233,Mykolenko,Vitalii Mykolenko,100.0,False
+10527,Carlos Baleba,Manchester United,131,Baleba,Carlos Baleba,100.0,False
+10552,Alejandro Garnacho,Aston Villa,160,Garnacho,Alejandro Garnacho Ferreyra,80.0,True
+10564,Leny Yoro,Manchester United,420,Yoro,Leny Yoro,100.0,False
+10586,Tyler Dibling,Everton,245,Dibling,Tyler Dibling,100.0,False
+10696,Noussair Mazraoui,Manchester United,422,Mazraoui,Noussair Mazraoui,100.0,False
+10697,Ryan Gravenberch,Liverpool,371,Gravenberch,Ryan Gravenberch,100.0,False
+10717,Rodrigo Muniz,Fulham,271,Muniz,Rodrigo Muniz Carvalho,74.3,True
+10721,Sepp van den Berg,Brentford,85,Van den Berg,Sepp van den Berg,100.0,False
+10744,Ryan Christie,Bournemouth,75,Christie,Ryan Christie,100.0,False
+10747,James Hill,Bournemouth,60,Hill,James Hill,100.0,False
+10751,Brenden Aaronson,Leeds,337,Aaronson,Brenden Aaronson,100.0,False
+10760,Brennan Johnson,Everton,209,Johnson,Brennan Johnson,100.0,False
+10802,Lisandro Martínez,Manchester United,419,Martinez,Lisandro Martínez,100.0,False
+10805,Levi Colwill,Chelsea,149,Colwill,Levi Samuels Colwill,75.0,True
+10830,Jean Négoce,Leeds,603,Lienou,Jayden Lienou,41.7,True
+10847,Rico Lewis,Manchester City,395,Lewis,Rico Lewis,100.0,False
+10864,Marcos Senesi,Tottenham,498,Senesi,Marcos Senesi Barón,81.2,True
+11000,Matheus Nunes,Manchester City,389,Matheus N.,Matheus Nunes,100.0,False
+11058,Julio Enciso,Ipswich,591,Enciso,Julio Enciso,100.0,False
+11087,Pep Chavarría,Chelsea,583,Chavarria,Pep Chavarría,100.0,False
+11167,Chadi Riad,Crystal Palace,206,Chadi Riad,Chadi Riad Dnanou,74.1,True
+11174,Kobbie Mainoo,Manchester United,432,Mainoo,Kobbie Mainoo,100.0,False
+11186,Alvaro Rodríguez,Bournemouth,81,Rodríguez,Álvaro Rodríguez,56.2,True
+11231,Ben Doak,Bournemouth,72,Gannon-Doak,Ben Gannon-Doak,69.6,True
+11297,Carlos Alcaraz,Everton,243,Alcaraz,Carlos Alcaraz Durán,82.4,True
+11305,Mykhailo Mudryk,Tottenham,578,Mudryk,Mykhailo Mudryk,100.0,False
+11331,Merlin Röhl,Everton,246,Röhl,Merlin Röhl,100.0,False
+11384,João Gomes,Aston Villa,54,Gomes,Joao Gomes,90.0,False
+11386,Lewis Miley,Newcastle United,459,L.Miley,Lewis Miley,100.0,False
+11461,Romaine Mundle,Sunderland,547,Mundle,Romaine Mundle,100.0,False
+11545,Jérémy Jacquet,Liverpool,362,Jacquet,Jeremy Jacquet,85.7,False
+11551,Marco Palestra,Chelsea,152,Palestra,Marco Palestra,100.0,False
+11592,Nico O&#039;Reilly,Manchester City,387,O'Reilly,Nico O'Reilly,77.4,True
+11594,Shea Charles,Fulham,580,Charles,Shea Charles,100.0,False
+11707,Jurriën Timber,Arsenal,5,J.Timber,Jurriën Timber,100.0,False
+11709,Milos Kerkez,Liverpool,358,Kerkez,Milos Kerkez,100.0,False
+11711,Bart Verbruggen,Brighton,109,Verbruggen,Bart Verbruggen,100.0,False
+11728,Calvin Bassey,Fulham,257,Bassey,Calvin Bassey,100.0,False
+11735,Sávio,Tottenham,513,Xavi,Xavi Simons,37.5,True
+11763,Abduqodir Khusanov,Manchester City,393,Khusanov,Abdukodir Khusanov,94.4,False
+11807,Ian Maatsen,Aston Villa,36,Maatsen,Ian Maatsen,100.0,False
+11808,Andrey Santos,Manchester United,162,Andrey Santos,Andrey Nascimento dos Santos,63.4,True
+11839,Gustavo Hamer,Coventry,584,Hamer,Gustavo Hamer,100.0,False
+11903,Oscar Bobb,Fulham,264,Bobb,Oscar Bobb,100.0,False
+11911,Hugo Larsson,Fulham,635,Larsson,Hugo Larsson,100.0,False
+11944,Patrick Dorgu,Manchester United,415,Dorgu,Patrick Dorgu,100.0,False
+12014,Jake O&#039;Brien,Everton,232,O'Brien,Jake O'Brien,75.9,True
+12027,Mohammed Kudus,Tottenham,512,Kudus,Mohammed Kudus,100.0,False
+12032,Djordje Petrovic,Bournemouth,57,Petrović,Đorđe Petrović,46.7,True
+12123,Murillo,Nottingham Forest,472,Murillo,Murillo Costa dos Santos,45.2,True
+12162,Ayyoub Bouaddi,Manchester City,616,Bouaddi,Ayyoub Bouaddi,100.0,False
+12203,Treymaurice Nyoni,Liverpool,375,Nyoni,Trey Nyoni,74.1,True
+12272,Myles Lewis-Skelly,Arsenal,7,Lewis-Skelly,Myles Lewis-Skelly,100.0,False
+12336,Malick Fofana,Sunderland,646,Fofana,Malick Fofana,100.0,False
+12408,Daniel Muñoz,"Crystal Palace,Nottingham Forest",201,Muñoz,Daniel Muñoz Mejía,80.0,True
+12409,Adam Wharton,Crystal Palace,210,Wharton,Adam Wharton,100.0,False
+12434,Lewis Koumas,Liverpool,381,Koumas,Lewis Koumas,100.0,False
+12498,Valentín Barco,Chelsea,568,Barco,Valentín Barco,100.0,False
+12535,Josh Acheampong,Chelsea,151,Acheampong,Josh Acheampong,100.0,False
+12603,Mikey Moore,Tottenham,523,Moore,Mikey Moore,100.0,False
+12733,Ibrahim Mbaye,Aston Villa,631,Mbaye,Ibrahim Mbaye,100.0,False
+12745,Jacob Greaves,Ipswich,306,Greaves,Jacob Greaves,100.0,False
+12757,Harrison Armstrong,Everton,244,Armstrong,Harrison Armstrong,100.0,False
+12758,Mats Wieffer,Brighton,130,Wieffer,Mats Wieffer,100.0,False
+12760,Carl Rushworth,Coventry,110,Rushworth,Carl Rushworth,100.0,False
+12779,Honest Ahanor,Crystal Palace,633,Ahanor,Honest Ahanor,100.0,False
+12781,Zion Suzuki,Aston Villa,597,Suzuki,Zion Suzuki,100.0,False
+12841,Dayann Methalie,Sunderland,612,Methalie,Dayann Méthalie,93.3,False
+12843,Sorba Thomas,Hull,642,Thomas,Sorba Thomas,100.0,False
+12911,Abdul Fatawu,Ipswich,315,Fatawu,Abdul Fatawu,100.0,False
+12912,Lucas Bergvall,Tottenham,520,Bergvall,Lucas Bergvall,100.0,False
+12948,Mateus Fernandes,Tottenham,525,Fernandes,Mateus Fernandes,100.0,False
+12955,Aurèle Amenda,Coventry,182,Amenda,Aurèle Amenda,100.0,False
+13051,Matias Fernandez-Pardo,Newcastle United,634,Fernandez-Pardo,Matias Fernandez-Pardo,100.0,False
+13066,Ferdi Kadioglu,Brighton,113,F.Kadıoğlu,Ferdi Kadıoğlu,85.7,False
+13080,Ayden Heaven,Manchester United,421,Heaven,Ayden Heaven,100.0,False
+13091,Jaydee Canvot,Crystal Palace,203,Canvot,Jaydee Canvot,100.0,False
+13136,Brooke Norton-Cuffy,Hull,638,Norton-Cuffy,Brooke Norton-Cuffy,100.0,False
+13206,Matt O&#039;Riley,Brighton,126,O'Riley,Matt O'Riley,75.9,True
+13214,Aladji Bamba,Newcastle United,559,Bamba,Aladji Bamba,100.0,False
+13330,Robinio Vaz,Hull,637,Vaz,Robinio Vaz,100.0,False
+13348,Antonín Kinsky,Tottenham,496,Kinsky,Antonín Kinský,92.9,False
+13380,Vitor Reis,Manchester City,395,Lewis,Rico Lewis,60.0,True
+13456,Amar Dedic,Newcastle United,593,Dedić,Amar Dedic,100.0,False
+13474,Julio Soler,Bournemouth,66,Soler,Julio Soler Barreto,73.3,True
+13692,Rio Ngumoha,Liverpool,369,Ngumoha,Rio Ngumoha,100.0,False
+13712,Robin Roefs,Sunderland,529,Roefs,Robin Roefs,100.0,False
+13713,Trai Hume,Sunderland,534,Hume,Trai Hume,100.0,False
+13715,Dan Ballard,Sunderland,532,Ballard,Daniel Ballard,88.0,False
+13716,Noah Sadiki,Sunderland,545,Sadiki,Noah Sadiki,100.0,False
+13717,Chemsdine Talbi,Sunderland,549,Talbi,Chemsdine Talbi,100.0,False
+13719,Chris Rigg,Sunderland,548,Rigg,Chris Rigg,100.0,False
+13723,El Hadji Malick Diouf,Brentford,620,Diouf,El Hadji Malick Diouf,100.0,False
+13775,Estêvão,Chelsea,144,Gusto,Malo Gusto,35.3,True
+13776,Jorrel Hato,Chelsea,148,Hato,Jorrel Hato,100.0,False
+13779,Jair,Nottingham Forest,476,O.Richards,Omar Richards,35.3,True
+13792,Ibrahim Osman,Brighton,600,Osman,Ibrahim Osman,100.0,False
+13816,Mike Penders,Chelsea,560,Penders,Mike Penders,100.0,False
+13834,Ao Tanaka,Leeds,345,Tanaka,Tanaka Ao,100.0,False
+13837,David Affengruber,Fulham,650,Affengruber,David Affengruber,100.0,False
+13872,Max Dowman,Arsenal,20,Dowman,Max Dowman,100.0,False
+13879,Tarik Muharemovic,Leeds,334,Muharemović,Tarik Muharemović,94.1,False
+13917,Mamadou Sangaré,Brentford,565,M.Sangaré,Mamadou Sangaré,100.0,False
+14030,Kevin,Fulham,257,Bassey,Calvin Bassey,44.4,True
+14056,Senne Lammens,Manchester United,412,Lammens,Senne Lammens,100.0,False
+14097,Ryan McAidoo,Manchester City,621,McAidoo,Ryan McAidoo,100.0,False
+14099,Luke O&#039;Nien,Sunderland,539,O'Nien,Luke O'Nien,74.1,True
+14193,George Hemmings,Aston Villa,51,George Hemmings,George Hemmings,100.0,False
+14198,Shea Lacey,Manchester United,435,Lacey,Shea Lacey,100.0,False
+14277,Tymur Tutierov,Sunderland,668,Tutierov,Tymur Tutierov,100.0,False
+14374,Alex Tóth,Bournemouth,76,Tóth.A,Alex Tóth,100.0,False
+14376,Quinten Timber,Crystal Palace,644,Timber,Quinten Timber,100.0,False
+14395,Rayan,Bournemouth,75,Christie,Ryan Christie,44.4,True
+14460,Djiamgone Jocelin Ta Bi,Sunderland,550,Jocelin.T,Djiamgone Jocelin Ta Bi,100.0,False
+14502,Manuel Ángel,Fulham,636,Ángel,Manuel Ángel Morán Ibáñez,64.9,True
+14742,Milan van Ewijk,Coventry,175,van Ewijk,Milan van Ewijk,100.0,False
+14744,Caleb Yirenkyi,Coventry,575,Yirenkyi,Caleb Yirenkyi,100.0,False
+14745,Brandon Thomas-Asante,Coventry,194,Thomas-Asante,Brandon Thomas-Asante,100.0,False
+14746,Victor Torp,Coventry,188,Torp,Victor Torp,100.0,False
+14748,Joel Latibeaudiere,Coventry,179,Latibeaudiere,Joel Latibeaudiere,100.0,False
+14749,Tatsuhiro Sakamoto,Coventry,185,Sakamoto,Tatsuhiro Sakamoto,100.0,False
+14758,Konstantinos Tzolakis,Hull,572,Tzolakis,Konstantinos Tzolakis,100.0,False
+14759,Lewie Coyle,Hull,280,Coyle,Lewie Coyle,100.0,False
+14761,Matt Crooks,Hull,289,Crooks,Matt Crooks,100.0,False
+14762,Regan Slater,Hull,290,Slater,Regan Slater,100.0,False
+14763,Elliot Stroud,Hull,576,Stroud,Elliot Stroud,100.0,False
+14765,Lucas Herrington,Hull,585,Herrington,Lucas Herrington,100.0,False
+14767,Jens Hjertø-Dahl,Hull,574,Hjertø-Dahl,Jens Hjertø-Dahl,100.0,False
+14769,Hayden Hackney,Everton,247,Hackney,Hayden Hackney,100.0,False
+14771,Marcelino Núñez,Ipswich,309,Núñez,Marcelino Núñez,100.0,False
+14773,Sindre Egeli,Ipswich,321,Walle Egeli,Sindre Walle Egeli,80.0,True
+14775,Ousmane Diomande,Nottingham Forest,581,Diomande,Ousmane Diomande,100.0,False
+14788,Jannik Schuster,Brentford,93,Schuster,Jannik Schuster,100.0,False
+14854,Costinha,Brighton,122,Minteh,Yankuba Minteh,36.4,True
+14855,Zadok Yohanna,Brighton,135,Yohanna,Zadok Yohanna,100.0,False
+14857,Promise David,Brighton,594,David,Promise David,100.0,False
+14859,António Silva,Bournemouth,59,Dennis,Will Dennis,50.0,True
+14874,Lukás Hornícek,Newcastle United,567,Horníček,Lukás Hornícek,100.0,False
+14875,Sean Steur,Newcastle United,462,Steur,Sean Steur,100.0,False
+14923,Geovany Quenda,Chelsea,164,Quenda,Geovany Quenda,100.0,False
+14934,Zavier Gozo,Crystal Palace,595,Gozo,Zavier Gozo,100.0,False
+14935,Kaden Braithwaite,Manchester City,622,Braithwaite,Kaden Braithwaite,100.0,False
+14981,Ephron Mason-Clark,Coventry,186,Mason-Clark,Ephron Mason-Clark,100.0,False
+14982,Hidemasa Morita,Hull,563,Morita,Hidemasa Morita,100.0,False
+14998,Jules Ahoka,Sunderland,613,Ahoka,Jules Ahoka,100.0,False
+15045,Darío Osorio,Crystal Palace,647,Osorio,Darío Osorio,100.0,False
+15081,Allan,Manchester City,394,Alleyne,Max Alleyne,50.0,True
+15091,Mahdi Nicoll-Jazuli,Chelsea,662,Nicoll-Jazuli,Mahdi Nicoll-Jazuli,100.0,False
+15111,Juan Angulo,Sunderland,651,J.Angulo,Juan Angulo,100.0,False

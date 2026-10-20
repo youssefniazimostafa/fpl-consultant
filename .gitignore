@@ -14,3 +14,7 @@ data/raw/*
 data/tables/*
 !data/raw/.gitkeep
 !data/tables/.gitkeep
+
+# Cloned historical reference repos (regenerate with `uv run python -m fpl.historical`)
+data/external/*
+!data/external/.gitkeep
