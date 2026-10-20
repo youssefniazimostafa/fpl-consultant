@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Fetched FPL data (regenerate with `uv run python -m fpl.fetch`)
+data/raw/*
+data/tables/*
+!data/raw/.gitkeep
+!data/tables/.gitkeep
