@@ -1,0 +1,68 @@
+name: Update FPL data and publish site
+
+on:
+  # Keep the site fresh through the day -- prices, injury news and odds all
+  # change between deadlines. Also runs once right after every deadline
+  # passes (FPL deadlines are always :30 past the hour, mostly Fri/Sat
+  # evenings and Sun/Mon) so the verdict reflects this week's picks fast.
+  schedule:
+    - cron: "0 */3 * * *"
+  # Settings -> Actions -> "Run workflow" button, for a manual run.
+  workflow_dispatch: {}
+  # Catch breakage immediately when fpl/ changes, before the next scheduled run.
+  push:
+    branches: [main]
+    paths:
+      - "fpl/**"
+      - "site/**"
+      - "config.json"
+      - ".github/workflows/update.yml"
+
+# contents: write so the prediction-log commit below can push; pages/id-token
+# write are what actions/deploy-pages needs to publish the artifact.
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# One run of this workflow at a time -- two overlapping runs would both try
+# to commit/push data/predictions and deploy Pages concurrently.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Run the pipeline (fetch -> external data -> features -> model -> league -> optimise -> publish)
+        run: uv run python -m fpl.pipeline
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+
+      - name: Save the prediction log
+        run: |
+          git config user.name "fpl-bot"
+          git config user.email "fpl-bot@users.noreply.github.com"
+          git add data/predictions
+          git commit -m "Prediction log" || true
+          git push
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
