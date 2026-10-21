@@ -5,6 +5,6 @@
   "bank_override": null,
   "transfers_made": 0,
   "avoid": [],
-  "strategy": "balanced",
+  "strategy": null,
   "horizon": 5
 }

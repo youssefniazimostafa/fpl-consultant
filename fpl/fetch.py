@@ -329,6 +329,7 @@ def main() -> None:
     print(f"Fetching standings for league {league_id}...")
     managers = fetch_league_managers(day_dir, league_id, team_id)
     print(f"Found {len(managers)} managers (rivals + you).")
+    write_table(managers, "league_managers.parquet")
 
     print("Fetching manager histories and chips...")
     league_history, league_chips = build_league_history_and_chips_tables(
