@@ -18,3 +18,8 @@ data/tables/*
 # Cloned historical reference repos (regenerate with `uv run python -m fpl.historical`)
 data/external/*
 !data/external/.gitkeep
+
+# Published site data (regenerate with `uv run python -m fpl.publish`; the
+# workflow deploys site/ straight to Pages, it never commits this back)
+site/data/*
+!site/data/.gitkeep
