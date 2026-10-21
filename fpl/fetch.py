@@ -196,6 +196,21 @@ def build_player_matches_table(day_dir: Path, players: pd.DataFrame) -> pd.DataF
 
 
 # ---------------------------------------------------------------------------
+# my_transfers.parquet — from entry/{team_id}/transfers/, your own transfer
+# history (price paid per buy). Needed to estimate current selling prices
+# (Step 9): the picks/history endpoints never expose per-player selling
+# price, only the purchase price you can reconstruct from this log.
+# ---------------------------------------------------------------------------
+
+
+def build_my_transfers_table(day_dir: Path, team_id: int) -> pd.DataFrame:
+    transfers = get(f"entry/{team_id}/transfers/", day_dir)
+    if not transfers:
+        return pd.DataFrame()
+    return pd.DataFrame(transfers)
+
+
+# ---------------------------------------------------------------------------
 # league_history.parquet / league_chips.parquet / league_picks.parquet —
 # from leagues-classic standings, entry/{id}/history/, and picks/
 # ---------------------------------------------------------------------------
@@ -321,6 +336,10 @@ def main() -> None:
     played = int((players["minutes"] > 0).sum())
     print(f"Fetching element-summary for {played} players with minutes > 0...")
     write_table(build_player_matches_table(day_dir, players), "player_matches.parquet")
+
+    if team_id is not None:
+        print(f"Fetching transfer history for team {team_id}...")
+        write_table(build_my_transfers_table(day_dir, team_id), "my_transfers.parquet")
 
     if league_id is None:
         print("No league_id set in config.json (or --league-id); skipping league tables.")
