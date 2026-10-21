@@ -115,6 +115,17 @@
   .bar-fill { height: 100%; background: var(--accent); }
   .bar-fill.model { background: var(--accent); }
   .bar-value { width: 55px; text-align: right; font-size: 0.8rem; color: var(--text); font-variant-numeric: tabular-nums; }
+  .heatmap-table { overflow-x: auto; }
+  .heatmap-table table { min-width: 640px; }
+  .heatmap-table th.rot { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; height: 90px; }
+  .hm-cell { text-align: center; border-radius: 4px; font-weight: 600; font-size: 0.75rem; }
+  .hm-0 { background: transparent; color: var(--muted); }
+  .hm-1 { background: #1b2330; color: var(--text); }
+  .hm-2 { background: var(--accent-dim); color: #06130c; }
+  .hm-3 { background: var(--accent); color: #06130c; }
+  .you-row { outline: 1px solid var(--accent); }
+  .gap-pos { color: var(--accent); font-weight: 600; }
+  .gap-neg { color: var(--bad); font-weight: 600; }
   footer {
     max-width: 1200px;
     margin: 0 auto;
@@ -321,6 +332,99 @@ function renderDifferentials(d) {
   return panel('Differentials', 'low league ownership, ranked by next-GW xP', body);
 }
 
+function renderEoThreats(t) {
+  if (!t.available) return unavailablePanel('Threats (high league EO)', t.reason);
+  const eoLabel = t.eo_column === 'weighted_league_eo' ? 'Weighted EO' : 'League EO';
+  const body = table(t.players, [
+    { key: 'web_name', label: 'Player' },
+    { key: 'position', label: 'Pos' },
+    { key: 'team_short_name', label: 'Team' },
+    { key: 'league_ownership_pct', label: 'League own %', num: true, render: (r) => fmt(r.league_ownership_pct, 1) },
+    { key: t.eo_column, label: eoLabel, num: true, render: (r) => `<b>${fmt(r[t.eo_column])}</b>` },
+  ]);
+  return panel('Threats — high EO you don\u2019t own', 'hurts you most if they haul', body);
+}
+
+function renderCaptaincyRisk(cr) {
+  if (!cr.available) return unavailablePanel('Captaincy risk vs the top rivals', cr.reason, true);
+  const columns = [
+    { key: 'web_name', label: 'Player' },
+    { key: 'xp', label: 'xP', num: true, render: (r) => fmt(r.xp) },
+    ...cr.rivals.map((name) => ({
+      key: `swing_vs_${name}`, label: `vs ${name}`, num: true,
+      render: (r) => {
+        const v = r[`swing_vs_${name}`];
+        const cls = v > 0 ? 'swing-pos' : (v < 0 ? 'swing-neg' : '');
+        return `<span class="${cls}">${fmt(v)}</span>`;
+      },
+    })),
+    {
+      key: 'total_swing_vs_top', label: 'Total swing', num: true,
+      render: (r) => `<b>${fmt(r.total_swing_vs_top)}</b>${r.is_optimiser_captain ? ' <span class="pill captain">C</span>' : ''}`,
+    },
+  ];
+  const rows = cr.players.map((p) => ({ ...p, __rowClass: p.is_optimiser_captain ? 'captain' : '' }));
+  return panel(
+    'Captaincy risk', 'expected point swing vs your top 3 rivals if each XI player hauls for his xP',
+    table(rows, columns), true,
+  );
+}
+
+function renderLeagueTable(lt) {
+  if (!lt.available) return unavailablePanel('League table', lt.reason);
+  const body = table(lt.standings.map((r) => ({ ...r, __rowClass: r.is_you ? 'you-row' : '' })), [
+    { key: 'league_rank', label: '#', num: true },
+    { key: 'entry_name', label: 'Team' },
+    { key: 'player_name', label: 'Manager' },
+    { key: 'total_points', label: 'Pts', num: true },
+    {
+      key: 'gap_to_leader', label: 'Gap to leader', num: true,
+      render: (r) => `<span class="${r.gap_to_leader < 0 ? 'gap-neg' : 'gap-pos'}">${r.gap_to_leader === 0 ? 'leader' : r.gap_to_leader}</span>`,
+    },
+  ]);
+  return panel('League table', `GW${lt.gameweek}`, body);
+}
+
+function renderOwnershipHeatmap(oh) {
+  if (!oh.available) return unavailablePanel('Ownership heatmap', oh.reason, true);
+  const head = el('tr', {}, [
+    el('th', {}, 'Player'),
+    ...oh.managers.map((m) => el('th', { class: 'rot' }, m.entry_name)),
+  ]);
+  const body = el('tbody', {}, oh.players.map((p) => el('tr', {}, [
+    el('td', {}, esc(p.web_name)),
+    ...oh.managers.map((m) => {
+      const mult = p[`m_${m.manager_id}`] ?? 0;
+      const label = mult === 3 ? 'TC' : (mult === 2 ? 'C' : (mult === 1 ? '•' : ''));
+      return el('td', { class: `hm-cell hm-${mult}` }, label);
+    }),
+  ])));
+  const t = el('table', {}, [el('thead', {}, head), body]);
+  return panel(
+    'Ownership heatmap', `GW${oh.gameweek} \u2014 top ${oh.players.length} by league ownership`,
+    el('div', { class: 'heatmap-table' }, t), true,
+  );
+}
+
+function renderVsLeader(vl) {
+  if (!vl.available) return unavailablePanel('Vs the leader', vl.reason);
+  if (vl.is_leader) {
+    return panel('Vs the leader', null, el('p', { class: 'verdict-meta' }, 'You\u2019re in 1st \u2014 nobody to chase.'));
+  }
+  const parts = [
+    el('div', { class: 'verdict-meta' }, [
+      `${fmt(vl.gap_to_leader, 0)} pts behind `, el('b', {}, esc(vl.leader.entry_name)),
+      ` (${esc(vl.leader.player_name)}), ${vl.leader.total_points} pts`,
+    ]),
+  ];
+  if (vl.overlap) {
+    parts.push(el('p', { class: 'verdict-meta' }, `Shared: ${vl.overlap.overlap_count} players \u2014 ${esc(vl.overlap.shared_players)}`));
+    parts.push(el('p', { class: 'verdict-meta' }, `They have, you don\u2019t: ${esc(vl.overlap.unique_to_rival)}`));
+    parts.push(el('p', { class: 'verdict-meta' }, `You have, they don\u2019t: ${esc(vl.overlap.unique_to_you)}`));
+  }
+  return panel('Vs the leader', null, el('div', {}, parts));
+}
+
 function renderFixtureTicker(ft) {
   if (!ft.available) return unavailablePanel('Fixture ticker', ft.reason, true);
   const rows = table(ft.fixtures, [
@@ -383,9 +487,9 @@ function renderTopXp(tx) {
 }
 
 // ---------------------------------------------------------------------
-// swings table (built client-side from league_swings-shaped data if we
-// ever expose it directly; for now driven by differentials + captain
-// board + threats, matching the Step 8 checkpoint via those panels)
+// league_swings-derived panels (eo_threats/league_table/ownership_heatmap/
+// vs_leader) and league_eo already live on differentials/captain_board
+// too, covering the Step 8 checkpoint from multiple angles.
 // ---------------------------------------------------------------------
 
 async function main() {
@@ -423,8 +527,13 @@ async function main() {
     renderCaptainBoard(data.captain_board),
     renderTransferPlan(data.transfer_plan),
     renderChips(data.chips),
+    renderCaptaincyRisk(data.captaincy_risk),
     renderThreats(data.threats),
+    renderEoThreats(data.eo_threats),
     renderDifferentials(data.differentials),
+    renderLeagueTable(data.league_table),
+    renderVsLeader(data.vs_leader),
+    renderOwnershipHeatmap(data.ownership_heatmap),
     renderFixtureTicker(data.fixture_ticker),
     renderModelAccuracy(data.model_accuracy),
     renderTopXp(data.top_xp),

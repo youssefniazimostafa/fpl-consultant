@@ -79,7 +79,7 @@ import pandas as pd
 import pulp
 
 from fpl.fetch import load_config
-from fpl.league import CHIP_HALF_BOUNDARY, CHIP_NAMES, chip_half
+from fpl.league import CHIP_HALF_BOUNDARY, CHIP_NAMES, chip_half, resolve_team_id
 
 ROOT = Path(__file__).resolve().parent.parent
 TABLES_DIR = ROOT / "data" / "tables"
@@ -136,8 +136,8 @@ CHIP_URGENCY_WINDOW = 3
 
 REQUIRED_TABLES = ["players", "xp_by_gameweek"]
 OPTIONAL_TABLES = [
-    "league_picks", "league_history", "league_swings", "league_strategy",
-    "league_chips_grid", "my_transfers",
+    "league_picks", "league_history", "league_managers", "league_swings",
+    "league_strategy", "league_chips_grid", "my_transfers",
 ]
 
 
@@ -509,11 +509,16 @@ def build_captain_board(
     pool_info: dict[int, dict[str, Any]],
     mode: str,
     league_eo: dict[int, float],
+    raw_league_eo: dict[int, float] | None = None,
 ) -> pd.DataFrame:
     """The XI ranked by xP for next gameweek. Chase mode adds a bonus for
     differentials (low league captaincy); protect mode flags the league's
-    most-backed captain so you can match it and close off that swing."""
+    most-backed captain so you can match it and close off that swing.
+    ``league_eo`` drives the scoring (Step 8's rank-weighted EO when
+    available, preferring close rivals over the whole league); ``raw_eo``
+    is the plain league-wide EO, shown alongside for comparison only."""
     g = week0["gameweek"]
+    raw_league_eo = raw_league_eo or league_eo
     rows = []
     for p in week0["xi_ids"]:
         xp = raw_weekly_xp.get((p, g), 0.0)
@@ -525,6 +530,7 @@ def build_captain_board(
                 "position": pool_info[p]["position"],
                 "xp": round(xp, 2),
                 "league_eo": round(eo, 2),
+                "raw_league_eo": round(raw_league_eo.get(p, 0.0), 2),
                 "is_optimiser_captain": p == week0["captain_id"],
             }
         )
@@ -540,6 +546,68 @@ def build_captain_board(
     else:
         board["league_most_backed"] = False
     return board.sort_values("board_score", ascending=False).reset_index(drop=True)
+
+
+def build_captaincy_risk(
+    week0: dict[str, Any],
+    raw_weekly_xp: dict[tuple[int, int], float],
+    pool_info: dict[int, dict[str, Any]],
+    league_picks: pd.DataFrame,
+    league_history: pd.DataFrame,
+    league_managers: pd.DataFrame,
+    team_id: int,
+    gameweek: int,
+    top_n: int = 3,
+) -> pd.DataFrame:
+    """Step D.5: for every XI player (a candidate captain), the expected
+    point swing against each of the ``top_n`` highest-ranked *other*
+    managers if he scores his raw xP -- ``(your_multiplier -
+    rival_multiplier) * xp``. A popular captain who several top rivals
+    already have barely closes the gap (their multiplier is also 2, so the
+    swing is near zero or negative against them); a differential swings
+    the full value. This is what turns "5/9 rivals captained Haaland" into
+    a number: captaining him yourself mostly cancels out against whichever
+    of those 5 are near the top, while captaining someone none of them has
+    gains the full ``xp`` against every one of them.
+    """
+    if league_history.empty or league_picks.empty:
+        return pd.DataFrame()
+
+    totals = league_history[league_history["gameweek"] == gameweek].set_index("manager_id")["total_points"]
+    rival_totals = totals.drop(index=team_id, errors="ignore").sort_values(ascending=False)
+    top_rivals = rival_totals.index[:top_n].tolist()
+    if not top_rivals:
+        return pd.DataFrame()
+
+    names = league_managers.set_index("manager_id")["entry_name"] if not league_managers.empty else pd.Series(dtype=str)
+    rival_labels = {r: names.get(r, f"manager {r}") for r in top_rivals}
+
+    gw_picks = league_picks[league_picks["gameweek"] == gameweek]
+    rival_mult = (
+        gw_picks[gw_picks["manager_id"].isin(top_rivals)]
+        .pivot_table(index="player_id", columns="manager_id", values="multiplier", fill_value=0)
+    )
+
+    g = week0["gameweek"]
+    rows = []
+    for p in week0["xi_ids"]:
+        xp = raw_weekly_xp.get((p, g), 0.0)
+        your_multiplier = 2 if p == week0["captain_id"] else 1
+        row = {
+            "player_id": p,
+            "web_name": pool_info[p]["web_name"],
+            "xp": round(xp, 2),
+            "is_optimiser_captain": p == week0["captain_id"],
+        }
+        total_swing = 0.0
+        for rival in top_rivals:
+            rival_multiplier = float(rival_mult.loc[p, rival]) if p in rival_mult.index and rival in rival_mult.columns else 0.0
+            swing = (your_multiplier - rival_multiplier) * xp
+            row[f"swing_vs_{rival_labels[rival]}"] = round(swing, 2)
+            total_swing += swing
+        row["total_swing_vs_top"] = round(total_swing, 2)
+        rows.append(row)
+    return pd.DataFrame(rows).sort_values("total_swing_vs_top", ascending=False).reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------
@@ -644,15 +712,15 @@ def main() -> None:
     args = parser.parse_args()
 
     config = load_config()
-    team_id = config.get("team_id")
-    if team_id is None:
-        print("No team_id set in config.json; nothing to optimise.")
-        return
-    team_id = int(team_id)
-
     tables = load_tables()
     players, xp_by_gw = tables["players"], tables["xp_by_gameweek"]
     league_picks, league_history = tables["league_picks"], tables["league_history"]
+    league_managers = tables.get("league_managers", pd.DataFrame())
+
+    team_id = resolve_team_id(config, league_managers)
+    if team_id is None:
+        print("No team_id set in config.json, and no manual snapshot to derive it from; nothing to optimise.")
+        return
     if league_picks.empty or league_history.empty:
         print(
             "league_picks/league_history not found -- set league_id in config.json "
@@ -667,9 +735,19 @@ def main() -> None:
     bank = int(bank) if bank is not None else hist_bank
     print(f"Optimising from gameweek {gameweek} with {len(my_squad_ids)} owned players, bank £{bank/10:.1f}m")
 
+    # Step D: prefer the rank-weighted EO (close rivals dominate) over the
+    # plain league-wide EO when fpl.league has computed it; the raw column
+    # is kept too, purely for display in the captain board/risk tables.
     league_eo: dict[int, float] = {}
-    if not tables["league_swings"].empty:
-        league_eo = tables["league_swings"].set_index("player_id")["league_eo"].to_dict()
+    raw_league_eo: dict[int, float] = {}
+    swings = tables["league_swings"]
+    if not swings.empty:
+        raw_league_eo = swings.set_index("player_id")["league_eo"].to_dict()
+        if "weighted_league_eo" in swings.columns:
+            effective = swings["weighted_league_eo"].fillna(swings["league_eo"])
+            league_eo = pd.Series(effective.values, index=swings["player_id"]).to_dict()
+        else:
+            league_eo = dict(raw_league_eo)
 
     mode = config.get("strategy")
     if mode not in {"chasing", "protecting", "balanced"}:
@@ -713,12 +791,19 @@ def main() -> None:
         bank, weeks, team_chips_row,
     )
 
-    captain_board = build_captain_board(final_plan["weeks"][0], raw_weekly_xp, pool_info, mode, league_eo)
+    captain_board = build_captain_board(
+        final_plan["weeks"][0], raw_weekly_xp, pool_info, mode, league_eo, raw_league_eo,
+    )
+    captaincy_risk = build_captaincy_risk(
+        final_plan["weeks"][0], raw_weekly_xp, pool_info,
+        league_picks, league_history, league_managers, team_id, gameweek,
+    )
 
     write_table(build_squad_plan_table(final_plan, pool_info, weeks), "optimise_squad.parquet")
     write_table(build_transfers_table(final_plan, pool_info, gain, transfer_recommended), "optimise_transfers.parquet")
     write_table(chip_plan, "optimise_chip_plan.parquet")
     write_table(captain_board, "optimise_captain_board.parquet")
+    write_table(captaincy_risk, "optimise_captaincy_risk.parquet")
 
     wk0 = final_plan["weeks"][0]
     ok, violations = validate_squad(wk0["squad_ids"], wk0["xi_ids"], wk0["captain_id"], pool_info, wk0["bank_after"])
@@ -742,6 +827,9 @@ def main() -> None:
     if not captain_board.empty:
         print("\nCaptain board (top 5):")
         print(captain_board.head(5).to_string(index=False))
+    if not captaincy_risk.empty:
+        print(f"\nCaptaincy risk vs the top {min(3, len(captaincy_risk.columns) - 4)} rivals (top 5 by total swing):")
+        print(captaincy_risk.head(5).to_string(index=False))
 
     print("\nChips-remaining grid (your recommendations this horizon):")
     print(chip_plan.to_string(index=False))

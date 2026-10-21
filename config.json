@@ -6,5 +6,6 @@
   "transfers_made": 0,
   "avoid": [],
   "strategy": null,
-  "horizon": 5
+  "horizon": 5,
+  "differential_exclude_managers": ["Ansel Lewis", "andy scotty"]
 }
