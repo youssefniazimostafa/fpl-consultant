@@ -612,20 +612,26 @@ def build_squad_plan_table(
 def build_transfers_table(
     plan: dict[str, Any], pool_info: dict[int, dict[str, Any]], gain: float, recommended: bool
 ) -> pd.DataFrame:
-    wk0 = plan["weeks"][0]
-    ins, outs = sorted(wk0["transfers_in"]), sorted(wk0["transfers_out"])
+    """The full horizon's transfer plan (the "6-week transfer plan" panel),
+    one row per planned move in every week -- not just this week's. Only
+    gameweek 0's move has actually been checked against the threshold (see
+    ``recommend_transfers``); later weeks are the model's *current* plan
+    for that week and can shift as news lands closer to its own deadline,
+    so ``horizon_gain_xp``/``recommended`` are only populated for week 0."""
     rows = []
-    for i in range(max(len(ins), len(outs), 1)):
-        rows.append(
-            {
-                "gameweek": wk0["gameweek"],
-                "player_out": pool_info[outs[i]]["web_name"] if i < len(outs) else None,
-                "player_in": pool_info[ins[i]]["web_name"] if i < len(ins) else None,
-                "hits_taken": wk0["hits"],
-                "horizon_gain_xp": round(gain, 2),
-                "recommended": recommended,
-            }
-        )
+    for i, wk in enumerate(plan["weeks"]):
+        ins, outs = sorted(wk["transfers_in"]), sorted(wk["transfers_out"])
+        for j in range(max(len(ins), len(outs), 1)):
+            rows.append(
+                {
+                    "gameweek": wk["gameweek"],
+                    "player_out": pool_info[outs[j]]["web_name"] if j < len(outs) else None,
+                    "player_in": pool_info[ins[j]]["web_name"] if j < len(ins) else None,
+                    "hits_taken": wk["hits"] if j == 0 else 0,
+                    "horizon_gain_xp": round(gain, 2) if i == 0 else None,
+                    "recommended": recommended if i == 0 else None,
+                }
+            )
     return pd.DataFrame(rows)
 
 
