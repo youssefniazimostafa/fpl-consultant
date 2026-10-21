@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPL Consultant</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #161d26;
+    --panel-border: #273242;
+    --text: #e7edf3;
+    --muted: #8793a3;
+    --accent: #37d67a;
+    --accent-dim: #1f8f52;
+    --bad: #ef5c5c;
+    --warn: #f0b429;
+    --row-alt: #1b2330;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.45 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+  header h1 { margin: 0; font-size: 1.3rem; }
+  header .meta { color: var(--muted); font-size: 0.85rem; margin-left: auto; }
+  .badge {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: var(--panel-border);
+    color: var(--text);
+  }
+  .badge.chasing { background: #4a2330; color: #ff9fb0; }
+  .badge.protecting { background: #1f3a2d; color: var(--accent); }
+  .badge.balanced { background: #2a3550; color: #9fb8ff; }
+  main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.25rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+  section.panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 1rem 1.1rem;
+  }
+  section.panel.wide { grid-column: 1 / -1; }
+  section.panel h2 {
+    margin: 0 0 0.75rem 0;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  section.panel h2 .sub { font-weight: 400; color: var(--muted); font-size: 0.8rem; }
+  .unavailable {
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-style: italic;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 0.35rem 0.5rem; }
+  thead th { color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--panel-border); }
+  tbody tr:nth-child(odd) { background: var(--row-alt); }
+  tbody tr.captain { outline: 1px solid var(--accent); }
+  .pos { color: var(--muted); font-size: 0.75rem; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill {
+    display: inline-block;
+    padding: 0.05rem 0.4rem;
+    border-radius: 5px;
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+  .pill.captain { background: var(--accent); color: #06130c; }
+  .pill.xi { background: var(--panel-border); color: var(--text); }
+  .pill.bench { background: transparent; color: var(--muted); border: 1px solid var(--panel-border); }
+  .pill.odds { background: #1f3a2d; color: var(--accent); }
+  .pill.elo { background: #2a3550; color: #9fb8ff; }
+  .pill.yes { background: #1f3a2d; color: var(--accent); }
+  .pill.no { background: var(--panel-border); color: var(--muted); }
+  .pill.urgent { background: #4a2330; color: #ff9fb0; }
+  .swing-neg { color: var(--bad); font-weight: 600; }
+  .swing-pos { color: var(--accent); font-weight: 600; }
+  .headline {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+  }
+  .verdict-meta { color: var(--muted); font-size: 0.85rem; }
+  .chip-grid-table { overflow-x: auto; }
+  .chip-grid-table table { min-width: 760px; }
+  .scroll-table { max-height: 420px; overflow-y: auto; }
+  .scroll-table thead th { position: sticky; top: 0; background: var(--panel); }
+  .bar-row { display: flex; align-items: center; gap: 0.6rem; margin: 0.35rem 0; }
+  .bar-label { width: 130px; flex-shrink: 0; color: var(--muted); font-size: 0.8rem; }
+  .bar-track { flex: 1; background: var(--panel-border); border-radius: 4px; overflow: hidden; height: 14px; }
+  .bar-fill { height: 100%; background: var(--accent); }
+  .bar-fill.model { background: var(--accent); }
+  .bar-value { width: 55px; text-align: right; font-size: 0.8rem; color: var(--text); font-variant-numeric: tabular-nums; }
+  footer {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 3rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  code { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚽ FPL Consultant</h1>
+  <span id="strategy-badge"></span>
+  <span class="meta" id="generated-at"></span>
+</header>
+<main id="app">
+  <section class="panel wide"><p class="unavailable">Loading <code>data/latest.json</code>…</p></section>
+</main>
+<footer>
+  Data refreshed automatically by <code>fpl/pipeline.py</code> via GitHub Actions. Every panel degrades
+  independently when its upstream step hasn't run yet or <code>config.json</code> isn't fully set.
+</footer>
+<script>
+const fmt = (v, d = 2) => (v === null || v === undefined || Number.isNaN(v)) ? '–' : Number(v).toFixed(d);
+const esc = (s) => (s === null || s === undefined) ? '' : String(s).replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+function el(tag, attrs = {}, children = []) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') node.className = v;
+    else if (k === 'html') node.innerHTML = v;
+    else node.setAttribute(k, v);
+  }
+  for (const child of [].concat(children)) {
+    if (child === null || child === undefined) continue;
+    node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
+  }
+  return node;
+}
+
+function table(rows, columns) {
+  if (!rows || rows.length === 0) return el('p', { class: 'unavailable' }, 'No rows.');
+  const thead = el('thead', {}, el('tr', {}, columns.map((c) => el('th', { class: c.num ? 'num' : '' }, c.label))));
+  const tbody = el('tbody', {}, rows.map((row) => {
+    const trAttrs = {};
+    if (row.__rowClass) trAttrs.class = row.__rowClass;
+    return el('tr', trAttrs, columns.map((c) => {
+      const td = el('td', { class: c.num ? 'num' : '' });
+      td.innerHTML = c.render ? c.render(row) : esc(row[c.key]);
+      return td;
+    }));
+  }));
+  return el('table', {}, [thead, tbody]);
+}
+
+function panel(title, sub, bodyNode, wide = false) {
+  const h2 = el('h2', {}, [title, sub ? el('span', { class: 'sub' }, sub) : null]);
+  return el('section', { class: 'panel' + (wide ? ' wide' : '') }, [h2, bodyNode]);
+}
+
+function unavailablePanel(title, reason, wide = false) {
+  return panel(title, null, el('p', { class: 'unavailable' }, reason || 'Not available yet.'), wide);
+}
+
+const POS_NAMES = { GKP: 'GKP', DEF: 'DEF', MID: 'MID', FWD: 'FWD' };
+function rolePill(role) {
+  return `<span class="pill ${role}">${role}</span>`;
+}
+
+// ---------------------------------------------------------------------
+// panels
+// ---------------------------------------------------------------------
+
+function renderVerdict(v) {
+  if (!v.available) return unavailablePanel('Verdict', v.reason);
+  const body = el('div', {}, [
+    el('div', { class: 'headline' }, v.headline),
+    el('div', { class: 'verdict-meta' }, [
+      `Gameweek ${v.gameweek}`,
+      v.horizon_gain_xp !== null ? ` · ${fmt(v.horizon_gain_xp)} xP over the horizon` : '',
+      v.captain ? ` · Captain: ${esc(v.captain.web_name)} (${esc(v.captain.position)})` : '',
+    ].join('')),
+  ]);
+  return panel('Verdict', `GW${v.gameweek}`, body, true);
+}
+
+function renderXi(xi) {
+  if (!xi.available) return unavailablePanel('Starting XI', xi.reason);
+  const order = { captain: 0, xi: 1, bench: 2 };
+  const rows = [...xi.players].sort((a, b) => (order[a.role] - order[b.role]));
+  const body = table(rows.map((p) => ({ ...p, __rowClass: p.role === 'captain' ? 'captain' : '' })), [
+    { key: 'web_name', label: 'Player' },
+    { key: 'position', label: 'Pos' },
+    { label: 'Role', render: (r) => rolePill(r.role) },
+    { label: '', render: (r) => r.transferred_in ? '<span class="pill yes">IN</span>' : '' },
+  ]);
+  return panel('Starting XI', `GW${xi.gameweek}`, body);
+}
+
+function renderCaptainBoard(cb) {
+  if (!cb.available) return unavailablePanel('Captain board', cb.reason);
+  const body = table(cb.players.map((p) => ({ ...p, __rowClass: p.is_optimiser_captain ? 'captain' : '' })), [
+    { key: 'web_name', label: 'Player' },
+    { key: 'position', label: 'Pos' },
+    { key: 'xp', label: 'xP', num: true, render: (r) => fmt(r.xp) },
+    { key: 'league_eo', label: 'League EO', num: true, render: (r) => fmt(r.league_eo) },
+    { key: 'board_score', label: 'Score', num: true, render: (r) => `<b>${fmt(r.board_score)}</b>` },
+    {
+      label: '', render: (r) => [
+        r.is_optimiser_captain ? '<span class="pill captain">C</span>' : '',
+        r.league_most_backed ? '<span class="pill urgent">league favourite</span>' : '',
+      ].join(' ')
+    },
+  ]);
+  return panel('Captain board', null, body);
+}
+
+function renderTransferPlan(tp) {
+  if (!tp.available) return unavailablePanel('Transfer plan (6 weeks)', tp.reason, true);
+  const body = table(tp.weeks.map((w) => ({ ...w, __rowClass: w.recommended ? 'captain' : '' })), [
+    { key: 'gameweek', label: 'GW' },
+    { label: 'Out', render: (r) => r.player_out ? esc(r.player_out) : '<span class="unavailable">—</span>' },
+    { label: 'In', render: (r) => r.player_in ? esc(r.player_in) : '<span class="unavailable">—</span>' },
+    { key: 'hits_taken', label: 'Hits', num: true },
+    { label: 'Horizon gain', num: true, render: (r) => r.horizon_gain_xp !== null ? fmt(r.horizon_gain_xp) : '' },
+    { label: 'Recommended', render: (r) => r.recommended === true ? '<span class="pill yes">yes</span>' : (r.recommended === false ? '<span class="pill no">hold</span>' : '') },
+  ]);
+  return panel('Transfer plan (6 weeks)', null, body, true);
+}
+
+function renderChips(chips) {
+  const parts = [];
+  if (!chips.yours.available) {
+    parts.push(el('div', {}, [el('h3', { html: 'Your chips' }), el('p', { class: 'unavailable' }, chips.yours.reason)]));
+  } else {
+    const byChip = {};
+    for (const row of chips.yours.plan) (byChip[row.chip] ??= []).push(row);
+    const CHIP_LABELS = { wildcard: 'Wildcard', freehit: 'Free Hit', bboost: 'Bench Boost', '3xc': 'Triple Captain' };
+    const rows = Object.entries(byChip).map(([chip, weeks]) => {
+      const available = weeks.filter((w) => w.available);
+      const best = available.sort((a, b) => b.estimated_gain - a.estimated_gain)[0];
+      return {
+        chip: CHIP_LABELS[chip] || chip,
+        available: available.length > 0,
+        best_gw: best ? best.gameweek : null,
+        best_gain: best ? best.estimated_gain : null,
+        urgent: weeks.some((w) => w.urgent),
+      };
+    });
+    parts.push(el('div', {}, [
+      el('h3', { html: 'Your chips — best week to play each one' }),
+      table(rows, [
+        { key: 'chip', label: 'Chip' },
+        { label: 'Status', render: (r) => r.available ? '<span class="pill yes">available</span>' : '<span class="pill no">used</span>' },
+        { label: 'Best GW', num: true, render: (r) => r.best_gw ?? '–' },
+        { label: 'Est. gain (xP)', num: true, render: (r) => r.best_gain !== null ? fmt(r.best_gain) : '–' },
+        { label: '', render: (r) => r.urgent ? '<span class="pill urgent">use before GW19</span>' : '' },
+      ]),
+    ]));
+  }
+
+  if (!chips.rivals.available) {
+    parts.push(el('div', {}, [el('h3', { html: 'Rivals\u2019 chips remaining' }), el('p', { class: 'unavailable' }, chips.rivals.reason)]));
+  } else {
+    const grid = chips.rivals.grid;
+    const slotCols = grid.length ? Object.keys(grid[0]).filter((k) => k.includes('_h')) : [];
+    const columns = [
+      { key: 'entry_name', label: 'Manager' },
+      ...slotCols.map((col) => ({
+        key: col, label: col.replace('_h1', ' (1st half)').replace('_h2', ' (2nd half)')
+          .replace('wildcard', 'WC').replace('freehit', 'FH').replace('bboost', 'BB').replace('3xc', 'TC'),
+        render: (r) => r[col] === 'available' ? '<span class="pill yes">available</span>' : `<span class="pill no">${esc(r[col])}</span>`,
+      })),
+      { key: 'chips_remaining', label: 'Remaining', num: true, render: (r) => `<b>${r.chips_remaining}</b>` },
+    ];
+    parts.push(el('div', { class: 'chip-grid-table' }, [
+      el('h3', { html: 'Rivals\u2019 chips remaining' }),
+      table(grid, columns),
+    ]));
+  }
+  return panel('Chips', null, el('div', {}, parts), true);
+}
+
+function renderThreats(t) {
+  if (!t.available) return unavailablePanel('Threats (squad overlap)', t.reason, true);
+  const body = table(t.rivals, [
+    { key: 'entry_name', label: 'Manager' },
+    { key: 'overlap_count', label: 'Shared', num: true },
+    { key: 'unique_to_rival', label: 'They have, you don\u2019t' },
+    { key: 'unique_to_you', label: 'You have, they don\u2019t' },
+  ]);
+  return panel('Threats — who you\u2019re really competing with', null, body, true);
+}
+
+function renderDifferentials(d) {
+  if (!d.available) return unavailablePanel('Differentials', d.reason);
+  const body = table(d.players, [
+    { key: 'web_name', label: 'Player' },
+    { key: 'position', label: 'Pos' },
+    { key: 'league_ownership_pct', label: 'League own %', num: true, render: (r) => fmt(r.league_ownership_pct, 1) },
+    { key: 'next_gw_xp', label: `GW${d.next_gameweek ?? ''} xP`, num: true, render: (r) => fmt(r.next_gw_xp) },
+  ]);
+  return panel('Differentials', 'low league ownership, ranked by next-GW xP', body);
+}
+
+function renderFixtureTicker(ft) {
+  if (!ft.available) return unavailablePanel('Fixture ticker', ft.reason, true);
+  const rows = table(ft.fixtures, [
+    { key: 'event', label: 'GW' },
+    { key: 'team_short', label: 'Team' },
+    { label: 'Opponent', render: (r) => `${r.is_home ? '' : '@ '}${esc(r.opponent_short)}` },
+    { key: 'clean_sheet_prob', label: 'CS%', num: true, render: (r) => fmt(r.clean_sheet_prob * 100, 0) },
+    { key: 'lambda_for', label: 'xG for', num: true, render: (r) => fmt(r.lambda_for) },
+    { key: 'lambda_against', label: 'xG against', num: true, render: (r) => fmt(r.lambda_against) },
+    { label: 'Source', render: (r) => `<span class="pill ${r.source === 'odds' ? 'odds' : 'elo'}">${r.source === 'odds' ? 'odds' : 'Elo + xG'}</span>` },
+  ]);
+  const body = el('div', { class: 'scroll-table' }, rows);
+  return panel('Fixture ticker', 'odds vs Elo \u2014 which model is driving each number', body, true);
+}
+
+function renderModelAccuracy(ma) {
+  if (!ma.available) return unavailablePanel('Model accuracy', ma.reason);
+  const latest = ma.latest;
+  const baselines = [
+    { key: 'xp', label: 'Our model' },
+    { key: 'fpl_xp', label: "FPL's ep_next" },
+    { key: 'ppg', label: 'Season PPG' },
+    { key: 'last5', label: 'Last-5 average' },
+  ];
+  const maeVals = baselines.map((b) => latest[`mae_${b.key}`]).filter((v) => v !== null && v !== undefined);
+  const maxMae = Math.max(...maeVals, 0.01);
+  const rows = baselines.map((b) => {
+    const mae = latest[`mae_${b.key}`];
+    return el('div', { class: 'bar-row' }, [
+      el('div', { class: 'bar-label' }, b.label),
+      el('div', { class: 'bar-track' }, el('div', { class: 'bar-fill' + (b.key === 'xp' ? ' model' : ''), html: '' , })),
+      el('div', { class: 'bar-value' }, fmt(mae)),
+    ]);
+  });
+  // set widths after creation (lower MAE = better, so shorter bar = better; invert for visual "more accurate = fuller bar")
+  rows.forEach((row, i) => {
+    const mae = latest[`mae_${baselines[i].key}`];
+    const fill = row.querySelector('.bar-fill');
+    const pct = mae === null || mae === undefined ? 0 : Math.max(4, 100 * (1 - mae / (maxMae * 1.15)));
+    fill.style.width = `${pct}%`;
+  });
+  const body = el('div', {}, [
+    el('p', { class: 'verdict-meta' }, `MAE on total points, latest backtest (${ma.runs.length} run(s) logged). Longer bar = more accurate.`),
+    ...rows,
+  ]);
+  return panel('Model accuracy', `run ${esc(latest.run_at).slice(0, 10)}`, body);
+}
+
+function renderTopXp(tx) {
+  if (!tx.available) return unavailablePanel('Top expected points', tx.reason, true);
+  const body = table(tx.players, [
+    { key: 'web_name', label: 'Player' },
+    { key: 'team_short', label: 'Team' },
+    { key: 'position', label: 'Pos' },
+    { key: 'now_cost', label: 'Price', num: true, render: (r) => `£${fmt(r.now_cost / 10, 1)}m` },
+    { key: 'next_gw_xp', label: `GW${tx.next_gameweek ?? ''} xP`, num: true, render: (r) => fmt(r.next_gw_xp) },
+    { key: 'xp_total', label: `xP (${tx.horizon_weeks.length} GWs)`, num: true, render: (r) => fmt(r.xp_total) },
+  ]);
+  return panel('Top expected points', 'always on, no config needed', body, true);
+}
+
+// ---------------------------------------------------------------------
+// swings table (built client-side from league_swings-shaped data if we
+// ever expose it directly; for now driven by differentials + captain
+// board + threats, matching the Step 8 checkpoint via those panels)
+// ---------------------------------------------------------------------
+
+async function main() {
+  const app = document.getElementById('app');
+  let data;
+  try {
+    const res = await fetch('data/latest.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch (err) {
+    app.innerHTML = '';
+    app.appendChild(panel(
+      'No data yet',
+      null,
+      el('p', { class: 'unavailable' },
+        'Could not load data/latest.json. Run `uv run python -m fpl.pipeline` (or wait for the ' +
+        'scheduled GitHub Actions run) to generate it.'),
+      true,
+    ));
+    return;
+  }
+
+  document.getElementById('generated-at').textContent = data.generated_at ? `Updated ${new Date(data.generated_at).toLocaleString()}` : '';
+  const mode = data.config?.strategy_mode;
+  if (mode) {
+    const badge = document.getElementById('strategy-badge');
+    badge.className = 'badge ' + mode;
+    badge.textContent = mode.toUpperCase();
+  }
+
+  app.innerHTML = '';
+  const panels = [
+    renderVerdict(data.verdict),
+    renderXi(data.xi),
+    renderCaptainBoard(data.captain_board),
+    renderTransferPlan(data.transfer_plan),
+    renderChips(data.chips),
+    renderThreats(data.threats),
+    renderDifferentials(data.differentials),
+    renderFixtureTicker(data.fixture_ticker),
+    renderModelAccuracy(data.model_accuracy),
+    renderTopXp(data.top_xp),
+  ];
+  for (const p of panels) app.appendChild(p);
+}
+
+main();
+</script>
+</body>
+</html>
