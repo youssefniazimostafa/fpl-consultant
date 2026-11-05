@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Methods — FPL Consultant</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #161d26;
+    --panel-border: #273242;
+    --text: #e7edf3;
+    --muted: #8793a3;
+    --accent: #37d67a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+  }
+  header h1 { margin: 0; font-size: 1.3rem; }
+  header a { color: var(--muted); font-size: 0.85rem; }
+  main {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 1.5rem;
+  }
+  h2 {
+    margin-top: 2.2rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  code {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 0.1rem 0.35rem;
+    font-size: 0.9em;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.3rem 0.6rem; border-bottom: 1px solid var(--panel-border); }
+  th { color: var(--muted); font-weight: 600; }
+  .muted { color: var(--muted); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚽ Methods &amp; track record</h1>
+  <a href="index.html">← back to the verdict</a>
+</header>
+<main>
+<p class="muted">How this site turns raw FPL data into a weekly verdict, and how well it's actually done so far.
+Every number below is produced by code in this repo -- no step is manual except the mid-week config edit and the
+rival squad transcription (private league, no API access to rivals' picks).</p>
+
+<h2>Data sources</h2>
+<ul>
+  <li><strong>Official FPL API</strong> (<code>bootstrap-static</code>, <code>fixtures</code>, <code>entry/&lt;id&gt;/history</code>) --
+    every player's price, ownership, status/flags, and the fixture list. The source of truth for gameweek
+    resolution (the latest <code>finished</code> event) throughout, never hardcoded.</li>
+  <li><strong>The Odds API</strong> -- match-result odds, converted to a clean-sheet / goals-scored probability per
+    team per fixture, when a key is configured and the match is covered.</li>
+  <li><strong>ClubElo</strong> -- a team-strength Elo rating, blended with recent underlying numbers into a fixture
+    difficulty estimate whenever the odds feed doesn't cover a match (friendlies, lower-profile fixtures early in a
+    round) -- every fixture-driven number on the site is tagged with which of the two actually produced it.</li>
+  <li><strong>Understat</strong> -- underlying xG/xA per player, blended with FPL's own history for the attacking
+    side of the model.</li>
+  <li><strong>Manual league snapshot</strong> (<code>data/manual/league_snapshot.json</code> + <code>data/
+    manual_snapshots/&lt;gw&gt;.json</code>) -- this is a private 10-manager league with no public
+    <code>league_id</code>, so rivals' squads, captains and chips are hand-transcribed from the app each week and
+    validated by a regression test (each squad's computed points must equal its leaderboard score) before anything
+    downstream trusts it.</li>
+</ul>
+
+<h2>The xP model</h2>
+<p>Each player's expected points for a gameweek is a sum of components -- appearance, attacking returns, clean
+sheets/goals conceded, defensive contribution, saves, cards, and bonus -- each built from a blend of this season's
+recent form and last season's rate, recency-weighted with a <strong>6-match half life</strong> (a match 6 games back
+carries half the weight of the most recent one) so a player's current run matters more than April. Fixture
+difficulty (from the odds/Elo blend above) scales the defensive/clean-sheet components per opponent.</p>
+
+<h2>Minutes (p_start)</h2>
+<p>A player's expected-minutes fraction comes from his recency-weighted start rate (same 6-match half life as the
+rest of the model, not a flat rolling average), then dampened when his team plays again inside 4 days of its last
+match -- a congestion proxy for rotation risk. This only sees Premier League fixtures (the FPL fixtures endpoint
+doesn't cover cup competitions), so true European/cup rotation risk is an acknowledged blind spot, not a solved
+one. Press-conference news overrides this directly: <code>config.json</code>'s <code>p_start_overrides</code> lets
+a specific (player, value, reason, date) entry win over the model for news the data can't see yet (an injury
+update, a surprise line-up leak), and the site flags which overrides are new since the last run.</p>
+
+<h2>Bonus</h2>
+<p>Rather than a flat bonus-points-per-90 estimate, each player's expected bonus comes from simulating his BPS
+(bonus points system) rank within his own match: his expected BPS is drawn with Monte Carlo noise (empirical
+standard deviation from two seasons of real match-level BPS data) alongside every other player in that fixture,
+and the top three simulated ranks convert to the real 3/2/1 bonus. Summing expected bonus across every player in a
+gameweek lands on exactly <code>6 × number of fixtures</code> (3+2+1 per match) when the math is right -- a check
+this model passes.</p>
+
+<h2>Effective ownership &amp; strategy</h2>
+<p>League EO is each rival's ownership weighted toward the managers closest to you in the table (the ones actually
+fighting for the same rank), not flat league-wide ownership. <code>config.json</code>'s <code>strategy</code> mode
+(chasing/protecting/balanced) shifts the transfer/captain optimiser's objective toward low-EO differentials when
+chasing, or high-EO template picks when protecting a lead.</p>
+
+<h2>Decision engine</h2>
+<p>Transfers, starting XI, captain and chip timing are one mixed-integer program (not a greedy swap search), solved
+over a multi-week horizon so it can spot the <em>right week</em> to make a move rather than just the best move
+available this week. A transfer is only recommended when it beats holding (while still allowing a later-week move
+instead) by a threshold of expected points over the whole horizon.</p>
+
+<h2>Simulation: P(finish 1st)</h2>
+<p>The optimiser above picks the highest-<em>expected</em>-points plan, which isn't always the plan most likely to
+finish top this gameweek once rivals are accounted for. The simulation draws thousands of Monte Carlo gameweeks --
+each player's realised points ~ Poisson(xP), with every manager who owns a given player sharing that one draw (so
+shared picks like Haaland move together across squads, not independently) -- for my transfer plan, my hold
+alternative, and each rival's last-known squad carried forward unchanged (no visibility into rivals' actual
+transfers). It reports how often each of my candidate plans comes out on top, shown next to the optimiser's own
+highest-average-xP pick. This is deliberately scoped to <em>this gameweek's</em> rank, not a season-long title
+race (simulating the whole rest of the season is future work), and Poisson is a simplifying, admittedly
+under-dispersed, stand-in for FPL's real scoring distribution.</p>
+
+<h2>Rival transfer forecasting (not yet live)</h2>
+<p>A model to predict each rival's next transfer from their own habits is scaffolded (<code>fpl/
+rival_transfers.py</code>) but deliberately not switched on: it needs several gameweeks of archived rival squads to
+learn a habit from, and only one archive exists so far. It'll switch on once enough history has accumulated.</p>
+
+<h2>Accuracy track record</h2>
+<p>Every post-gameweek run scores last week's saved predictions against what actually happened, split by error
+source (minutes, attacking returns, clean sheets/bonus, unmodeled categories), and logs it to a cumulative
+accuracy chart on the main page. The model is also benchmarked once against FPL's own <code>ep_next</code> and
+naive baselines (points-per-game, last-5-average) over a full prior season:</p>
+<table>
+  <tr><th>Model</th><th>MAE</th><th>Rank correlation</th></tr>
+  <tr><td>This model</td><td>1.05</td><td>0.665</td></tr>
+  <tr><td>FPL's own <code>ep_next</code></td><td>1.07</td><td>0.307</td></tr>
+  <tr><td>Points-per-game baseline</td><td>1.07</td><td>0.705</td></tr>
+  <tr><td>Last-5-average baseline</td><td>1.05</td><td>0.743</td></tr>
+</table>
+<p class="muted">The naive baselines edge it slightly on rank correlation over a full season of hindsight (they get
+to "know" who was actually good that season) -- the real edge this model has is forecasting <em>ahead</em>, into
+fixtures and form it hasn't seen yet, and badly beating FPL's own number either way. See the live chart on the
+<a href="index.html">main page</a> for this season's actual, in-season track record as it accumulates gameweek by
+gameweek.</p>
+</main>
+</body>
+</html>

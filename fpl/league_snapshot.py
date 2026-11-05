@@ -198,15 +198,22 @@ def match_players(
 # ---------------------------------------------------------------------------
 
 
-def validate_gw_totals(snapshot: dict[str, Any]) -> pd.DataFrame:
-    """Each rival's XI pts (+ bench, only if they played Bench Boost) must
+def validate_gw_totals(snapshot: dict[str, Any], skip_me: bool = True) -> pd.DataFrame:
+    """Each team's XI pts (+ bench, only if they played Bench Boost) must
     equal their ``gw`` on the leaderboard. Raises on any mismatch -- a
     standing regression test, since the spec notes all 9 rivals currently
-    pass it."""
+    pass it.
+
+    ``skip_me=True`` (the default, used for the live, forward-looking
+    ``data/manual/league_snapshot.json``) skips "my" squad, which carries
+    ``opp`` for the *upcoming* gameweek rather than a scored ``pts``.
+    Retrospective archives (``data/manual_snapshots/<gw>.json``, Step 11)
+    score every team the same way, so pass ``skip_me=False`` there.
+    """
     standings = {s["team"]: s for s in snapshot["standings"]}
     rows = []
     for team, squad in snapshot["squads"].items():
-        if standings[team].get("is_me"):
+        if skip_me and standings[team].get("is_me"):
             continue  # your squad has no pts yet -- it's for the upcoming gameweek
         xi_pts = sum(p.get("pts", 0) for p in squad["xi"])
         bench_pts = sum(p.get("pts", 0) for p in squad["bench"])
@@ -234,6 +241,70 @@ def validate_gw_totals(snapshot: dict[str, Any]) -> pd.DataFrame:
             )
         )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Step 11 helper -- resolving anonymous "Squad X/Y/Z" entries (a screenshot
+# that ties two or more managers on the same GW score and doesn't label
+# which squad is whose). This private league has no ``league_id``, so the
+# real ``entry/{id}/event/{gw}/picks`` endpoint isn't reachable; the next
+# best "source of truth" is each candidate's *own last recorded roster*,
+# since a plausible gameweek-to-gameweek transfer count is small (0-3), so
+# the correct assignment is whichever maximises total 15-man overlap.
+# ---------------------------------------------------------------------------
+
+
+def _roster_names(squad: dict[str, Any]) -> set[str]:
+    return {p["name"] for p in squad["xi"] + squad["bench"]}
+
+
+def resolve_anonymous_squads(
+    unknown_squads: dict[str, dict[str, Any]],
+    candidate_squads: dict[str, dict[str, Any]],
+) -> dict[str, str]:
+    """Match each anonymous squad label (e.g. ``"Squad X"``) to the
+    candidate team name whose previous roster it overlaps with the most,
+    trying every assignment (candidates are few -- a mini-league) and
+    returning the one that maximises *total* overlap across all unknowns
+    simultaneously (a small bipartite matching), not just each unknown's
+    individual best match -- two unknowns can't both claim the same
+    candidate.
+
+    Raises ``SnapshotError`` if the best total-overlap assignment isn't
+    strictly better than every other permutation, since a tie would mean
+    the data doesn't actually disambiguate the squads.
+    """
+    import itertools
+
+    unknown_labels = list(unknown_squads)
+    candidate_names = list(candidate_squads)
+    if len(unknown_labels) != len(candidate_names):
+        raise SnapshotError(
+            f"{len(unknown_labels)} unknown squad(s) but {len(candidate_names)} candidate(s) -- "
+            "resolve_anonymous_squads needs exactly one candidate per unknown"
+        )
+
+    unknown_rosters = {label: _roster_names(sq) for label, sq in unknown_squads.items()}
+    candidate_rosters = {name: _roster_names(sq) for name, sq in candidate_squads.items()}
+
+    scored: list[tuple[int, dict[str, str]]] = []
+    for perm in itertools.permutations(candidate_names):
+        assignment = dict(zip(unknown_labels, perm))
+        total = sum(
+            len(unknown_rosters[label] & candidate_rosters[name])
+            for label, name in assignment.items()
+        )
+        scored.append((total, assignment))
+    scored.sort(key=lambda t: t[0], reverse=True)
+
+    best_total, best_assignment = scored[0]
+    runner_up_total = scored[1][0] if len(scored) > 1 else -1
+    if best_total == runner_up_total:
+        raise SnapshotError(
+            f"ambiguous assignment -- best overlap {best_total} is tied with another permutation; "
+            "need more signal (e.g. captaincy) to disambiguate"
+        )
+    return best_assignment
 
 
 # ---------------------------------------------------------------------------

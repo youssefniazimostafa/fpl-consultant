@@ -1,0 +1,268 @@
+{
+  "gameweek": 9,
+  "generated_at": "2026-11-05T16:20:36.243430+00:00",
+  "predictions": {
+    "available": true,
+    "gameweek": 9,
+    "snapshot_path": "data/predictions/2026-10-31T032914.parquet",
+    "snapshot_logged_at": "2026-10-31T032914",
+    "n_players": 669,
+    "missing_actuals": 0,
+    "has_component_breakdown": false,
+    "mae": 1.032947708961077,
+    "bias": 0.15785739111775968,
+    "by_component": null,
+    "worst_predictions": [
+      {
+        "web_name": "Van Hecke",
+        "position": "DEF",
+        "team_short": "TOT",
+        "xp": 4.719250618883773,
+        "actual_total_points": 15,
+        "residual": 10.280749381116227
+      },
+      {
+        "web_name": "Fofana",
+        "position": "DEF",
+        "team_short": "CHE",
+        "xp": 1.9334648696573715,
+        "actual_total_points": 11,
+        "residual": 9.06653513034263
+      },
+      {
+        "web_name": "McBurnie",
+        "position": "FWD",
+        "team_short": "HUL",
+        "xp": 3.256445268435619,
+        "actual_total_points": 12,
+        "residual": 8.74355473156438
+      },
+      {
+        "web_name": "Van den Berg",
+        "position": "DEF",
+        "team_short": "BRE",
+        "xp": 1.3382446159597865,
+        "actual_total_points": 10,
+        "residual": 8.661755384040214
+      },
+      {
+        "web_name": "Awoniyi",
+        "position": "FWD",
+        "team_short": "COV",
+        "xp": 1.0480042354962213,
+        "actual_total_points": 9,
+        "residual": 7.951995764503779
+      },
+      {
+        "web_name": "Costinha",
+        "position": "DEF",
+        "team_short": "BHA",
+        "xp": 0.08738332019411565,
+        "actual_total_points": 8,
+        "residual": 7.912616679805884
+      },
+      {
+        "web_name": "Verbruggen",
+        "position": "GKP",
+        "team_short": "BHA",
+        "xp": 3.213706125025538,
+        "actual_total_points": 11,
+        "residual": 7.7862938749744615
+      },
+      {
+        "web_name": "Adli",
+        "position": "MID",
+        "team_short": "BOU",
+        "xp": 0.33713292243332216,
+        "actual_total_points": 8,
+        "residual": 7.662867077566678
+      },
+      {
+        "web_name": "Iroegbunam",
+        "position": "MID",
+        "team_short": "HUL",
+        "xp": 0.7866324972596682,
+        "actual_total_points": 8,
+        "residual": 7.213367502740332
+      },
+      {
+        "web_name": "Ayari",
+        "position": "MID",
+        "team_short": "BHA",
+        "xp": 3.059255728181412,
+        "actual_total_points": 10,
+        "residual": 6.940744271818588
+      },
+      {
+        "web_name": "Lavia",
+        "position": "MID",
+        "team_short": "CHE",
+        "xp": 1.1025369253115513,
+        "actual_total_points": 8,
+        "residual": 6.897463074688448
+      },
+      {
+        "web_name": "Acheampong",
+        "position": "DEF",
+        "team_short": "CHE",
+        "xp": 2.2232597252349167,
+        "actual_total_points": 9,
+        "residual": 6.776740274765084
+      },
+      {
+        "web_name": "Branthwaite",
+        "position": "DEF",
+        "team_short": "EVE",
+        "xp": 2.3065308214253393,
+        "actual_total_points": 9,
+        "residual": 6.693469178574661
+      },
+      {
+        "web_name": "Florentino",
+        "position": "MID",
+        "team_short": "IPS",
+        "xp": 1.607232423972862,
+        "actual_total_points": 8,
+        "residual": 6.392767576027138
+      },
+      {
+        "web_name": "Havertz",
+        "position": "FWD",
+        "team_short": "ARS",
+        "xp": 2.6502535470913644,
+        "actual_total_points": 9,
+        "residual": 6.349746452908636
+      }
+    ]
+  },
+  "league_results": {
+    "available": true,
+    "gameweek": 9,
+    "teams": [
+      {
+        "rank": 1,
+        "team": "Struijkout Squad",
+        "manager": "Ansel Lewis",
+        "gw_points": 60,
+        "total_points": 579,
+        "is_me": false,
+        "captain": "Haaland",
+        "captain_pts": 4,
+        "chip": null,
+        "hits": null
+      },
+      {
+        "rank": 2,
+        "team": "JP Morgan",
+        "manager": "Youssef Mostafa",
+        "gw_points": 57,
+        "total_points": 570,
+        "is_me": true,
+        "captain": "Haaland",
+        "captain_pts": 4,
+        "chip": null,
+        "hits": null
+      },
+      {
+        "rank": 3,
+        "team": "Lowkerkezenuinely",
+        "manager": "andy scotty",
+        "gw_points": 60,
+        "total_points": 551,
+        "is_me": false,
+        "captain": "Haaland",
+        "captain_pts": 4,
+        "chip": null,
+        "hits": null
+      },
+      {
+        "rank": 4,
+        "team": "vini's new chin",
+        "manager": "Jordyn C",
+        "gw_points": 61,
+        "total_points": 545,
+        "is_me": false,
+        "captain": "Haaland",
+        "captain_pts": 4,
+        "chip": null,
+        "hits": null
+      },
+      {
+        "rank": 5,
+        "team": "not too xabi",
+        "manager": "suhas ravi",
+        "gw_points": 60,
+        "total_points": 542,
+        "is_me": false,
+        "captain": "Palmer",
+        "captain_pts": 16,
+        "chip": null,
+        "hits": null
+      },
+      {
+        "rank": 6,
+        "team": "Delap Fan Club",
+        "manager": "Christian Wurapa",
+        "gw_points": 63,
+        "total_points": 526,
+        "is_me": false,
+        "captain": "N.Jackson",
+        "captain_pts": 18,
+        "chip": null,
+        "hits": null
+      },
+      {
+        "rank": 7,
+        "team": "Erik Ten Heisenberg",
+        "manager": "Ted Otengo",
+        "gw_points": 53,
+        "total_points": 499,
+        "is_me": false,
+        "captain": "Haaland",
+        "captain_pts": 4,
+        "chip": null,
+        "hits": null
+      },
+      {
+        "rank": 8,
+        "team": "Foot Freak FC",
+        "manager": "David E",
+        "gw_points": 35,
+        "total_points": 446,
+        "is_me": false,
+        "captain": "Haaland",
+        "captain_pts": 4,
+        "chip": null,
+        "hits": null
+      },
+      {
+        "rank": 9,
+        "team": "drexham",
+        "manager": "kunaal krishnan",
+        "gw_points": 23,
+        "total_points": 406,
+        "is_me": false,
+        "captain": "Calvert-Lewin",
+        "captain_pts": 4,
+        "chip": null,
+        "hits": null
+      },
+      {
+        "rank": 10,
+        "team": "double U",
+        "manager": "Angel VP",
+        "gw_points": 34,
+        "total_points": 292,
+        "is_me": false,
+        "captain": "B.Fernandes",
+        "captain_pts": 4,
+        "chip": null,
+        "hits": null
+      }
+    ]
+  },
+  "override_log": {
+    "available": false,
+    "reason": "data/manual/override_log.json is empty or missing."
+  }
+}

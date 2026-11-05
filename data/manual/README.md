@@ -44,7 +44,11 @@ re-open the league standings on the FPL site/app and update three things:
    grid (`fpl.league.build_chips_grid`) can track rivals' first-half chips
    at all, since FPL doesn't expose chip history for leagues you can't
    query live -- a chip nobody has reported yet will correctly show as
-   `"unknown"` rather than a guessed `"available"`.
+   `"unknown"` rather than a guessed `"available"`. **Log your own chips
+   here too** -- add a `{"team": "JP Morgan", "chip": ..., "gameweek":
+   null}` entry the week you play one. `build_chips_grid` already treats
+   every `manager_id` (including yours) the same way, so this is the only
+   step needed to keep your own chip history visible on the site.
 
 Leave `gameweek` (the top-level field) as `null` -- `fpl.league_snapshot`
 always resolves it from the live API's current gameweek at load time and
@@ -73,3 +77,71 @@ There's no real numeric FPL team ID behind "JP Morgan" in this setup --
 through to `fpl.optimise`/`fpl.publish` via an `is_me` column on the
 persisted `league_managers` table. You never need to set `team_id` in
 `config.json` in this mode.
+
+## Step 11 -- retrospective archives (`data/manual_snapshots/<gw>.json`)
+
+`league_snapshot.json` above is always a *live, forward-looking* snapshot
+(rivals show last week's `pts`, you show next week's `opp`) -- it gets
+overwritten each time you update it, so there's no record of exactly what
+every squad scored on a given finished gameweek. `data/manual_snapshots/
+<gw>.json` is a separate, append-only archive: one file per finished
+gameweek, same `standings`/`squads` shape, but **every** squad (including
+yours) uses `pts`, not `opp`, because by the time you archive a gameweek
+it's over for everyone. Validate a new one with:
+
+```
+uv run python3 -c "
+import json, pandas as pd
+from fpl.league_snapshot import validate_gw_totals, match_players
+snap = json.load(open('data/manual_snapshots/<gw>.json'))
+players = pd.read_parquet('data/tables/players.parquet')
+validate_gw_totals(snap, skip_me=False)   # skip_me=False: your squad has pts too here
+match_players(snap, players)
+"
+```
+
+If 2+ squads tie on `gw` points and the screenshot doesn't say whose is
+whose ("Squad X/Y/Z"), `fpl.league_snapshot.resolve_anonymous_squads`
+resolves them by maximum 15-man roster overlap against each candidate's
+*previous* archived/live squad -- see the `"note"` field inside the
+affected archive for the specific overlap counts used that week. `fpl.
+scoring` (Step 11) reads these archives to log each rival's actual GW
+score, captain, hits and chips alongside your own prediction accuracy.
+
+## `override_log.json` (Part B.3 -- "was going against the site right?")
+
+When you make a captain/transfer/bench call that goes against the site's
+`verdict` panel, append an entry to `data/manual/override_log.json`:
+
+```json
+{
+  "gameweek": 10,
+  "site_recommendation": "N.Jackson",
+  "what_you_did": "Haaland",
+  "reason": "Haaland's underlying numbers against a weak defence felt safer than the model's EO-adjusted pick",
+  "logged_at": "2026-11-07T08:00:00Z",
+  "outcome": null
+}
+```
+
+Leave `outcome` as `null` -- the next scoring run for that `gameweek`
+(`fpl.scoring.score_override_log`) resolves it automatically once actual
+points are known: it looks up both named players' actual points for that
+gameweek and fills in `site_points`, `chosen_points`, and `outcome`
+(`"override was right"` / `"wrong"` / `"tied"`), rewriting the file in
+place so it becomes a permanent, growing track record. `site_recommendation`/
+`what_you_did` just need to be a player's `web_name` (matched the same
+accent/case-insensitive way as everywhere else in this project).
+
+## `config.json`'s `p_start_overrides` (mid-week manual input)
+
+Press-conference news the model can't see yet -- "ruled out", "expected
+to start despite the knock", a new signing's expected involvement, etc.
+Each entry is `{"player": "web_name", "value": 0.0-1.0, "reason": "...",
+"date": "YYYY-MM-DD"}`; `fpl.features.apply_p_start_overrides` matches
+`player` to a live player by name (accent/case-insensitive) and
+*replaces* the modelled `p_start` for every one of his upcoming fixtures
+with `value` -- it isn't scaled, since the news itself already is the
+probability you want used. What was matched/applied each run is logged
+to `data/tables/p_start_overrides_applied.json` (previous vs. new
+`p_start`) so the site can flag anything dated after the last run.

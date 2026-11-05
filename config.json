@@ -7,5 +7,6 @@
   "avoid": [],
   "strategy": null,
   "horizon": 5,
-  "differential_exclude_managers": ["Ansel Lewis", "andy scotty"]
+  "differential_exclude_managers": ["Ansel Lewis", "andy scotty"],
+  "p_start_overrides": []
 }

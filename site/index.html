@@ -140,6 +140,7 @@
 <header>
   <h1>⚽ FPL Consultant</h1>
   <span id="strategy-badge"></span>
+  <a href="methods.html" style="color: var(--muted); font-size: 0.85rem;">Methods &amp; track record →</a>
   <span class="meta" id="generated-at"></span>
 </header>
 <main id="app">
@@ -473,6 +474,114 @@ function renderModelAccuracy(ma) {
   return panel('Model accuracy', `run ${esc(latest.run_at).slice(0, 10)}`, body);
 }
 
+function renderLiveAccuracy(la) {
+  if (!la.available) return unavailablePanel('Live accuracy track record', la.reason, true);
+  const detail = la.latest_detail;
+  const parts = [
+    el('p', { class: 'verdict-meta' },
+      `GW${la.latest_gameweek}: MAE ${fmt(detail?.predictions?.mae)}, bias ${detail?.predictions?.bias > 0 ? '+' : ''}${fmt(detail?.predictions?.bias)} ` +
+      `across ${detail?.predictions?.n_players ?? '?'} players. Cumulative, one row per scored gameweek:`),
+    table(la.cumulative, [
+      { key: 'gameweek', label: 'GW' },
+      { key: 'n_players', label: 'Players', num: true },
+      { key: 'mae', label: 'MAE', num: true, render: (r) => fmt(r.mae) },
+      { key: 'bias', label: 'Bias', num: true, render: (r) => (r.bias > 0 ? '+' : '') + fmt(r.bias) },
+      { label: 'Breakdown', render: (r) => r.has_component_breakdown ? '<span class="pill yes">by-source</span>' : '<span class="unavailable">overall only</span>' },
+    ]),
+  ];
+
+  const byComponent = detail?.predictions?.by_component;
+  if (byComponent) {
+    parts.push(el('h3', {}, `GW${la.latest_gameweek} error by source`));
+    const rows = Object.entries(byComponent).map(([source, v]) => ({ source, ...v }));
+    parts.push(table(rows, [
+      { key: 'source', label: 'Source' },
+      { key: 'mae', label: 'MAE', num: true, render: (r) => fmt(r.mae) },
+      { key: 'bias', label: 'Bias', num: true, render: (r) => (r.bias > 0 ? '+' : '') + fmt(r.bias) },
+    ]));
+  }
+
+  const worst = detail?.predictions?.worst_predictions;
+  if (worst && worst.length) {
+    parts.push(el('h3', {}, `GW${la.latest_gameweek} biggest misses`));
+    parts.push(table(worst, [
+      { key: 'web_name', label: 'Player' },
+      { key: 'position', label: 'Pos' },
+      { key: 'team_short', label: 'Team' },
+      { key: 'xp', label: 'xP', num: true, render: (r) => fmt(r.xp) },
+      { key: 'actual_total_points', label: 'Actual', num: true },
+      { key: 'residual', label: 'Residual', num: true, render: (r) => fmt(r.residual) },
+    ]));
+  }
+
+  const league = detail?.league_results;
+  if (league?.available && league.teams) {
+    parts.push(el('h3', {}, `GW${la.latest_gameweek} rival results`));
+    parts.push(table(league.teams.map((t) => ({ ...t, __rowClass: t.is_me ? 'captain' : '' })), [
+      { key: 'rank', label: '#' },
+      { key: 'team', label: 'Team' },
+      { key: 'manager', label: 'Manager' },
+      { key: 'gw_points', label: 'GW', num: true },
+      { key: 'total_points', label: 'Total', num: true },
+      { label: 'Captain', render: (r) => r.captain ? `${esc(r.captain)} (${r.captain_pts ?? ''})` : '' },
+      { label: 'Chip', render: (r) => r.chip ? `<span class="pill urgent">${esc(r.chip)}</span>` : '' },
+    ]));
+  }
+
+  const overrides = detail?.override_log;
+  if (overrides?.available && overrides.all_entries?.length) {
+    parts.push(el('h3', {}, 'Override log'));
+    parts.push(table(overrides.all_entries, [
+      { key: 'site_recommendation', label: 'Site said' },
+      { key: 'what_you_did', label: 'You did' },
+      { key: 'site_points', label: 'Site pts', num: true },
+      { key: 'chosen_points', label: 'Your pts', num: true },
+      { label: 'Outcome', render: (r) => r.outcome ? `<span class="pill ${r.outcome.includes('right') ? 'yes' : (r.outcome.includes('wrong') ? 'no' : '')}">${esc(r.outcome)}</span>` : '' },
+    ]));
+  }
+
+  return panel('Live accuracy track record', `GW${la.latest_gameweek}`, el('div', {}, parts), true);
+}
+
+function renderSimulation(sim) {
+  if (!sim.available) return unavailablePanel('Win-probability simulation', sim.reason, true);
+  if (!sim.plans || !sim.plans.length) return panel('Win-probability simulation', null, el('p', { class: 'unavailable' }, 'No candidate plans simulated.'));
+  const best = sim.best, avg = sim.average_xp;
+  const samePlan = best && avg && best.scenario === avg.scenario && best.captain === avg.captain;
+  const parts = [
+    el('p', { class: 'verdict-meta' },
+      samePlan
+        ? `Best win-odds plan and the average-xP plan agree this week: ${esc(best.scenario)}, captain ${esc(best.captain)} -- P(finish 1st) ${((best.p_finish_1st ?? 0) * 100).toFixed(1)}%.`
+        : `Win-odds plan: ${esc(best?.scenario ?? '?')}, captain ${esc(best?.captain ?? '?')} (P(1st) ${((best?.p_finish_1st ?? 0) * 100).toFixed(1)}%) vs ` +
+          `average-xP plan: ${esc(avg?.scenario ?? '?')}, captain ${esc(avg?.captain ?? '?')} (P(1st) ${((avg?.p_finish_1st ?? 0) * 100).toFixed(1)}%).`),
+    table(sim.plans.map((r) => ({ ...r, __rowClass: r === best ? 'captain' : '' })), [
+      { key: 'scenario', label: 'Scenario' },
+      { key: 'captain', label: 'Captain' },
+      { key: 'hits', label: 'Hits', num: true, render: (r) => r.hits ? `-${r.hits * 4}` : '0' },
+      { key: 'mean_points', label: 'Mean pts', num: true, render: (r) => fmt(r.mean_points) },
+      { key: 'p_finish_1st', label: 'P(1st)', num: true, render: (r) => `${((r.p_finish_1st ?? 0) * 100).toFixed(1)}%` },
+      { label: '', render: (r) => r.is_average_xp_captain ? '<span class="pill">avg-xP captain</span>' : '' },
+    ]),
+    el('p', { class: 'verdict-meta' },
+      'Single gameweek only (not a season-long finish), Poisson(xP) per player, rivals carried forward ' +
+      "unchanged from their last known squad -- see fpl/simulation.py's module docstring."),
+  ];
+  return panel('Win-probability simulation', 'this gameweek', el('div', {}, parts), true);
+}
+
+function renderNewsFlags(nf) {
+  if (!nf.available) return unavailablePanel('News flags', nf.reason);
+  if (!nf.flags.length) return panel('News flags', null, el('p', { class: 'unavailable' }, 'No manual p_start overrides currently applied.'));
+  const body = table(nf.flags.map((f) => ({ ...f, __rowClass: f.new_since_last_run ? 'urgent' : '' })), [
+    { key: 'player', label: 'Player' },
+    { key: 'value', label: 'p_start now', num: true, render: (r) => fmt(r.value) },
+    { key: 'reason', label: 'Reason' },
+    { key: 'date', label: 'Dated' },
+    { label: '', render: (r) => r.new_since_last_run ? '<span class="pill urgent">new since last run</span>' : '' },
+  ]);
+  return panel('News flags', null, body);
+}
+
 function renderTopXp(tx) {
   if (!tx.available) return unavailablePanel('Top expected points', tx.reason, true);
   const body = table(tx.players, [
@@ -536,6 +645,9 @@ async function main() {
     renderOwnershipHeatmap(data.ownership_heatmap),
     renderFixtureTicker(data.fixture_ticker),
     renderModelAccuracy(data.model_accuracy),
+    renderLiveAccuracy(data.live_accuracy),
+    renderSimulation(data.simulation),
+    renderNewsFlags(data.news_flags),
     renderTopXp(data.top_xp),
   ];
   for (const p of panels) app.appendChild(p);

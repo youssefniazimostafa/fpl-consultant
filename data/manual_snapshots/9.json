@@ -1,0 +1,1095 @@
+{
+  "source": "manual transcription of FPL screenshots",
+  "captured_at": "2026-11-05",
+  "gameweek": 9,
+  "league_size": 10,
+  "note": "Retrospective, post-gameweek archive (Step 11's validation fixture), distinct from data/manual/league_snapshot.json's forward-looking 'my squad' format: every squad here, including JP Morgan's, carries pts for the gameweek that just finished, resolved as GW9 from bootstrap-static's finished/current flags (not hardcoded). Rank-1/3/5's squads were transcribed as anonymous 'Squad X/Y/Z' (all three scored 60 that gameweek) and resolved to specific managers with fpl.league_snapshot.resolve_anonymous_squads, which tries every assignment of the 3 unknowns to the 3 candidates and keeps whichever maximises total 15-man roster overlap against each candidate's last recorded squad in data/manual/league_snapshot.json: Struijkout Squad kept 12/15 (Squad X), not too xabi kept 13/15 (Squad Y), Lowkerkezenuinely kept 13/15 (Squad Z) -- total 38, strictly ahead of every other permutation (the next-best totals 35 or less).",
+  "standings": [
+    {
+      "rank": 1,
+      "team": "Struijkout Squad",
+      "manager": "Ansel Lewis",
+      "gw": 60,
+      "total": 579
+    },
+    {
+      "rank": 2,
+      "team": "JP Morgan",
+      "manager": "Youssef Mostafa",
+      "gw": 57,
+      "total": 570,
+      "is_me": true
+    },
+    {
+      "rank": 3,
+      "team": "Lowkerkezenuinely",
+      "manager": "andy scotty",
+      "gw": 60,
+      "total": 551
+    },
+    {
+      "rank": 4,
+      "team": "vini's new chin",
+      "manager": "Jordyn C",
+      "gw": 61,
+      "total": 545
+    },
+    {
+      "rank": 5,
+      "team": "not too xabi",
+      "manager": "suhas ravi",
+      "gw": 60,
+      "total": 542
+    },
+    {
+      "rank": 6,
+      "team": "Delap Fan Club",
+      "manager": "Christian Wurapa",
+      "gw": 63,
+      "total": 526
+    },
+    {
+      "rank": 7,
+      "team": "Erik Ten Heisenberg",
+      "manager": "Ted Otengo",
+      "gw": 53,
+      "total": 499
+    },
+    {
+      "rank": 8,
+      "team": "Foot Freak FC",
+      "manager": "David E",
+      "gw": 35,
+      "total": 446
+    },
+    {
+      "rank": 9,
+      "team": "drexham",
+      "manager": "kunaal krishnan",
+      "gw": 23,
+      "total": 406
+    },
+    {
+      "rank": 10,
+      "team": "double U",
+      "manager": "Angel VP",
+      "gw": 34,
+      "total": 292
+    }
+  ],
+  "squads": {
+    "JP Morgan": {
+      "chip": null,
+      "formation": "3-4-3",
+      "xi": [
+        {
+          "name": "Petrović",
+          "club": "BOU",
+          "pos": "GK",
+          "pts": 6,
+          "role": "V"
+        },
+        {
+          "name": "Gabriel",
+          "club": "ARS",
+          "pos": "DEF",
+          "pts": 6
+        },
+        {
+          "name": "Gvardiol",
+          "club": "MCI",
+          "pos": "DEF",
+          "pts": 2
+        },
+        {
+          "name": "Calafiori",
+          "club": "ARS",
+          "pos": "DEF",
+          "pts": 6
+        },
+        {
+          "name": "Palmer",
+          "club": "CHE",
+          "pos": "MID",
+          "pts": 8
+        },
+        {
+          "name": "Ødegaard",
+          "club": "ARS",
+          "pos": "MID",
+          "pts": 3
+        },
+        {
+          "name": "Rogers",
+          "club": "CHE",
+          "pos": "MID",
+          "pts": 9
+        },
+        {
+          "name": "Groß",
+          "club": "BHA",
+          "pos": "MID",
+          "pts": 2
+        },
+        {
+          "name": "N.Jackson",
+          "club": "AVL",
+          "pos": "FWD",
+          "pts": 9
+        },
+        {
+          "name": "Haaland",
+          "club": "MCI",
+          "pos": "FWD",
+          "pts": 4,
+          "role": "C"
+        },
+        {
+          "name": "Calvert-Lewin",
+          "club": "EVE",
+          "pos": "FWD",
+          "pts": 2
+        }
+      ],
+      "bench": [
+        {
+          "name": "Forster",
+          "club": "FUL",
+          "pos": "GK",
+          "pts": 0
+        },
+        {
+          "name": "Diop",
+          "club": "FUL",
+          "pos": "DEF",
+          "pts": 2
+        },
+        {
+          "name": "Hughes",
+          "club": "NFO",
+          "pos": "MID",
+          "pts": 1
+        },
+        {
+          "name": "Souza",
+          "club": "TOT",
+          "pos": "DEF",
+          "pts": 0,
+          "flag": "injury"
+        }
+      ]
+    },
+    "Delap Fan Club": {
+      "chip": null,
+      "formation": "3-5-2",
+      "xi": [
+        {
+          "name": "Kelleher",
+          "club": "BOU",
+          "pos": "GK",
+          "pts": 7
+        },
+        {
+          "name": "De Cuyper",
+          "club": "BHA",
+          "pos": "DEF",
+          "pts": 9
+        },
+        {
+          "name": "Ajer",
+          "club": "NFO",
+          "pos": "DEF",
+          "pts": 8
+        },
+        {
+          "name": "Muharemović",
+          "club": "BOU",
+          "pos": "DEF",
+          "pts": 3
+        },
+        {
+          "name": "Groß",
+          "club": "BHA",
+          "pos": "MID",
+          "pts": 2
+        },
+        {
+          "name": "Rogers",
+          "club": "CHE",
+          "pos": "MID",
+          "pts": 9,
+          "role": "V"
+        },
+        {
+          "name": "McGinn",
+          "club": "AVL",
+          "pos": "MID",
+          "pts": 0
+        },
+        {
+          "name": "Ødegaard",
+          "club": "ARS",
+          "pos": "MID",
+          "pts": 3
+        },
+        {
+          "name": "Gakpo",
+          "club": "LIV",
+          "pos": "MID",
+          "pts": 2
+        },
+        {
+          "name": "Haaland",
+          "club": "MCI",
+          "pos": "FWD",
+          "pts": 2
+        },
+        {
+          "name": "N.Jackson",
+          "club": "AVL",
+          "pos": "FWD",
+          "pts": 18,
+          "role": "C"
+        }
+      ],
+      "bench": [
+        {
+          "name": "Verbruggen",
+          "club": "BHA",
+          "pos": "GK",
+          "pts": 11
+        },
+        {
+          "name": "Gvardiol",
+          "club": "MCI",
+          "pos": "DEF",
+          "pts": 2
+        },
+        {
+          "name": "João Pedro",
+          "club": "CHE",
+          "pos": "FWD",
+          "pts": 0,
+          "flag": "injury"
+        },
+        {
+          "name": "Calafiori",
+          "club": "ARS",
+          "pos": "DEF",
+          "pts": 6
+        }
+      ]
+    },
+    "vini's new chin": {
+      "chip": null,
+      "formation": "3-4-3",
+      "xi": [
+        {
+          "name": "Donnarumma",
+          "club": "MCI",
+          "pos": "GK",
+          "pts": 2
+        },
+        {
+          "name": "De Cuyper",
+          "club": "BHA",
+          "pos": "DEF",
+          "pts": 9
+        },
+        {
+          "name": "Calafiori",
+          "club": "ARS",
+          "pos": "DEF",
+          "pts": 6
+        },
+        {
+          "name": "Van Hecke",
+          "club": "BHA",
+          "pos": "DEF",
+          "pts": 15
+        },
+        {
+          "name": "Groß",
+          "club": "BHA",
+          "pos": "MID",
+          "pts": 2,
+          "role": "V"
+        },
+        {
+          "name": "Tavernier",
+          "club": "BOU",
+          "pos": "MID",
+          "pts": 3
+        },
+        {
+          "name": "Mbeumo",
+          "club": "MUN",
+          "pos": "MID",
+          "pts": 1
+        },
+        {
+          "name": "Cherki",
+          "club": "MCI",
+          "pos": "MID",
+          "pts": 1
+        },
+        {
+          "name": "Haaland",
+          "club": "MCI",
+          "pos": "FWD",
+          "pts": 4,
+          "role": "C"
+        },
+        {
+          "name": "N.Jackson",
+          "club": "AVL",
+          "pos": "FWD",
+          "pts": 9
+        },
+        {
+          "name": "Evanilson",
+          "club": "BOU",
+          "pos": "FWD",
+          "pts": 9
+        }
+      ],
+      "bench": [
+        {
+          "name": "Kinsky",
+          "club": "TOT",
+          "pos": "GK",
+          "pts": 6
+        },
+        {
+          "name": "Thomas",
+          "club": "COV",
+          "pos": "DEF",
+          "pts": 0
+        },
+        {
+          "name": "O'Nien",
+          "club": "SUN",
+          "pos": "DEF",
+          "pts": 4
+        },
+        {
+          "name": "Davies",
+          "club": "FUL",
+          "pos": "DEF",
+          "pts": 0
+        }
+      ]
+    },
+    "not too xabi": {
+      "chip": null,
+      "formation": "3-5-2",
+      "xi": [
+        {
+          "name": "Lammens",
+          "club": "MUN",
+          "pos": "GK",
+          "pts": 3
+        },
+        {
+          "name": "De Cuyper",
+          "club": "BHA",
+          "pos": "DEF",
+          "pts": 9
+        },
+        {
+          "name": "Calafiori",
+          "club": "ARS",
+          "pos": "DEF",
+          "pts": 6
+        },
+        {
+          "name": "Tarkowski",
+          "club": "EVE",
+          "pos": "DEF",
+          "pts": 6
+        },
+        {
+          "name": "Tavernier",
+          "club": "BOU",
+          "pos": "MID",
+          "pts": 3
+        },
+        {
+          "name": "Ndiaye",
+          "club": "EVE",
+          "pos": "MID",
+          "pts": 2
+        },
+        {
+          "name": "Rogers",
+          "club": "CHE",
+          "pos": "MID",
+          "pts": 9
+        },
+        {
+          "name": "Palmer",
+          "club": "CHE",
+          "pos": "MID",
+          "pts": 16,
+          "role": "C"
+        },
+        {
+          "name": "Groß",
+          "club": "BHA",
+          "pos": "MID",
+          "pts": 2
+        },
+        {
+          "name": "Gonzalo",
+          "club": "FUL",
+          "pos": "FWD",
+          "pts": 2
+        },
+        {
+          "name": "Haaland",
+          "club": "MCI",
+          "pos": "FWD",
+          "pts": 2
+        }
+      ],
+      "bench": [
+        {
+          "name": "Palmer",
+          "club": "IPS",
+          "pos": "GK",
+          "pts": 0
+        },
+        {
+          "name": "Guéhi",
+          "club": "MCI",
+          "pos": "DEF",
+          "pts": 0
+        },
+        {
+          "name": "João Pedro",
+          "club": "CHE",
+          "pos": "FWD",
+          "pts": 0,
+          "role": "V",
+          "flag": "injury"
+        },
+        {
+          "name": "Targett",
+          "club": "HUL",
+          "pos": "DEF",
+          "pts": 0,
+          "flag": "injury"
+        }
+      ]
+    },
+    "Lowkerkezenuinely": {
+      "chip": null,
+      "formation": "3-5-2",
+      "xi": [
+        {
+          "name": "Raya",
+          "club": "ARS",
+          "pos": "GK",
+          "pts": 5
+        },
+        {
+          "name": "Tarkowski",
+          "club": "EVE",
+          "pos": "DEF",
+          "pts": 6
+        },
+        {
+          "name": "De Cuyper",
+          "club": "BHA",
+          "pos": "DEF",
+          "pts": 9
+        },
+        {
+          "name": "Calafiori",
+          "club": "ARS",
+          "pos": "DEF",
+          "pts": 6
+        },
+        {
+          "name": "Rogers",
+          "club": "CHE",
+          "pos": "MID",
+          "pts": 9
+        },
+        {
+          "name": "Manzambi",
+          "club": "EVE",
+          "pos": "MID",
+          "pts": 7
+        },
+        {
+          "name": "Groß",
+          "club": "BHA",
+          "pos": "MID",
+          "pts": 2
+        },
+        {
+          "name": "Palmer",
+          "club": "CHE",
+          "pos": "MID",
+          "pts": 8
+        },
+        {
+          "name": "Slater",
+          "club": "HUL",
+          "pos": "MID",
+          "pts": 2
+        },
+        {
+          "name": "Marmoush",
+          "club": "MCI",
+          "pos": "FWD",
+          "pts": 2,
+          "role": "V"
+        },
+        {
+          "name": "Haaland",
+          "club": "MCI",
+          "pos": "FWD",
+          "pts": 4,
+          "role": "C"
+        }
+      ],
+      "bench": [
+        {
+          "name": "Verbruggen",
+          "club": "BHA",
+          "pos": "GK",
+          "pts": 11
+        },
+        {
+          "name": "João Pedro",
+          "club": "CHE",
+          "pos": "FWD",
+          "pts": 0,
+          "flag": "injury"
+        },
+        {
+          "name": "Thomas",
+          "club": "COV",
+          "pos": "DEF",
+          "pts": 0,
+          "flag": "yellow"
+        },
+        {
+          "name": "Dasilva",
+          "club": "COV",
+          "pos": "DEF",
+          "pts": 2
+        }
+      ]
+    },
+    "Erik Ten Heisenberg": {
+      "chip": null,
+      "formation": "3-4-3",
+      "xi": [
+        {
+          "name": "Verbruggen",
+          "club": "BHA",
+          "pos": "GK",
+          "pts": 11
+        },
+        {
+          "name": "Calafiori",
+          "club": "ARS",
+          "pos": "DEF",
+          "pts": 6
+        },
+        {
+          "name": "Dunk",
+          "club": "BHA",
+          "pos": "DEF",
+          "pts": 6
+        },
+        {
+          "name": "Kayode",
+          "club": "FUL",
+          "pos": "DEF",
+          "pts": 5
+        },
+        {
+          "name": "B.Fernandes",
+          "club": "MUN",
+          "pos": "MID",
+          "pts": 2
+        },
+        {
+          "name": "Cherki",
+          "club": "MCI",
+          "pos": "MID",
+          "pts": 1
+        },
+        {
+          "name": "Kluivert",
+          "club": "BOU",
+          "pos": "MID",
+          "pts": 6
+        },
+        {
+          "name": "Rogers",
+          "club": "CHE",
+          "pos": "MID",
+          "pts": 9,
+          "role": "V"
+        },
+        {
+          "name": "Calvert-Lewin",
+          "club": "EVE",
+          "pos": "FWD",
+          "pts": 2
+        },
+        {
+          "name": "Haaland",
+          "club": "MCI",
+          "pos": "FWD",
+          "pts": 4,
+          "role": "C"
+        },
+        {
+          "name": "Wissa",
+          "club": "NFO",
+          "pos": "FWD",
+          "pts": 1
+        }
+      ],
+      "bench": [
+        {
+          "name": "Petrović",
+          "club": "BOU",
+          "pos": "GK",
+          "pts": 6
+        },
+        {
+          "name": "Dalot",
+          "club": "MUN",
+          "pos": "DEF",
+          "pts": 3
+        },
+        {
+          "name": "Palacios",
+          "club": "FUL",
+          "pos": "MID",
+          "pts": 1
+        },
+        {
+          "name": "Tete",
+          "club": "FUL",
+          "pos": "DEF",
+          "pts": 1
+        }
+      ]
+    },
+    "Foot Freak FC": {
+      "chip": null,
+      "formation": "3-5-2",
+      "xi": [
+        {
+          "name": "Raya",
+          "club": "ARS",
+          "pos": "GK",
+          "pts": 5,
+          "role": "V"
+        },
+        {
+          "name": "Virgil",
+          "club": "LIV",
+          "pos": "DEF",
+          "pts": 1
+        },
+        {
+          "name": "O'Reilly",
+          "club": "MCI",
+          "pos": "DEF",
+          "pts": 1
+        },
+        {
+          "name": "Pedro Porro",
+          "club": "TOT",
+          "pos": "DEF",
+          "pts": 1
+        },
+        {
+          "name": "Cunha",
+          "club": "MUN",
+          "pos": "MID",
+          "pts": 2
+        },
+        {
+          "name": "Enzo",
+          "club": "CHE",
+          "pos": "MID",
+          "pts": 2
+        },
+        {
+          "name": "Foden",
+          "club": "MCI",
+          "pos": "MID",
+          "pts": 1
+        },
+        {
+          "name": "Lerma",
+          "club": "CRY",
+          "pos": "MID",
+          "pts": 1
+        },
+        {
+          "name": "Rice",
+          "club": "ARS",
+          "pos": "MID",
+          "pts": 8
+        },
+        {
+          "name": "Haaland",
+          "club": "MCI",
+          "pos": "FWD",
+          "pts": 4,
+          "role": "C"
+        },
+        {
+          "name": "Havertz",
+          "club": "ARS",
+          "pos": "FWD",
+          "pts": 9
+        }
+      ],
+      "bench": [
+        {
+          "name": "Austin",
+          "club": "SUN",
+          "pos": "GK",
+          "pts": 0
+        },
+        {
+          "name": "Mings",
+          "club": "NFO",
+          "pos": "DEF",
+          "pts": 0
+        },
+        {
+          "name": "Ballard",
+          "club": "SUN",
+          "pos": "DEF",
+          "pts": 0,
+          "flag": "injury"
+        },
+        {
+          "name": "Obi",
+          "club": "MUN",
+          "pos": "FWD",
+          "pts": 0,
+          "flag": "injury"
+        }
+      ]
+    },
+    "drexham": {
+      "chip": null,
+      "formation": "3-5-2",
+      "xi": [
+        {
+          "name": "Raya",
+          "club": "ARS",
+          "pos": "GK",
+          "pts": 5,
+          "role": "V"
+        },
+        {
+          "name": "O'Nien",
+          "club": "SUN",
+          "pos": "DEF",
+          "pts": 4
+        },
+        {
+          "name": "Pedro Porro",
+          "club": "TOT",
+          "pos": "DEF",
+          "pts": 1
+        },
+        {
+          "name": "O'Reilly",
+          "club": "MCI",
+          "pos": "DEF",
+          "pts": 1
+        },
+        {
+          "name": "Yates",
+          "club": "NFO",
+          "pos": "MID",
+          "pts": 1
+        },
+        {
+          "name": "Hughes",
+          "club": "NFO",
+          "pos": "MID",
+          "pts": 1
+        },
+        {
+          "name": "Szoboszlai",
+          "club": "LIV",
+          "pos": "MID",
+          "pts": 1
+        },
+        {
+          "name": "B.Fernandes",
+          "club": "MUN",
+          "pos": "MID",
+          "pts": 2
+        },
+        {
+          "name": "Mbeumo",
+          "club": "MUN",
+          "pos": "MID",
+          "pts": 1
+        },
+        {
+          "name": "Calvert-Lewin",
+          "club": "EVE",
+          "pos": "FWD",
+          "pts": 4,
+          "role": "C"
+        },
+        {
+          "name": "Haaland",
+          "club": "MCI",
+          "pos": "FWD",
+          "pts": 2
+        }
+      ],
+      "bench": [
+        {
+          "name": "Dubravka",
+          "club": "NFO",
+          "pos": "GK",
+          "pts": 0
+        },
+        {
+          "name": "Targett",
+          "club": "HUL",
+          "pos": "DEF",
+          "pts": 0,
+          "flag": "injury"
+        },
+        {
+          "name": "Guéhi",
+          "club": "MCI",
+          "pos": "DEF",
+          "pts": 0
+        },
+        {
+          "name": "Brobbey",
+          "club": "SUN",
+          "pos": "FWD",
+          "pts": 2
+        }
+      ]
+    },
+    "Struijkout Squad": {
+      "chip": null,
+      "formation": "5-3-2",
+      "xi": [
+        {
+          "name": "Tzolakis",
+          "club": "BOU",
+          "pos": "GK",
+          "pts": 1
+        },
+        {
+          "name": "Affengruber",
+          "club": "BOU",
+          "pos": "DEF",
+          "pts": 3
+        },
+        {
+          "name": "Calafiori",
+          "club": "ARS",
+          "pos": "DEF",
+          "pts": 6
+        },
+        {
+          "name": "Konsa",
+          "club": "AVL",
+          "pos": "DEF",
+          "pts": 10
+        },
+        {
+          "name": "Truffert",
+          "club": "NFO",
+          "pos": "DEF",
+          "pts": 6
+        },
+        {
+          "name": "De Cuyper",
+          "club": "BHA",
+          "pos": "DEF",
+          "pts": 9
+        },
+        {
+          "name": "Rogers",
+          "club": "CHE",
+          "pos": "MID",
+          "pts": 9
+        },
+        {
+          "name": "Barnes",
+          "club": "NFO",
+          "pos": "MID",
+          "pts": 2
+        },
+        {
+          "name": "Cherki",
+          "club": "MCI",
+          "pos": "MID",
+          "pts": 1
+        },
+        {
+          "name": "Haaland",
+          "club": "MCI",
+          "pos": "FWD",
+          "pts": 4,
+          "role": "C"
+        },
+        {
+          "name": "N.Jackson",
+          "club": "AVL",
+          "pos": "FWD",
+          "pts": 9,
+          "role": "V"
+        }
+      ],
+      "bench": [
+        {
+          "name": "Verbruggen",
+          "club": "BHA",
+          "pos": "GK",
+          "pts": 11
+        },
+        {
+          "name": "Rice",
+          "club": "ARS",
+          "pos": "MID",
+          "pts": 8
+        },
+        {
+          "name": "Groß",
+          "club": "BHA",
+          "pos": "MID",
+          "pts": 2
+        },
+        {
+          "name": "João Pedro",
+          "club": "CHE",
+          "pos": "FWD",
+          "pts": 0,
+          "flag": "injury"
+        }
+      ]
+    },
+    "double U": {
+      "chip": null,
+      "formation": "3-5-2",
+      "xi": [
+        {
+          "name": "Henderson",
+          "club": "BHA",
+          "pos": "GK",
+          "pts": 3
+        },
+        {
+          "name": "Gvardiol",
+          "club": "MCI",
+          "pos": "DEF",
+          "pts": 2
+        },
+        {
+          "name": "De Cuyper",
+          "club": "BHA",
+          "pos": "DEF",
+          "pts": 9
+        },
+        {
+          "name": "Kayode",
+          "club": "FUL",
+          "pos": "DEF",
+          "pts": 5
+        },
+        {
+          "name": "M.Sangaré",
+          "club": "FUL",
+          "pos": "MID",
+          "pts": 3
+        },
+        {
+          "name": "B.Fernandes",
+          "club": "MUN",
+          "pos": "MID",
+          "pts": 4,
+          "role": "V"
+        },
+        {
+          "name": "Cherki",
+          "club": "MCI",
+          "pos": "MID",
+          "pts": 1
+        },
+        {
+          "name": "Gakpo",
+          "club": "LIV",
+          "pos": "MID",
+          "pts": 2
+        },
+        {
+          "name": "Elanga",
+          "club": "NFO",
+          "pos": "MID",
+          "pts": 2
+        },
+        {
+          "name": "Gonzalo",
+          "club": "FUL",
+          "pos": "FWD",
+          "pts": 2
+        },
+        {
+          "name": "Wissa",
+          "club": "NFO",
+          "pos": "FWD",
+          "pts": 1
+        }
+      ],
+      "bench": [
+        {
+          "name": "Trafford",
+          "club": "MCI",
+          "pos": "GK",
+          "pts": 2
+        },
+        {
+          "name": "Lacroix",
+          "club": "CRY",
+          "pos": "DEF",
+          "pts": 0,
+          "flag": "injury"
+        },
+        {
+          "name": "James",
+          "club": "CHE",
+          "pos": "DEF",
+          "pts": 0,
+          "flag": "injury"
+        },
+        {
+          "name": "João Pedro",
+          "club": "CHE",
+          "pos": "FWD",
+          "pts": 0,
+          "role": "C",
+          "flag": "injury"
+        }
+      ]
+    }
+  }
+}

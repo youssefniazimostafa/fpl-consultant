@@ -28,6 +28,13 @@ owns.
 * ``top_xp`` -- Step 6's ``xp_by_gameweek.parquet`` alone, with no
   team/league config needed at all, so the site always has *something* to
   show even before ``config.json`` is filled in.
+* ``live_accuracy`` / ``news_flags`` -- Step 11's ``data/accuracy/*`` and
+  ``p_start_overrides_applied.json``: this season's real track record
+  (distinct from the one-off historical ``model_accuracy`` backtest above)
+  and which press-conference overrides are new since the last run.
+* ``simulation`` -- Step 11 Part B.4 extension 4's
+  ``data/tables/simulation_results.json`` (``fpl.simulation``): P(finish
+  1st) this gameweek per candidate plan.
 
 ``team_id`` in the exported ``config`` is always the *resolved* value
 (``fpl.league.resolve_team_id``) -- ``config.json``'s own ``team_id`` in
@@ -417,6 +424,94 @@ def build_model_accuracy(backtest_log: pd.DataFrame) -> dict[str, Any]:
     return {"available": True, "runs": runs, "latest": runs[-1]}
 
 
+ACCURACY_DIR = ROOT / "data" / "accuracy"
+
+
+def build_live_accuracy() -> dict[str, Any]:
+    """Step 11's real, this-season track record (distinct from
+    ``model_accuracy`` above, which is the one-off historical backtest):
+    cumulative MAE/bias per gameweek from ``fpl.scoring``'s
+    ``data/accuracy/accuracy_log.csv``, plus the most recent gameweek's
+    full component breakdown, league results and override-log outcomes
+    from its matching ``data/accuracy/gw<N>.json``."""
+    log_path = ACCURACY_DIR / "accuracy_log.csv"
+    if not log_path.exists():
+        return {
+            "available": False,
+            "reason": "data/accuracy/accuracy_log.csv not found -- run fpl.scoring after a "
+            "gameweek finishes (the scheduled post-gameweek scoring run) to populate this panel.",
+        }
+    cumulative = pd.read_csv(log_path).sort_values("gameweek")
+
+    latest_gw = int(cumulative["gameweek"].max())
+    detail_path = ACCURACY_DIR / f"gw{latest_gw}.json"
+    detail = json.loads(detail_path.read_text()) if detail_path.exists() else None
+
+    return {
+        "available": True,
+        "latest_gameweek": latest_gw,
+        "cumulative": records(cumulative),
+        "latest_detail": detail,
+    }
+
+
+def build_simulation() -> dict[str, Any]:
+    """Part B.4 extension 4's Monte Carlo results (``fpl.simulation``,
+    ``data/tables/simulation_results.json``): P(finish 1st) this gameweek
+    per candidate plan, the win-probability pick and the average-xP pick
+    shown side by side."""
+    path = TABLES_DIR / "simulation_results.json"
+    if not path.exists():
+        return {
+            "available": False,
+            "reason": "data/tables/simulation_results.json not found -- run `uv run python -m "
+            "fpl.simulation` (needs a resolved team_id/league data, see fpl.optimise).",
+        }
+    rows = json.loads(path.read_text())
+    if not rows:
+        return {"available": True, "plans": [], "best": None, "average_xp": None}
+
+    best = rows[0]  # already sorted by p_finish_1st desc when written
+    avg_candidates = [r for r in rows if r.get("is_average_xp_captain")]
+    average_xp = max(avg_candidates, key=lambda r: r["p_finish_1st"]) if avg_candidates else best
+    return {"available": True, "plans": rows, "best": best, "average_xp": average_xp}
+
+
+def build_news_flags() -> dict[str, Any]:
+    """Part B.2's "flags any player whose news changed since the last
+    run": every ``p_start_overrides`` entry this run actually matched and
+    applied (``fpl.features.apply_p_start_overrides``), newest first, with
+    whether its ``date`` is more recent than the *previous* run's logged
+    prediction snapshot -- i.e. genuinely new news, not a stale override
+    left in config from a prior week."""
+    path = TABLES_DIR / "p_start_overrides_applied.json"
+    if not path.exists():
+        return {"available": False, "reason": "no overrides applied -- add p_start_overrides to config.json."}
+    payload = json.loads(path.read_text())
+    applied = [o for o in payload.get("overrides", []) if o.get("matched")]
+    if not applied:
+        return {"available": True, "flags": [], "generated_at": payload.get("generated_at")}
+
+    predictions_dir = ROOT / "data" / "predictions"
+    previous_runs = sorted(predictions_dir.glob("*.parquet")) if predictions_dir.exists() else []
+    previous_logged_at = (
+        pd.Timestamp(
+            previous_runs[-2].stem[:10] + "T" + previous_runs[-2].stem[11:13] + ":" + previous_runs[-2].stem[13:15],
+            tz="UTC",
+        )
+        if len(previous_runs) >= 2
+        else None
+    )
+    flags = []
+    for o in applied:
+        try:
+            is_new = previous_logged_at is None or pd.Timestamp(o["date"], tz="UTC") > previous_logged_at
+        except (KeyError, ValueError):
+            is_new = True
+        flags.append({**o, "new_since_last_run": bool(is_new)})
+    return {"available": True, "flags": flags, "generated_at": payload.get("generated_at")}
+
+
 # ---------------------------------------------------------------------------
 # JSON-safety
 # ---------------------------------------------------------------------------
@@ -501,6 +596,9 @@ def main() -> None:
         "vs_leader": build_vs_leader(league_history, league_managers, league_squad_overlap, config),
         "fixture_ticker": build_fixture_ticker(features),
         "model_accuracy": build_model_accuracy(backtest_log),
+        "live_accuracy": build_live_accuracy(),
+        "simulation": build_simulation(),
+        "news_flags": build_news_flags(),
         "top_xp": build_top_xp(xp_by_gameweek),
     }
 

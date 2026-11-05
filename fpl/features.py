@@ -160,6 +160,10 @@ def build_player_rates(pm: pd.DataFrame, players: pd.DataFrame) -> pd.DataFrame:
     rates["xa90"] = _weighted_rate_per90(pm, "expected_assists", position_by_player)
     rates["saves90"] = _weighted_rate_per90(pm, "saves", position_by_player)
     rates["bonus_rate"] = _weighted_rate_per90(pm, "bonus", position_by_player)
+    # BPS (bonus points system) per90 -- the raw ability signal xp.py ranks
+    # players against *within a fixture* to get expected bonus (Step 11),
+    # instead of just handing everyone their flat historical bonus rate.
+    rates["bps_rate"] = _weighted_rate_per90(pm, "bps", position_by_player)
     rates["yellow_rate90"] = _weighted_rate_per90(pm, "yellow_cards", position_by_player)
     rates["red_rate90"] = _weighted_rate_per90(pm, "red_cards", position_by_player)
 
@@ -187,11 +191,22 @@ def build_player_rates(pm: pd.DataFrame, players: pd.DataFrame) -> pd.DataFrame:
     return rates.reset_index()
 
 
+SHORT_TURNAROUND_DAYS = 4.0  # next fixture this soon after the last one counts as congested
+NAILED_THRESHOLD = 0.8  # p_start at/above this = treated as undroppable, immune to congestion
+CONGESTION_SHRINK = 0.7  # non-nailed players' p_start is multiplied by this under a quick turnaround
+
+
 def build_p_start(pm: pd.DataFrame, players: pd.DataFrame, fixtures: pd.DataFrame) -> pd.Series:
-    """Starts over the player's *current* team's last `P_START_WINDOW`
-    matches, scaled down by `chance_of_playing_next_round` (which is 0 for
-    injured/suspended/unavailable players and 100 or blank -- i.e. fully fit
-    -- for everyone else healthy)."""
+    """Minutes/rotation (Step 11): a recency-weighted start rate over the
+    player's *current* team's last `P_START_WINDOW` matches -- a match
+    `P_START_WINDOW`-1 games back counts for much less than the most
+    recent one (the same half-life decay as every other rate in this
+    module), so a player just back from injury or a run of rotation is
+    picked up faster than a flat average over the window would allow.
+    That's then scaled down by `chance_of_playing_next_round` (0 for
+    injured/suspended/unavailable players, 100 or blank -- i.e. fully fit
+    -- for everyone else) and by fixture congestion (`_apply_congestion`).
+    """
     finished = fixtures[fixtures["finished"]]
     recent_fixture_ids: dict[int, set[int]] = {}
     for team_id in players["team"].unique():
@@ -201,15 +216,115 @@ def build_p_start(pm: pd.DataFrame, players: pd.DataFrame, fixtures: pd.DataFram
 
     pm_team = pm.merge(players[["id", "team"]], left_on="player_id", right_on="id", suffixes=("", "_current"))
     pm_team = pm_team[pm_team.apply(lambda r: r["fixture"] in recent_fixture_ids.get(r["team"], set()), axis=1)]
-    recent_starts = pm_team[pm_team["starts"] == 1].groupby("player_id").size()
 
-    team_match_counts = players["team"].map(lambda t: len(recent_fixture_ids.get(t, set())))
-    denom = team_match_counts.replace(0, np.nan)
-    p_start_base = (recent_starts.reindex(players["id"]).fillna(0).to_numpy()) / denom.to_numpy()
+    pm_team = pm_team.sort_values(["player_id", "kickoff_time"], ascending=[True, False]).copy()
+    matches_ago = pm_team.groupby("player_id").cumcount()
+    pm_team["p_start_weight"] = 0.5 ** (matches_ago / HALF_LIFE_MATCHES)
+    weighted_starts = (pm_team["p_start_weight"] * pm_team["starts"]).groupby(pm_team["player_id"]).sum()
+    weight_total = pm_team.groupby("player_id")["p_start_weight"].sum()
+    p_start_base = (weighted_starts.reindex(players["id"]) / weight_total.reindex(players["id"])).fillna(0.0)
 
     fitness = players["chance_of_playing_next_round"].fillna(100.0) / 100.0
-    p_start = pd.Series(p_start_base, index=players["id"]) * fitness.to_numpy()
+    p_start = pd.Series(p_start_base.to_numpy(), index=players["id"]) * fitness.to_numpy()
+    p_start = _apply_congestion(p_start, players, fixtures)
     return p_start.clip(0, 1).fillna(0.0)
+
+
+def _apply_congestion(p_start: pd.Series, players: pd.DataFrame, fixtures: pd.DataFrame) -> pd.Series:
+    """Shrinks non-nailed players' (`p_start` below `NAILED_THRESHOLD`)
+    start probability when their team's next fixture follows its last one
+    by fewer than `SHORT_TURNAROUND_DAYS` -- nailed starters keep playing
+    through a quick turnaround, squad depth is what actually gets rotated.
+
+    Known gap: FPL's own `fixtures` endpoint only covers Premier League
+    matches, not cup competitions -- a team juggling a midweek Champions
+    League or FA Cup replay looks exactly as rested here as one that
+    isn't. There's no cheap source for those fixtures in this project, so
+    this only ever sees *league* congestion (a rearranged PL midweek
+    fixture after a postponement, most often)."""
+    finished = fixtures[fixtures["finished"]]
+    upcoming = fixtures[~fixtures["finished"]]
+    p_start = p_start.copy()
+    for team_id in players["team"].unique():
+        team_finished = finished[(finished["team_h"] == team_id) | (finished["team_a"] == team_id)]
+        team_upcoming = upcoming[(upcoming["team_h"] == team_id) | (upcoming["team_a"] == team_id)]
+        if team_finished.empty or team_upcoming.empty:
+            continue
+        gap_days = (team_upcoming["kickoff_time"].min() - team_finished["kickoff_time"].max()).total_seconds() / 86400.0
+        if gap_days >= SHORT_TURNAROUND_DAYS:
+            continue
+        team_player_ids = players.loc[players["team"] == team_id, "id"]
+        non_nailed = team_player_ids[p_start.reindex(team_player_ids).fillna(0.0).to_numpy() < NAILED_THRESHOLD]
+        p_start.loc[non_nailed] = p_start.loc[non_nailed] * CONGESTION_SHRINK
+    return p_start
+
+
+def _normalize_name(name: str) -> str:
+    """Accent/case-insensitive key for matching a config override's
+    free-typed player name against ``players.web_name`` -- same idea as
+    ``fpl.league_snapshot._normalise`` / ``fpl.xp._normalize_name``, kept
+    local here to avoid a cross-module import for one helper."""
+    import unicodedata
+
+    stripped = unicodedata.normalize("NFD", name.replace("ß", "ss"))
+    return "".join(c for c in stripped if unicodedata.category(c) != "Mn").lower().strip()
+
+
+def apply_p_start_overrides(
+    p_start: pd.Series, players: pd.DataFrame, overrides: list[dict] | None
+) -> tuple[pd.Series, list[dict]]:
+    """Mid-week manual input (Part B.2 of the spec): press-conference news
+    ("ruled out", "expected to start this week", ...) that the data can't
+    see yet. Each ``config.json`` override is
+    ``{"player": "...", "value": 0.0-1.0, "reason": "...", "date": "..."}``
+    and *replaces* (not scales) the modelled ``p_start`` for that player --
+    the news already is the probability the manager wants used.
+
+    Returns the overridden series plus an "applied" log (one row per
+    override that matched a player, with the id resolved, previous p_start,
+    and the new value) so ``fpl.publish`` can surface what changed and flag
+    anything dated after the last run.
+    """
+    if not overrides:
+        return p_start, []
+    by_name = players.set_index(players["web_name"].map(_normalize_name))["id"]
+    applied = []
+    p_start = p_start.copy()
+    for ov in overrides:
+        key = _normalize_name(str(ov.get("player", "")))
+        matches = by_name.loc[[key]] if key in by_name.index else pd.Series(dtype=int)
+        if matches.empty:
+            applied.append({**ov, "player_id": None, "previous_p_start": None, "matched": False})
+            continue
+        for player_id in matches:
+            value = float(np.clip(ov.get("value", p_start.get(player_id, 0.0)), 0.0, 1.0))
+            applied.append(
+                {
+                    **ov,
+                    "player_id": int(player_id),
+                    "previous_p_start": float(p_start.get(player_id, np.nan)),
+                    "new_p_start": value,
+                    "matched": True,
+                }
+            )
+            p_start.loc[player_id] = value
+    return p_start, applied
+
+
+P_START_OVERRIDES_LOG_PATH = TABLES_DIR / "p_start_overrides_applied.json"
+
+
+def log_p_start_overrides(applied: list[dict]) -> None:
+    """Persist what this run actually did with ``config.json``'s
+    ``p_start_overrides`` (resolved player id, old vs new p_start) so
+    ``fpl.publish`` can show a "news since last run" panel without
+    recomputing the override match itself."""
+    import json as _json
+
+    TABLES_DIR.mkdir(parents=True, exist_ok=True)
+    P_START_OVERRIDES_LOG_PATH.write_text(
+        _json.dumps({"generated_at": pd.Timestamp.now("UTC").isoformat(), "overrides": applied}, indent=2)
+    )
 
 
 def build_minutes_factor(pm: pd.DataFrame, players: pd.DataFrame) -> pd.Series:
@@ -349,7 +464,12 @@ def build_features() -> pd.DataFrame:
     pm = attach_match_team(tables["player_matches"], fixtures)
 
     rates = build_player_rates(pm, players)
-    p_start = build_p_start(pm, players, fixtures).rename("p_start")
+    p_start = build_p_start(pm, players, fixtures)
+    p_start, overrides_applied = apply_p_start_overrides(
+        p_start, players, load_config().get("p_start_overrides")
+    )
+    log_p_start_overrides(overrides_applied)
+    p_start = p_start.rename("p_start")
     minutes_factor = build_minutes_factor(pm, players).rename("minutes_factor")
     set_pieces = build_set_piece_features(players)
 
@@ -379,7 +499,7 @@ def build_features() -> pd.DataFrame:
         "fixture_id", "event", "kickoff_time", "is_home",
         "player_id", "web_name", "position", "now_cost",
         "team_id", "team_short", "opponent_id", "opponent_short",
-        "xg90", "xa90", "share_xg", "share_xa", "defcon_rate", "saves90", "bonus_rate",
+        "xg90", "xa90", "share_xg", "share_xa", "defcon_rate", "saves90", "bonus_rate", "bps_rate",
         "yellow_rate90", "red_rate90",
         "p_start", "p_60", "minutes_factor",
         "penalty_order", "direct_fk_order", "corner_fk_order", "takes_penalties",

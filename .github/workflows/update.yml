@@ -42,17 +42,17 @@ jobs:
 
       - uses: astral-sh/setup-uv@v5
 
-      - name: Run the pipeline (fetch -> external data -> features -> model -> league -> optimise -> publish)
+      - name: Run the pipeline (fetch -> external data -> features -> model -> league -> scoring -> optimise -> simulation -> publish)
         run: uv run python -m fpl.pipeline
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
 
-      - name: Save the prediction log
+      - name: Save the prediction log and accuracy track record
         run: |
           git config user.name "fpl-bot"
           git config user.email "fpl-bot@users.noreply.github.com"
-          git add data/predictions
-          git commit -m "Prediction log" || true
+          git add data/predictions data/accuracy data/manual/override_log.json
+          git commit -m "Prediction log + accuracy track record" || true
           git push
 
       - name: Configure Pages

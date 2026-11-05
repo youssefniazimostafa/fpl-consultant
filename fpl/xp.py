@@ -28,6 +28,13 @@ Two things keep this honest, per the spec:
    name via ``rapidfuzz``, since player ids aren't stable across seasons).
    The blend fades out linearly and is fully this-season's numbers by GW6.
 
+``E[bonus]`` (Step 11) isn't a flat per-player rate either: each player's
+expected BPS (``bps_rate`` * expected minutes) is ranked against everyone
+else sharing his ``fixture_id`` -- both squads' full rosters, the same
+pool the real top-3 bonus actually comes out of -- via Monte Carlo
+(``expected_bonus_from_bps_rank``), so a player's bonus depends on who
+else is playing in his match, not just his own history.
+
 Run with `uv run python -m fpl.xp`.
 """
 
@@ -65,7 +72,7 @@ DC_OPPONENT_ELASTICITY = 0.3  # defensive actions rise more gently with opponent
 # output rates (xG share, discipline, bonus magnetism, keeper workload)
 # carry over reasonably well.
 BLEND_COLUMNS = [
-    "share_xg", "share_xa", "bonus_rate", "saves90", "defcon_rate",
+    "share_xg", "share_xa", "bonus_rate", "bps_rate", "saves90", "defcon_rate",
     "p_60", "yellow_rate90", "red_rate90",
 ]
 
@@ -207,6 +214,7 @@ def build_prior_season_rates(
             "share_xg": share("match_share_xg"),
             "share_xa": share("match_share_xa"),
             "bonus_rate": per90("bonus"),
+            "bps_rate": per90("bps"),
             "saves90": per90("saves"),
             "defcon_rate": played.groupby("name_norm")["hit_defcon"].mean(),
             "p_60": started.groupby("name_norm")["played_60"].mean(),
@@ -258,6 +266,62 @@ def expected_floor_half(lam: np.ndarray, k_max: int = 14) -> np.ndarray:
     pmf = poisson.pmf(k[None, :], lam[:, None])
     pmf[:, -1] += np.clip(1.0 - pmf.sum(axis=1), 0.0, None)  # fold negligible tail mass into k_max
     return (pmf * (k // 2)[None, :]).sum(axis=1)
+
+
+# Match-to-match standard deviation of actual BPS this season (``player_
+# matches.parquet``'s ``bps`` column, every player-match row with any
+# minutes) -- used below as the noise scale around each player's expected
+# BPS, so the top-3-in-match ranking reflects real uncertainty instead of
+# treating "highest expected BPS" as a certainty. A flat constant since we
+# have no cheaper way to estimate it per player; it's scaled down for
+# players expected to play fewer minutes (see ``_bps_rank_noise_std``),
+# since a player who barely plays has very little variance left in his BPS.
+BPS_MATCH_NOISE_STD = 11.7
+BONUS_DRAWS = 2000  # Monte Carlo draws per fixture for the top-3-BPS ranking
+
+
+def _bps_rank_noise_std(expected_minutes_frac: np.ndarray) -> np.ndarray:
+    return BPS_MATCH_NOISE_STD * np.sqrt(np.clip(expected_minutes_frac, 0.0, 1.0))
+
+
+def expected_bonus_from_bps_rank(
+    expected_bps: pd.Series, fixture_id: pd.Series, expected_minutes_frac: pd.Series, seed: int = 0
+) -> pd.Series:
+    """Step 11 bonus model: instead of handing every player a flat share
+    of his historical bonus rate, rank players by *expected* BPS within
+    their own match (both squads' full rosters -- everyone sharing a
+    ``fixture_id``) and convert that ranking into expected bonus (3/2/1),
+    the same way the real game awards it.
+
+    Ranking is uncertain (we only have an *expected* BPS, not the
+    outcome), so this draws ``BONUS_DRAWS`` Monte Carlo samples of
+    "expected BPS + noise" per fixture, takes each draw's actual top 3,
+    and averages -- a player just ahead of the cutoff gets most of a
+    bonus's worth of expected value rather than all of it or none, and a
+    big favourite for a standout performance gets close to the full 3."""
+    rng = np.random.default_rng(seed)
+    noise_std = _bps_rank_noise_std(expected_minutes_frac.to_numpy())
+
+    frame = pd.DataFrame(
+        {"fixture_id": fixture_id.to_numpy(), "expected_bps": expected_bps.to_numpy(), "noise_std": noise_std},
+        index=expected_bps.index,
+    )
+    bonus = pd.Series(0.0, index=expected_bps.index)
+    for _, group in frame.groupby("fixture_id"):
+        n = len(group)
+        if n == 0:
+            continue
+        vals = group["expected_bps"].to_numpy()[:, None]
+        sigma = group["noise_std"].to_numpy()[:, None]
+        draws = vals + sigma * rng.standard_normal((n, BONUS_DRAWS))
+        order = np.argsort(-draws, axis=0)  # rank 0 = highest BPS this draw, per column
+        counts = np.zeros(n)
+        for rank, points in enumerate((3, 2, 1)):
+            if rank >= n:
+                break
+            counts += points * np.bincount(order[rank], minlength=n)
+        bonus.loc[group.index] = counts / BONUS_DRAWS
+    return bonus
 
 
 def build_xp(
@@ -327,8 +391,11 @@ def build_xp(
     expected_saves = features["saves90"] * expected_minutes_frac * save_adjustment
     saves_component = (expected_saves / SAVES_PER_POINT) * pts_save_group
 
-    # --- bonus: start with the historical rate (already points/90) -------
-    expected_bonus = features["bonus_rate"] * expected_minutes_frac
+    # --- bonus: rank each player's expected BPS within his own match
+    # (Step 11 -- replaces the old flat "historical bonus rate * minutes"
+    # estimate, which ignored who else was on the pitch that day) --------
+    expected_bps = features["bps_rate"] * expected_minutes_frac
+    expected_bonus = expected_bonus_from_bps_rank(expected_bps, features["fixture_id"], expected_minutes_frac)
 
     # --- cards: a rate (per 90) times the points lost, scaled by minutes --
     expected_cards = (
@@ -407,6 +474,19 @@ def build_xp_by_gameweek(xp: pd.DataFrame) -> pd.DataFrame:
 PREDICTIONS_DIR = ROOT / "data" / "predictions"
 
 
+
+# Per-component columns carried into every snapshot from here on, so Step
+# 11's scoring run can split error into minutes vs. attacking returns vs.
+# clean sheets/conceded vs. bonus instead of just an overall MAE. Snapshots
+# logged before this change won't have these columns -- fpl.scoring must
+# degrade gracefully (overall MAE/bias only) when they're absent.
+PREDICTION_BREAKDOWN_COLUMNS = [
+    "p_play", "p_60", "expected_minutes",
+    "appearance_pts", "expected_goal_pts", "expected_assist_pts",
+    "clean_sheet_pts", "conceded_pts", "defcon_pts", "saves_pts", "bonus_pts", "card_pts",
+]
+
+
 def log_live_predictions(xp: pd.DataFrame) -> Path:
     """Snapshot this run's predictions with a timestamp (Step 7's "from this
     season onward, log every live prediction... After each gameweek, score
@@ -417,6 +497,7 @@ def log_live_predictions(xp: pd.DataFrame) -> Path:
     logged_at = pd.Timestamp.now("UTC")
     snapshot = xp[
         ["fixture_id", "event", "player_id", "web_name", "position", "team_short", "opponent_short", "xp"]
+        + PREDICTION_BREAKDOWN_COLUMNS
     ].copy()
     snapshot.insert(0, "logged_at", logged_at)
     path = PREDICTIONS_DIR / f"{logged_at.strftime('%Y-%m-%dT%H%M%S')}.parquet"

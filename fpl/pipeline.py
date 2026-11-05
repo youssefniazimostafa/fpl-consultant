@@ -1,7 +1,21 @@
 """Pipeline -- the one entry point the scheduled GitHub Actions run calls
 (``.github/workflows/update.yml``). Runs every step in dependency order:
 
-    fetch -> external data -> features -> model -> league -> optimise -> publish
+    fetch -> external data -> features -> model -> league -> scoring -> optimise -> simulation -> publish
+
+``scoring`` (Step 11's post-gameweek feedback loop) sits here rather than
+in its own workflow: ``update.yml`` already runs every 3 hours in UTC
+year-round, so one of those ticks always lands within a few hours of a
+gameweek's 9am UK scores-lock regardless of BST/GMT, with no extra cron
+to maintain. It's a no-op (same accuracy-log row, idempotently replaced)
+on every run except the first one after a gameweek finishes, so running
+it this often is free. It sits before ``optimise``/``publish`` so a
+freshly scored gameweek shows up in the live-accuracy panel the same run.
+
+``simulation`` (Step 11 Part B.4 extension 4) sits right after
+``optimise``, which is where its two candidate squads (hold vs transfer)
+come from, and right before ``publish``, which reads its
+``simulation_results.json`` into the win-probability panel.
 
 Each stage's own ``main()`` already guards itself against missing
 config/credentials -- no ``team_id``, no ``ODDS_API_KEY``, ClubElo being
@@ -41,6 +55,8 @@ import fpl.league as league
 import fpl.odds as odds
 import fpl.optimise as optimise
 import fpl.publish as publish
+import fpl.scoring as scoring
+import fpl.simulation as simulation
 import fpl.understat as understat
 import fpl.xp as xp
 
@@ -72,7 +88,9 @@ def main() -> None:
     run_stage("features", features)
     run_stage("model (xp)", xp)
     run_stage("league", league)
+    run_stage("scoring", scoring)
     run_stage("optimise", optimise)
+    run_stage("simulation", simulation)
     run_stage("publish", publish)
     print("\nPipeline complete.")
 
