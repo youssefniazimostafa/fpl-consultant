@@ -1,0 +1,197 @@
+{
+  "gameweek": 10,
+  "generated_at": "2026-11-09T21:48:44.271665+00:00",
+  "predictions": {
+    "available": true,
+    "gameweek": 10,
+    "snapshot_path": "data/predictions/2026-11-06T101256.parquet",
+    "snapshot_logged_at": "2026-11-06T101256",
+    "n_players": 670,
+    "missing_actuals": 0,
+    "has_component_breakdown": true,
+    "mae": 1.1169763536811024,
+    "bias": 0.05944711595104925,
+    "by_component": [
+      {
+        "component": "expected_goal",
+        "mae": 0.322109945852271,
+        "bias": 0.032139021787729184
+      },
+      {
+        "component": "appearance",
+        "mae": 0.3216188787023021,
+        "bias": -0.011741629663448046
+      },
+      {
+        "component": "clean_sheet",
+        "mae": 0.29933546788407306,
+        "bias": 0.0023547885942018436
+      },
+      {
+        "component": "expected_assist",
+        "mae": 0.18937681633016099,
+        "bias": -0.01241726056734943
+      },
+      {
+        "component": "defcon",
+        "mae": 0.15677712239684582,
+        "bias": 0.029599078604928924
+      },
+      {
+        "component": "bonus",
+        "mae": 0.15376119402985075,
+        "bias": 0.005970149253731346
+      },
+      {
+        "component": "card",
+        "mae": 0.12115584930622839,
+        "bias": -0.005805038949091097
+      },
+      {
+        "component": "conceded",
+        "mae": 0.11881084941730136,
+        "bias": 0.041147752328158316
+      },
+      {
+        "component": "saves",
+        "mae": 0.028780867123130726,
+        "bias": -0.018814670810946107
+      },
+      {
+        "component": "unmodeled (own goals / penalty misses / saves)",
+        "mae": 0.0029850746268656717,
+        "bias": -0.0029850746268656717
+      }
+    ],
+    "worst_predictions": [
+      {
+        "web_name": "Alysson",
+        "position": "MID",
+        "team_short": "AVL",
+        "xp": 1.4472374520384357,
+        "actual_total_points": 16,
+        "residual": 14.552762547961564
+      },
+      {
+        "web_name": "Dorgu",
+        "position": "MID",
+        "team_short": "MUN",
+        "xp": 0.0,
+        "actual_total_points": 11,
+        "residual": 11.0
+      },
+      {
+        "web_name": "Barry",
+        "position": "FWD",
+        "team_short": "EVE",
+        "xp": 5.174091273998042,
+        "actual_total_points": 16,
+        "residual": 10.825908726001959
+      },
+      {
+        "web_name": "Delap",
+        "position": "FWD",
+        "team_short": "NFO",
+        "xp": 2.770744784862679,
+        "actual_total_points": 13,
+        "residual": 10.229255215137321
+      },
+      {
+        "web_name": "Wirtz",
+        "position": "MID",
+        "team_short": "LIV",
+        "xp": 4.260091692153093,
+        "actual_total_points": 13,
+        "residual": 8.739908307846907
+      },
+      {
+        "web_name": "J.Murphy",
+        "position": "MID",
+        "team_short": "NEW",
+        "xp": 1.776804773208381,
+        "actual_total_points": 10,
+        "residual": 8.223195226791619
+      },
+      {
+        "web_name": "Vuskovic",
+        "position": "DEF",
+        "team_short": "BHA",
+        "xp": 4.4619169979021045,
+        "actual_total_points": 12,
+        "residual": 7.5380830020978955
+      },
+      {
+        "web_name": "Clarke",
+        "position": "MID",
+        "team_short": "IPS",
+        "xp": 0.8196497164750552,
+        "actual_total_points": 8,
+        "residual": 7.180350283524945
+      },
+      {
+        "web_name": "N.Jackson",
+        "position": "FWD",
+        "team_short": "AVL",
+        "xp": 4.021172387224632,
+        "actual_total_points": 11,
+        "residual": 6.978827612775368
+      },
+      {
+        "web_name": "McGinn",
+        "position": "MID",
+        "team_short": "AVL",
+        "xp": 3.126346006908884,
+        "actual_total_points": 10,
+        "residual": 6.873653993091116
+      },
+      {
+        "web_name": "E.Le F\u00e9e",
+        "position": "MID",
+        "team_short": "SUN",
+        "xp": 4.157430297345534,
+        "actual_total_points": 11,
+        "residual": 6.842569702654466
+      },
+      {
+        "web_name": "Muniz",
+        "position": "FWD",
+        "team_short": "FUL",
+        "xp": 0.2934368832360238,
+        "actual_total_points": 7,
+        "residual": 6.706563116763976
+      },
+      {
+        "web_name": "Jair Cunha",
+        "position": "DEF",
+        "team_short": "NFO",
+        "xp": 2.3418112195087786,
+        "actual_total_points": 9,
+        "residual": 6.658188780491221
+      },
+      {
+        "web_name": "Mukiele",
+        "position": "DEF",
+        "team_short": "SUN",
+        "xp": 2.4199365935251405,
+        "actual_total_points": 9,
+        "residual": 6.58006340647486
+      },
+      {
+        "web_name": "Cherki",
+        "position": "MID",
+        "team_short": "MCI",
+        "xp": 2.647961327003688,
+        "actual_total_points": 9,
+        "residual": 6.352038672996311
+      }
+    ]
+  },
+  "league_results": {
+    "available": false,
+    "reason": "no data/manual_snapshots/10.json -- log this gameweek's standings/squads there (see data/manual/README.md) to get rival GW scores, captains and chips."
+  },
+  "override_log": {
+    "available": false,
+    "reason": "data/manual/override_log.json is empty or missing."
+  }
+}
