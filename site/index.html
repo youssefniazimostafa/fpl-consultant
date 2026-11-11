@@ -2,8 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>FPL Consultant</title>
+<meta name="description" content="Automatic Fantasy Premier League consultant: standing vs rivals, transfers, team improvement and differential opportunities, refreshed every gameweek.">
+<meta name="theme-color" content="#0f1419">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FPL Consultant">
 <style>
   :root {
     --bg: #0f1419;
@@ -23,17 +31,20 @@
     background: var(--bg);
     color: var(--text);
     font: 15px/1.45 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding-bottom: env(safe-area-inset-bottom);
   }
   header {
-    padding: 1.25rem 1.5rem;
+    padding: 1rem 1.25rem 0.75rem;
     border-bottom: 1px solid var(--panel-border);
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 0.75rem;
+    gap: 0.6rem;
   }
-  header h1 { margin: 0; font-size: 1.3rem; }
-  header .meta { color: var(--muted); font-size: 0.85rem; margin-left: auto; }
+  header h1 { margin: 0; font-size: 1.2rem; }
+  header .meta { color: var(--muted); font-size: 0.8rem; margin-left: auto; }
+  header a { color: var(--muted); font-size: 0.8rem; text-decoration: none; }
+  header a:hover { color: var(--text); }
   .badge {
     display: inline-block;
     padding: 0.15rem 0.55rem;
@@ -46,20 +57,70 @@
   .badge.chasing { background: #4a2330; color: #ff9fb0; }
   .badge.protecting { background: #1f3a2d; color: var(--accent); }
   .badge.balanced { background: #2a3550; color: #9fb8ff; }
-  main {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 1.25rem;
+  .badge.stale { background: #4a2330; color: var(--warn); }
+
+  /* ---- status strip ---- */
+  #status-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    padding: 0.65rem 1.25rem;
+    background: var(--panel);
+    border-bottom: 1px solid var(--panel-border);
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  #status-strip b { color: var(--text); }
+  #status-strip .stat { display: flex; align-items: center; gap: 0.35rem; }
+
+  /* ---- tabs ---- */
+  nav.tabs {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.6rem 1.25rem 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-bottom: 1px solid var(--panel-border);
+    background: var(--bg);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  nav.tabs button {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 0.6rem 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+  }
+  nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav.tabs button:hover { color: var(--text); }
+
+  .tab-panel { display: none; }
+  .tab-panel.active {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
     gap: 1rem;
     align-items: start;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.1rem;
   }
   section.panel {
     background: var(--panel);
     border: 1px solid var(--panel-border);
     border-radius: 10px;
     padding: 1rem 1.1rem;
+    /* grid items default to min-width:auto (their content's min-content
+       size), which blows out a narrow mobile column when a wide table is
+       inside; min-width:0 lets the panel actually shrink to the track. */
+    min-width: 0;
   }
   section.panel.wide { grid-column: 1 / -1; }
   section.panel h2 {
@@ -68,6 +129,7 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    flex-wrap: wrap;
   }
   section.panel h2 .sub { font-weight: 400; color: var(--muted); font-size: 0.8rem; }
   .unavailable {
@@ -80,6 +142,7 @@
   thead th { color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--panel-border); }
   tbody tr:nth-child(odd) { background: var(--row-alt); }
   tbody tr.captain { outline: 1px solid var(--accent); }
+  tbody tr.urgent { outline: 1px solid var(--bad); }
   .pos { color: var(--muted); font-size: 0.75rem; }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
   .pill {
@@ -97,6 +160,9 @@
   .pill.yes { background: #1f3a2d; color: var(--accent); }
   .pill.no { background: var(--panel-border); color: var(--muted); }
   .pill.urgent { background: #4a2330; color: #ff9fb0; }
+  .pill.forced { background: #4a2330; color: #ff9fb0; }
+  .pill.flagged { background: #4a3a1f; color: var(--warn); }
+  .pill.model_edge { background: var(--panel-border); color: var(--muted); }
   .swing-neg { color: var(--bad); font-weight: 600; }
   .swing-pos { color: var(--accent); font-weight: 600; }
   .headline {
@@ -134,24 +200,70 @@
     font-size: 0.8rem;
   }
   code { color: var(--accent); }
+
+  /* ---- mobile: tables become stacked cards instead of scrolling sideways ---- */
+  @media (max-width: 640px) {
+    table.responsive-cards thead { display: none; }
+    table.responsive-cards, table.responsive-cards tbody,
+    table.responsive-cards tr, table.responsive-cards td { display: block; width: 100%; }
+    table.responsive-cards tr {
+      margin-bottom: 0.6rem;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 0.3rem 0.5rem;
+    }
+    table.responsive-cards td {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.3rem 0.1rem;
+      border: none;
+      text-align: right;
+    }
+    table.responsive-cards td::before {
+      content: attr(data-label);
+      color: var(--muted);
+      font-weight: 600;
+      text-align: left;
+      margin-right: 0.5rem;
+    }
+    table.responsive-cards td:empty { display: none; }
+    .tab-panel.active { grid-template-columns: 1fr; padding: 0.75rem; }
+    nav.tabs button { padding: 0.55rem 0.7rem; font-size: 0.8rem; }
+  }
 </style>
 </head>
 <body>
 <header>
   <h1>⚽ FPL Consultant</h1>
   <span id="strategy-badge"></span>
-  <a href="methods.html" style="color: var(--muted); font-size: 0.85rem;">Methods &amp; track record →</a>
+  <span id="stale-badge"></span>
+  <a href="methods.html">Methods &amp; track record →</a>
   <span class="meta" id="generated-at"></span>
 </header>
+<div id="status-strip"></div>
+<nav class="tabs" id="tabs">
+  <button data-tab="standing" class="active">1 · Standing vs rivals</button>
+  <button data-tab="transfers">2 · Transfers</button>
+  <button data-tab="improve">3 · Improve my team</button>
+  <button data-tab="differentials">4 · Differentials</button>
+</nav>
 <main id="app">
-  <section class="panel wide"><p class="unavailable">Loading <code>data/latest.json</code>…</p></section>
+  <div class="tab-panel active" data-tab="standing"><section class="panel wide"><p class="unavailable">Loading <code>data/latest.json</code>…</p></section></div>
+  <div class="tab-panel" data-tab="transfers"></div>
+  <div class="tab-panel" data-tab="improve"></div>
+  <div class="tab-panel" data-tab="differentials"></div>
 </main>
 <footer>
   Data refreshed automatically by <code>fpl/pipeline.py</code> via GitHub Actions. Every panel degrades
-  independently when its upstream step hasn't run yet or <code>config.json</code> isn't fully set.
+  independently when its upstream step hasn't run yet or <code>config.json</code> isn't fully set. Install this
+  page to your home screen for one-tap access (it works offline once cached, though you'll only see the last
+  data fetched while connected).
 </footer>
 <script>
 const fmt = (v, d = 2) => (v === null || v === undefined || Number.isNaN(v)) ? '–' : Number(v).toFixed(d);
+const pct = (v, d = 1) => (v === null || v === undefined || Number.isNaN(v)) ? '–' : `${(Number(v) * 100).toFixed(d)}%`;
 const esc = (s) => (s === null || s === undefined) ? '' : String(s).replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
 function el(tag, attrs = {}, children = []) {
@@ -175,12 +287,12 @@ function table(rows, columns) {
     const trAttrs = {};
     if (row.__rowClass) trAttrs.class = row.__rowClass;
     return el('tr', trAttrs, columns.map((c) => {
-      const td = el('td', { class: c.num ? 'num' : '' });
+      const td = el('td', { class: c.num ? 'num' : '', 'data-label': c.label || '' });
       td.innerHTML = c.render ? c.render(row) : esc(row[c.key]);
       return td;
     }));
   }));
-  return el('table', {}, [thead, tbody]);
+  return el('table', { class: 'responsive-cards' }, [thead, tbody]);
 }
 
 function panel(title, sub, bodyNode, wide = false) {
@@ -192,7 +304,6 @@ function unavailablePanel(title, reason, wide = false) {
   return panel(title, null, el('p', { class: 'unavailable' }, reason || 'Not available yet.'), wide);
 }
 
-const POS_NAMES = { GKP: 'GKP', DEF: 'DEF', MID: 'MID', FWD: 'FWD' };
 function rolePill(role) {
   return `<span class="pill ${role}">${role}</span>`;
 }
@@ -245,21 +356,35 @@ function renderCaptainBoard(cb) {
   return panel('Captain board', null, body);
 }
 
+const URGENCY_LABELS = { forced: 'sell today', flagged: 'at risk', model_edge: 'optional' };
+
 function renderTransferPlan(tp) {
   if (!tp.available) return unavailablePanel('Transfer plan (6 weeks)', tp.reason, true);
-  const body = table(tp.weeks.map((w) => ({ ...w, __rowClass: w.recommended ? 'captain' : '' })), [
+  const body = table(tp.weeks.map((w) => ({ ...w, __rowClass: w.urgency === 'forced' ? 'urgent' : (w.recommended ? 'captain' : '') })), [
     { key: 'gameweek', label: 'GW' },
     { label: 'Out', render: (r) => r.player_out ? esc(r.player_out) : '<span class="unavailable">—</span>' },
     { label: 'In', render: (r) => r.player_in ? esc(r.player_in) : '<span class="unavailable">—</span>' },
     { key: 'hits_taken', label: 'Hits', num: true },
     { label: 'Horizon gain', num: true, render: (r) => r.horizon_gain_xp !== null ? fmt(r.horizon_gain_xp) : '' },
     { label: 'Recommended', render: (r) => r.recommended === true ? '<span class="pill yes">yes</span>' : (r.recommended === false ? '<span class="pill no">hold</span>' : '') },
+    {
+      label: 'Urgency', render: (r) => r.player_out
+        ? `<span class="pill ${r.urgency}">${URGENCY_LABELS[r.urgency] || r.urgency}</span>${r.news ? ` <span class="unavailable">${esc(r.news)}</span>` : ''}`
+        : '',
+    },
   ]);
-  return panel('Transfer plan (6 weeks)', null, body, true);
+  return panel('Transfer plan (6 weeks)', 'urgency: sell today (injury/suspension) > at risk (doubtful) > optional (model edge)', body, true);
 }
 
 function renderChips(chips) {
   const parts = [];
+  if (chips.season_context) {
+    const sc = chips.season_context;
+    parts.push(el('p', { class: 'verdict-meta' },
+      `Season context: ${sc.settled ? 'season settled -- ' : ''}P(finish 1st by GW${sc.target_gameweek}) ` +
+      `is currently ${pct(sc.p_finish_1st_by_target)} with ${sc.weeks_remaining} gameweek(s) left -- spend chips ` +
+      'where they move that number, not just this week\u2019s points.'));
+  }
   if (!chips.yours.available) {
     parts.push(el('div', {}, [el('h3', { html: 'Your chips' }), el('p', { class: 'unavailable' }, chips.yours.reason)]));
   } else {
@@ -274,7 +399,7 @@ function renderChips(chips) {
         available: available.length > 0,
         best_gw: best ? best.gameweek : null,
         best_gain: best ? best.estimated_gain : null,
-        urgent: weeks.some((w) => w.urgent),
+        urgent: available.some((w) => w.urgent),
       };
     });
     parts.push(el('div', {}, [
@@ -311,6 +436,42 @@ function renderChips(chips) {
   return panel('Chips', null, el('div', {}, parts), true);
 }
 
+function renderStrategy(s) {
+  if (!s.available) return unavailablePanel('Strategy dial', s.reason);
+  const body = el('div', {}, [
+    el('div', { class: 'headline' }, s.mode.toUpperCase()),
+    el('p', { class: 'verdict-meta' }, s.explanation),
+    s.source === 'auto'
+      ? el('p', { class: 'verdict-meta' },
+          `You: ${s.your_points} pts · Leader: ${s.leader_points} pts · Gap to first: ${s.gap_to_first} · ` +
+          `${s.gameweeks_remaining} GWs remaining -> ${fmt(s.risk_per_gw)} pts/GW at stake`)
+      : el('p', { class: 'verdict-meta' }, 'Set manually via config.json\u2019s "strategy" key.'),
+  ]);
+  return panel('Strategy dial', null, body);
+}
+
+function renderFreeTransfers(ft) {
+  if (!ft.available) return unavailablePanel('Free transfers', ft.reason);
+  const body = table([...ft.managers].sort((a, b) => b.free_transfers - a.free_transfers), [
+    { key: 'entry_name', label: 'Team' },
+    { key: 'player_name', label: 'Manager' },
+    { key: 'free_transfers', label: 'FT', num: true, render: (r) => `<b>${r.free_transfers}</b>` },
+  ]);
+  return panel('Free transfers', 'computed from full transfer history, every manager', body);
+}
+
+function renderRivalTransferForecast(rtf) {
+  if (!rtf.available) return unavailablePanel('Rivals\u2019 likely transfers', rtf.reason, true);
+  const body = table(rtf.forecasts, [
+    { key: 'entry_name', label: 'Team' },
+    { key: 'free_transfers', label: 'FT', num: true },
+    { label: 'Likely in', render: (r) => r.predicted_in ? `${esc(r.predicted_in)}<br><span class="unavailable">${esc(r.predicted_in_reason)}</span>` : '<span class="unavailable">no clear signal</span>' },
+    { label: 'Likely out', render: (r) => r.predicted_out ? `${esc(r.predicted_out)}<br><span class="unavailable">${esc(r.predicted_out_reason)}</span>` : '<span class="unavailable">no clear signal</span>' },
+    { key: 'chase_rate', label: 'Chase rate', num: true, render: (r) => pct(r.chase_rate) },
+  ]);
+  return panel('Rivals\u2019 likely transfers', 'next gameweek, from each manager\u2019s own habits', body, true);
+}
+
 function renderThreats(t) {
   if (!t.available) return unavailablePanel('Threats (squad overlap)', t.reason, true);
   const body = table(t.rivals, [
@@ -319,23 +480,30 @@ function renderThreats(t) {
     { key: 'unique_to_rival', label: 'They have, you don\u2019t' },
     { key: 'unique_to_you', label: 'You have, they don\u2019t' },
   ]);
-  return panel('Threats — who you\u2019re really competing with', null, body, true);
+  return panel(
+    'Threats — who you\u2019re really competing with',
+    t.restricted_to_rival_window ? 'rival window only' : 'whole league',
+    body, true,
+  );
 }
 
 function renderDifferentials(d) {
   if (!d.available) return unavailablePanel('Differentials', d.reason);
+  const ownCol = d.ownership_column || 'league_ownership_pct';
+  const label = ownCol === 'rival_window_ownership_pct' ? 'Rival-window own %' : 'League own %';
   const body = table(d.players, [
     { key: 'web_name', label: 'Player' },
     { key: 'position', label: 'Pos' },
-    { key: 'league_ownership_pct', label: 'League own %', num: true, render: (r) => fmt(r.league_ownership_pct, 1) },
+    { key: ownCol, label, num: true, render: (r) => fmt(r[ownCol], 1) },
     { key: 'next_gw_xp', label: `GW${d.next_gameweek ?? ''} xP`, num: true, render: (r) => fmt(r.next_gw_xp) },
   ]);
-  return panel('Differentials', 'low league ownership, ranked by next-GW xP', body);
+  return panel('Differentials', `low ownership, ranked by next-GW xP`, body);
 }
 
 function renderEoThreats(t) {
   if (!t.available) return unavailablePanel('Threats (high league EO)', t.reason);
-  const eoLabel = t.eo_column === 'weighted_league_eo' ? 'Weighted EO' : 'League EO';
+  const eoLabels = { rival_window_eo: 'Rival-window EO', weighted_league_eo: 'Weighted EO', league_eo: 'League EO' };
+  const eoLabel = eoLabels[t.eo_column] || 'League EO';
   const body = table(t.players, [
     { key: 'web_name', label: 'Player' },
     { key: 'position', label: 'Pos' },
@@ -384,6 +552,25 @@ function renderLeagueTable(lt) {
     },
   ]);
   return panel('League table', `GW${lt.gameweek}`, body);
+}
+
+function renderRivalWindow(rw) {
+  if (!rw.available) return unavailablePanel('Rival window', rw.reason);
+  const body = table(rw.rivals.map((r) => ({ ...r, __rowClass: r.in_window ? 'captain' : '' })), [
+    { key: 'entry_name', label: 'Team' },
+    { key: 'total_points', label: 'Pts', num: true },
+    {
+      key: 'gap_to_you', label: 'Gap to you', num: true,
+      render: (r) => `<span class="${r.gap_to_you < 0 ? 'gap-neg' : (r.gap_to_you > 0 ? 'gap-pos' : '')}">${r.gap_to_you}</span>`,
+    },
+    { label: 'In window?', render: (r) => r.in_window ? '<span class="pill yes">yes</span>' : '<span class="pill no">no</span>' },
+  ]);
+  const window_points = rw.rivals[0]?.window_points;
+  const rolling = rw.rivals[0]?.rolling_average_window_points;
+  return panel(
+    'Rival window', `within ${fmt(window_points, 0)} pts (rolling-avg alternative: ${fmt(rolling, 1)} pts)`,
+    body,
+  );
 }
 
 function renderOwnershipHeatmap(oh) {
@@ -448,24 +635,22 @@ function renderModelAccuracy(ma) {
     { key: 'xp', label: 'Our model' },
     { key: 'fpl_xp', label: "FPL's ep_next" },
     { key: 'ppg', label: 'Season PPG' },
-    { key: 'last5', label: 'Last-5 average' },
-  ];
-  const maeVals = baselines.map((b) => latest[`mae_${b.key}`]).filter((v) => v !== null && v !== undefined);
-  const maxMae = Math.max(...maeVals, 0.01);
+    { key: 'last_gw', label: 'Last GW repeated' },
+  ].filter((b) => latest[`mae_${b.key}`] !== undefined && latest[`mae_${b.key}`] !== null);
+  const maxMae = Math.max(...baselines.map((b) => latest[`mae_${b.key}`]), 0.01);
   const rows = baselines.map((b) => {
     const mae = latest[`mae_${b.key}`];
     return el('div', { class: 'bar-row' }, [
       el('div', { class: 'bar-label' }, b.label),
-      el('div', { class: 'bar-track' }, el('div', { class: 'bar-fill' + (b.key === 'xp' ? ' model' : ''), html: '' , })),
+      el('div', { class: 'bar-track' }, el('div', { class: `bar-fill${b.key === 'xp' ? ' model' : ''}` })),
       el('div', { class: 'bar-value' }, fmt(mae)),
     ]);
   });
-  // set widths after creation (lower MAE = better, so shorter bar = better; invert for visual "more accurate = fuller bar")
   rows.forEach((row, i) => {
     const mae = latest[`mae_${baselines[i].key}`];
     const fill = row.querySelector('.bar-fill');
-    const pct = mae === null || mae === undefined ? 0 : Math.max(4, 100 * (1 - mae / (maxMae * 1.15)));
-    fill.style.width = `${pct}%`;
+    const p = mae === null || mae === undefined ? 0 : Math.max(4, 100 * (1 - mae / (maxMae * 1.15)));
+    fill.style.width = `${p}%`;
   });
   const body = el('div', {}, [
     el('p', { class: 'verdict-meta' }, `MAE on total points, latest backtest (${ma.runs.length} run(s) logged). Longer bar = more accurate.`),
@@ -551,22 +736,42 @@ function renderSimulation(sim) {
   const parts = [
     el('p', { class: 'verdict-meta' },
       samePlan
-        ? `Best win-odds plan and the average-xP plan agree this week: ${esc(best.scenario)}, captain ${esc(best.captain)} -- P(finish 1st) ${((best.p_finish_1st ?? 0) * 100).toFixed(1)}%.`
-        : `Win-odds plan: ${esc(best?.scenario ?? '?')}, captain ${esc(best?.captain ?? '?')} (P(1st) ${((best?.p_finish_1st ?? 0) * 100).toFixed(1)}%) vs ` +
-          `average-xP plan: ${esc(avg?.scenario ?? '?')}, captain ${esc(avg?.captain ?? '?')} (P(1st) ${((avg?.p_finish_1st ?? 0) * 100).toFixed(1)}%).`),
+        ? `Best win-odds plan and the average-xP plan agree this week: ${esc(best.scenario)}, captain ${esc(best.captain)} -- P(finish 1st) ${pct(best.p_finish_1st)}.`
+        : `Win-odds plan: ${esc(best?.scenario ?? '?')}, captain ${esc(best?.captain ?? '?')} (P(1st) ${pct(best?.p_finish_1st)}) vs ` +
+          `average-xP plan: ${esc(avg?.scenario ?? '?')}, captain ${esc(avg?.captain ?? '?')} (P(1st) ${pct(avg?.p_finish_1st)}).`),
     table(sim.plans.map((r) => ({ ...r, __rowClass: r === best ? 'captain' : '' })), [
       { key: 'scenario', label: 'Scenario' },
       { key: 'captain', label: 'Captain' },
       { key: 'hits', label: 'Hits', num: true, render: (r) => r.hits ? `-${r.hits * 4}` : '0' },
       { key: 'mean_points', label: 'Mean pts', num: true, render: (r) => fmt(r.mean_points) },
-      { key: 'p_finish_1st', label: 'P(1st)', num: true, render: (r) => `${((r.p_finish_1st ?? 0) * 100).toFixed(1)}%` },
+      { key: 'p_finish_1st', label: 'P(1st)', num: true, render: (r) => pct(r.p_finish_1st) },
       { label: '', render: (r) => r.is_average_xp_captain ? '<span class="pill">avg-xP captain</span>' : '' },
     ]),
     el('p', { class: 'verdict-meta' },
       'Single gameweek only (not a season-long finish), Poisson(xP) per player, rivals carried forward ' +
       "unchanged from their last known squad -- see fpl/simulation.py's module docstring."),
   ];
-  return panel('Win-probability simulation', 'this gameweek', el('div', {}, parts), true);
+  return panel('Win-probability simulation (this gameweek)', 'this gameweek', el('div', {}, parts), true);
+}
+
+function renderSeasonSimulation(ss) {
+  if (!ss.available) return unavailablePanel('Season simulation', ss.reason, true);
+  const rows = [...ss.standings].sort((a, b) => b.p_finish_1st_by_gw19 - a.p_finish_1st_by_gw19);
+  const body = table(rows, [
+    { key: 'entry_name', label: 'Team' },
+    { key: 'player_name', label: 'Manager' },
+    { key: 'current_total', label: 'Pts now', num: true },
+    { key: 'mean_points_per_gw', label: 'Mean/GW', num: true, render: (r) => fmt(r.mean_points_per_gw, 1) },
+    { key: 'projected_total_by_gw19', label: `Proj. by GW${ss.target_gameweek}`, num: true, render: (r) => fmt(r.projected_total_by_gw19, 0) },
+    { key: 'p_finish_1st_by_gw19', label: 'P(1st)', num: true, render: (r) => `<b>${pct(r.p_finish_1st_by_gw19)}</b>` },
+  ]);
+  const note = el('p', { class: 'verdict-meta' },
+    ss.settled
+      ? `Season already at or past GW${ss.target_gameweek} -- standings shown are final for this projection.`
+      : `${ss.weeks_remaining} gameweek(s) left to GW${ss.target_gameweek}. Each manager's future weekly score is drawn ` +
+        'from Normal(their own historical mean, their own historical std) \u2014 a coarser, team-level model, not a ' +
+        'full squad/xP re-simulation (see fpl/simulation.py\u2019s module docstring).');
+  return panel('Season simulation', `P(finish 1st by GW${ss.target_gameweek})`, el('div', {}, [body, note]), true);
 }
 
 function renderNewsFlags(nf) {
@@ -596,28 +801,91 @@ function renderTopXp(tx) {
 }
 
 // ---------------------------------------------------------------------
-// league_swings-derived panels (eo_threats/league_table/ownership_heatmap/
-// vs_leader) and league_eo already live on differentials/captain_board
-// too, covering the Step 8 checkpoint from multiple angles.
+// status strip + staleness
 // ---------------------------------------------------------------------
 
+const EASTERN_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York', month: 'short', day: 'numeric',
+  hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+});
+
+function renderStatusStrip(status, generatedAt) {
+  const strip = document.getElementById('status-strip');
+  strip.innerHTML = '';
+  const stats = [];
+  if (status.current_gameweek !== null && status.current_gameweek !== undefined) {
+    stats.push(el('span', { class: 'stat' }, [`Current GW `, el('b', {}, String(status.current_gameweek))]));
+  }
+  if (status.next_deadline_utc) {
+    const deadline = new Date(status.next_deadline_utc);
+    const now = new Date();
+    const msLeft = deadline - now;
+    const daysLeft = Math.floor(msLeft / 86400000);
+    const hoursLeft = Math.floor((msLeft % 86400000) / 3600000);
+    const countdown = msLeft <= 0 ? 'deadline passed' : (daysLeft > 0 ? `${daysLeft}d ${hoursLeft}h` : `${hoursLeft}h`);
+    stats.push(el('span', { class: 'stat' }, [
+      `Next deadline (GW${status.next_gameweek ?? '?'}) `,
+      el('b', {}, EASTERN_FMT.format(deadline)),
+      ` (${countdown})`,
+    ]));
+  }
+  if (status.your_free_transfers !== null && status.your_free_transfers !== undefined) {
+    stats.push(el('span', { class: 'stat' }, [`Your free transfers `, el('b', {}, String(status.your_free_transfers))]));
+  }
+  for (const s of stats) strip.appendChild(s);
+
+  // Staleness: this is a client-side check, not something fpl.publish
+  // computes itself -- a failed pipeline run simply leaves the last good
+  // site/data/latest.json in place (see fpl.pipeline's module docstring),
+  // so "is this stale" can only be answered by comparing generated_at
+  // against the viewer's own clock, here, at view time.
+  const badge = document.getElementById('stale-badge');
+  const ageHours = (Date.now() - new Date(generatedAt).getTime()) / 3600000;
+  if (ageHours > 36) {
+    badge.className = 'badge stale';
+    badge.textContent = `⚠ data ${Math.floor(ageHours / 24)}d old`;
+  } else {
+    badge.className = '';
+    badge.textContent = '';
+  }
+}
+
+// ---------------------------------------------------------------------
+// tabs
+// ---------------------------------------------------------------------
+
+function initTabs() {
+  const nav = document.getElementById('tabs');
+  nav.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-tab]');
+    if (!btn) return;
+    for (const b of nav.querySelectorAll('button')) b.classList.toggle('active', b === btn);
+    for (const p of document.querySelectorAll('.tab-panel')) p.classList.toggle('active', p.dataset.tab === btn.dataset.tab);
+    window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  });
+}
+
+function fillTab(tab, panels) {
+  const node = document.querySelector(`.tab-panel[data-tab="${tab}"]`);
+  node.innerHTML = '';
+  for (const p of panels) node.appendChild(p);
+}
+
 async function main() {
-  const app = document.getElementById('app');
+  initTabs();
   let data;
   try {
     const res = await fetch('data/latest.json', { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     data = await res.json();
   } catch (err) {
-    app.innerHTML = '';
-    app.appendChild(panel(
-      'No data yet',
-      null,
+    fillTab('standing', [panel(
+      'No data yet', null,
       el('p', { class: 'unavailable' },
         'Could not load data/latest.json. Run `uv run python -m fpl.pipeline` (or wait for the ' +
         'scheduled GitHub Actions run) to generate it.'),
       true,
-    ));
+    )]);
     return;
   }
 
@@ -628,32 +896,55 @@ async function main() {
     badge.className = 'badge ' + mode;
     badge.textContent = mode.toUpperCase();
   }
+  if (data.status) renderStatusStrip(data.status, data.generated_at);
 
-  app.innerHTML = '';
-  const panels = [
-    renderVerdict(data.verdict),
-    renderXi(data.xi),
-    renderCaptainBoard(data.captain_board),
-    renderTransferPlan(data.transfer_plan),
-    renderChips(data.chips),
-    renderCaptaincyRisk(data.captaincy_risk),
-    renderThreats(data.threats),
-    renderEoThreats(data.eo_threats),
-    renderDifferentials(data.differentials),
+  // Tab 1: standing vs rivals
+  fillTab('standing', [
     renderLeagueTable(data.league_table),
     renderVsLeader(data.vs_leader),
+    renderRivalWindow(data.rival_window),
+    renderThreats(data.threats),
+    renderEoThreats(data.eo_threats),
+    renderCaptaincyRisk(data.captaincy_risk),
     renderOwnershipHeatmap(data.ownership_heatmap),
+  ]);
+
+  // Tab 2: transfers
+  fillTab('transfers', [
+    renderVerdict(data.verdict),
+    renderTransferPlan(data.transfer_plan),
+    renderFreeTransfers(data.free_transfers),
+    renderRivalTransferForecast(data.rival_transfer_forecast),
+    renderNewsFlags(data.news_flags),
+  ]);
+
+  // Tab 3: improve my team
+  fillTab('improve', [
+    renderXi(data.xi),
+    renderCaptainBoard(data.captain_board),
+    renderStrategy(data.strategy),
+    renderChips(data.chips),
+    renderSimulation(data.simulation),
+    renderSeasonSimulation(data.season_simulation),
     renderFixtureTicker(data.fixture_ticker),
     renderModelAccuracy(data.model_accuracy),
     renderLiveAccuracy(data.live_accuracy),
-    renderSimulation(data.simulation),
-    renderNewsFlags(data.news_flags),
     renderTopXp(data.top_xp),
-  ];
-  for (const p of panels) app.appendChild(p);
+  ]);
+
+  // Tab 4: differential opportunities
+  fillTab('differentials', [
+    renderDifferentials(data.differentials),
+  ]);
 }
 
 main();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

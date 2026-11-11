@@ -1,4 +1,5 @@
-"""Step 11 Part B.4 extension 4 -- Monte Carlo P(finish 1st).
+"""Step 11 Part B.4 extension 4 -- Monte Carlo P(finish 1st). Step 12
+extends this with a season-long version (see below).
 
 Runs thousands of simulated draws of **next gameweek's** realised points,
 for every manager in the league, and reports how often each of *my*
@@ -6,15 +7,6 @@ candidate plans comes out on top. This directly answers "recommend the
 plan with the best odds, not the best average", by testing candidates
 against the same simulated rival outcomes rather than only comparing
 their expected xP.
-
-**Scope, stated plainly:** this simulates *one* gameweek's rank, not a
-season-long league finish -- "P(finish 1st)" below means "P(top of the
-GW table this week)". A true season-long P(finish 1st overall) would need
-simulating every remaining fixture for every player and every rival's
-future transfers, which is out of scope here; this single-week version
-already answers the only question a weekly routine can act on (this
-week's captain/transfer choice), and is flagged as a future extension in
-the module docstring rather than silently conflated with the season race.
 
 **My candidate plans.** Re-solves Step 9's MILP twice for the upcoming
 gameweek: once normally (``baseline``, may include a transfer) and once
@@ -27,14 +19,16 @@ the "average-xP plan" (the highest-xP captain, i.e. what the site's
 captain board recommends by default) -- so that plan is always shown
 alongside whichever option has the best simulated odds.
 
-**Rival plans.** There's no live picks endpoint for this private league
-(see ``fpl.league_snapshot``'s module docstring), so each rival's squad
-is carried forward unchanged from the most recent ``data/manual_snapshots/
-<gw>.json`` archive: same XI, same captain. This is a documented
-simplification -- we have no visibility into a rival's actual transfer or
-captaincy decision for the gameweek being simulated, so "their last known
-choice, unchanged" is the most defensible guess available, and is far
-better than ignoring rivals altogether (the whole point of this league is
+**Rival plans.** FPL hides a rival's picks for the *next* gameweek until
+its deadline passes (see ``fpl.league``'s module docstring), so each
+rival's squad here is their most recent confirmed one, straight from the
+live-fetched ``league_picks.parquet`` (``fpl.fetch``/``fpl.league_snapshot``
+keep this current every run regardless of mode) -- same XI, same
+captain, carried forward unchanged. This is a documented simplification
+-- we have no visibility into a rival's actual transfer or captaincy
+decision for the gameweek being simulated, so "their last known choice,
+unchanged" is the most defensible guess available, and is far better
+than ignoring rivals altogether (the whole point of this league is
 relative rank, not an absolute score).
 
 **Points model.** Each player's realised points ~ Poisson(xp) -- a simple,
@@ -48,6 +42,22 @@ A player who appears in more than one squad (e.g. both me and a rival own
 Haaland) gets exactly one simulated outcome per draw, shared across every
 team that owns him -- draw once per distinct player, not once per team,
 or the simulation would (wrongly) treat shared picks as independent.
+
+**Season-long P(finish 1st by GW19) -- Step 12.** ``simulate_season_
+standings`` answers a different, longer-horizon question: not "who wins
+this gameweek" but "who's likely to be top of the table at the GW19
+halfway/chip-reset checkpoint". It does *not* re-run the squad-level
+xP/Poisson model for every remaining week for every manager (that would
+need forecasting 9 rivals' future transfers and captaincy, which this
+project has no basis to predict -- see ``fpl.rival_transfers``'s module
+docstring on why a transfer *habit* is learnable but a specific future
+pick isn't). Instead it treats each manager's own historical weekly
+score (``league_history.points``) as a Normal(mean, std) draw and sums
+``target_gw - current_gw`` independent draws onto their current total --
+a coarser, team-level model than the GW-level simulation above, but an
+honest one: it only assumes "recent form continues, with recent
+variance", not a specific future squad. Flagged as coarser, not hidden,
+same convention as the GW-level model above.
 
 Run with `uv run python -m fpl.simulation`.
 """
@@ -64,59 +74,67 @@ import pandas as pd
 
 from fpl.fetch import load_config
 from fpl.league import resolve_team_id
-from fpl.league_snapshot import build_league_tables
 from fpl.optimise import (
     HIT_COST,
     build_candidate_pool,
     estimate_selling_prices,
     load_tables,
     lookup_weekly_xp,
+    resolve_free_transfers,
     resolve_my_squad,
     solve_horizon,
     strategy_adjusted,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
-MANUAL_SNAPSHOTS_DIR = ROOT / "data" / "manual_snapshots"
 TABLES_DIR = ROOT / "data" / "tables"
 OUTPUT_PATH = TABLES_DIR / "simulation_results.json"
+SEASON_OUTPUT_PATH = TABLES_DIR / "season_simulation.json"
 
 N_DRAWS = 20_000
 N_CAPTAIN_CANDIDATES = 4
 # Fixed, not security-sensitive -- just makes a reported run reproducible.
 SEED = 11
 
+# Step 12: the season's halfway/chip-reset checkpoint (see fpl.league's
+# CHIP_HALF_BOUNDARY) -- the natural "where do we stand" milestone for a
+# season-long projection, since every manager's chip budget resets there
+# too.
+SEASON_SIM_TARGET_GW = 19
+SEASON_SIM_DRAWS = 20_000
+# Floor for a manager's week-to-week std when too few recorded gameweeks
+# exist to estimate one reliably (or it comes out as exactly 0, e.g. a
+# manager who has played only a single gameweek so far) -- without a
+# floor, a single lucky/unlucky manager would simulate as having *zero*
+# variance, which silently overstates how sure this projection is.
+SEASON_SIM_MIN_STD = 8.0
 
-def _latest_archive_gameweek() -> int | None:
-    gws = [int(p.stem) for p in MANUAL_SNAPSHOTS_DIR.glob("*.json") if p.stem.isdigit()]
-    return max(gws) if gws else None
 
-
-def load_rival_plans(players: pd.DataFrame, next_gw: int, xp_by_gw: pd.DataFrame) -> list[dict[str, Any]]:
-    """Every *other* manager's squad for ``next_gw``, carried forward from
-    their last-known archive (see module docstring). Returns one dict per
-    rival: ``team``, ``manager``, ``xi_ids``, ``captain_id``."""
-    archive_gw = _latest_archive_gameweek()
-    if archive_gw is None:
+def load_rival_plans(
+    league_picks: pd.DataFrame, league_managers: pd.DataFrame, team_id: int, xp_map: dict[int, float]
+) -> list[dict[str, Any]]:
+    """Every *other* manager's most recently confirmed squad, carried
+    forward unchanged as their guess for next gameweek (see module
+    docstring). Works identically in live-API and manual-snapshot mode,
+    since both already write the same shape to ``league_picks.parquet``/
+    ``league_managers.parquet``. Returns one dict per rival: ``team``,
+    ``manager``, ``xi_ids``, ``captain_id``, ``source_gameweek``."""
+    if league_picks.empty:
         return []
-    snapshot = json.loads((MANUAL_SNAPSHOTS_DIR / f"{archive_gw}.json").read_text())
-    league_managers, league_picks, _, _, my_manager_id, _ = build_league_tables(players, snapshot)
+    source_gameweek = int(league_picks["gameweek"].max())
+    latest = league_picks[league_picks["gameweek"] == source_gameweek]
     team_by_manager = league_managers.set_index("manager_id")["entry_name"]
     name_by_manager = league_managers.set_index("manager_id")["player_name"]
 
-    xp_col = f"gw{next_gw}_xp"
-    xp_map = xp_by_gw.set_index("player_id")[xp_col].to_dict() if xp_col in xp_by_gw.columns else {}
-
     plans = []
-    for manager_id, picks in league_picks.groupby("manager_id"):
-        if manager_id == my_manager_id:
+    for manager_id, picks in latest.groupby("manager_id"):
+        if manager_id == team_id:
             continue
         xi = picks[picks["multiplier"] > 0]
-        captain_rows = xi[xi["multiplier"] == 2]
+        captain_rows = xi[xi["is_captain"]] if "is_captain" in xi.columns else xi[xi["multiplier"] >= 2]
         captain_id = int(captain_rows["player_id"].iloc[0]) if not captain_rows.empty else None
         if captain_id is None and not xi.empty:
-            # Fallback (shouldn't trigger -- league_snapshot already elevates
-            # a benched captain's vice): captain the highest-xp starter.
+            # Fallback (shouldn't trigger -- every fetched gameweek has a captain): captain the highest-xp starter.
             captain_id = int(max(xi["player_id"], key=lambda p: xp_map.get(p, 0.0)))
         plans.append(
             {
@@ -124,7 +142,7 @@ def load_rival_plans(players: pd.DataFrame, next_gw: int, xp_by_gw: pd.DataFrame
                 "manager": name_by_manager.get(manager_id, ""),
                 "xi_ids": sorted(int(p) for p in xi["player_id"]),
                 "captain_id": captain_id,
-                "source_gameweek": archive_gw,
+                "source_gameweek": source_gameweek,
             }
         )
     return plans
@@ -256,6 +274,73 @@ def run_simulation(
     return pd.DataFrame(rows).sort_values("p_finish_1st", ascending=False).reset_index(drop=True)
 
 
+def simulate_season_standings(
+    league_history: pd.DataFrame,
+    league_managers: pd.DataFrame,
+    team_id: int,
+    gameweek: int,
+    target_gw: int = SEASON_SIM_TARGET_GW,
+    n_draws: int = SEASON_SIM_DRAWS,
+    seed: int = SEED,
+) -> dict[str, Any]:
+    """P(finish 1st by GW``target_gw``) for every manager, from each
+    manager's own historical weekly-score distribution (see module
+    docstring for why this is a coarser, team-level model rather than a
+    repeat of the squad-level GW simulation above). If ``gameweek`` is
+    already at or past ``target_gw``, there's nothing left to simulate --
+    returns the actual (settled) standings instead, flagged as such."""
+    totals_now = league_history[league_history["gameweek"] == gameweek].set_index("manager_id")["total_points"]
+    if team_id not in totals_now.index:
+        return {"available": False, "reason": f"manager {team_id} has no league_history row at gameweek {gameweek}"}
+
+    manager_ids = totals_now.index.tolist()
+    weeks_remaining = max(target_gw - gameweek, 0)
+
+    if weeks_remaining == 0:
+        finals = np.tile(totals_now.loc[manager_ids].values, (n_draws, 1))
+        settled = True
+    else:
+        stats = league_history.groupby("manager_id")["points"].agg(["mean", "std"])
+        stats["std"] = stats["std"].fillna(0.0).clip(lower=SEASON_SIM_MIN_STD)
+        means = stats.loc[manager_ids, "mean"].values
+        stds = stats.loc[manager_ids, "std"].values
+        rng = np.random.default_rng(seed)
+        draws = rng.normal(
+            means[None, :, None], stds[None, :, None], size=(n_draws, len(manager_ids), weeks_remaining)
+        ).clip(min=0)
+        finals = totals_now.loc[manager_ids].values[None, :] + draws.sum(axis=2)
+        settled = False
+
+    names = league_managers.set_index("manager_id")
+    per_manager = []
+    for i, manager_id in enumerate(manager_ids):
+        mine = finals[:, i]
+        others = np.delete(finals, i, axis=1)
+        best_other = others.max(axis=1) if others.shape[1] else np.full(n_draws, -np.inf)
+        per_manager.append(
+            {
+                "manager_id": int(manager_id),
+                "entry_name": names["entry_name"].get(manager_id),
+                "player_name": names["player_name"].get(manager_id),
+                "current_total": int(totals_now.loc[manager_id]),
+                "mean_points_per_gw": round(float(league_history.loc[league_history["manager_id"] == manager_id, "points"].mean()), 1),
+                "projected_total_by_gw19": round(float(mine.mean()), 1),
+                "p_finish_1st_by_gw19": round(float((mine >= best_other).mean()), 4),
+            }
+        )
+    per_manager.sort(key=lambda r: r["p_finish_1st_by_gw19"], reverse=True)
+
+    return {
+        "available": True,
+        "settled": settled,
+        "gameweek": gameweek,
+        "target_gameweek": target_gw,
+        "weeks_remaining": weeks_remaining,
+        "team_id": team_id,
+        "standings": per_manager,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--draws", type=int, default=N_DRAWS, help="Monte Carlo sample size")
@@ -304,19 +389,19 @@ def main() -> None:
 
     raw_weekly_xp = lookup_weekly_xp(xp_by_gw, weeks, pool_ids)
     adj_weekly_value = strategy_adjusted(raw_weekly_xp, league_eo, mode)
-    effective_free = max(int(config.get("free_transfers", 1)) - int(config.get("transfers_made", 0)), 0)
+    effective_free = resolve_free_transfers(tables["league_free_transfers"], team_id)
 
     print(f"Simulating gameweek {next_gw} ({n_draws:,} draws)...")
     my_plans = _my_candidate_plans(
         pool_ids, adj_weekly_value, raw_weekly_xp, pool_info, my_squad_ids, sell_price,
         bank, effective_free, weeks, discount,
     )
-    rival_plans = load_rival_plans(players, next_gw, xp_by_gw)
+    xp_map = xp_by_gw.set_index("player_id")[f"gw{next_gw}_xp"].to_dict()
+    rival_plans = load_rival_plans(league_picks, league_managers, team_id, xp_map)
     if not rival_plans:
-        print("No data/manual_snapshots/<gw>.json archive found -- can't resolve rival squads, "
+        print("No other managers found in league_picks.parquet -- can't resolve rival squads, "
               "simulating against myself only (P(finish 1st) will read as ~1.0 and isn't meaningful).")
 
-    xp_map = xp_by_gw.set_index("player_id")[f"gw{next_gw}_xp"].to_dict()
     results = run_simulation(my_plans, rival_plans, xp_map, pool_info, n_draws=n_draws)
 
     results.to_json(OUTPUT_PATH, orient="records", indent=2)
@@ -335,6 +420,24 @@ def main() -> None:
             f"Average-xP plan (site's default captain): {avg_best['scenario']}, captain {avg_best['captain']} "
             f"-> P(1st) {avg_best['p_finish_1st']:.1%}, mean {avg_best['mean_points']} pts"
         )
+
+    # Step 12: season-long "where will I actually finish" projection --
+    # separate from the single-gameweek squad simulation above (see module
+    # docstring).
+    if not league_history.empty and not league_managers.empty:
+        season = simulate_season_standings(league_history, league_managers, team_id, gameweek)
+        SEASON_OUTPUT_PATH.write_text(json.dumps(season, indent=2))
+        print(f"  wrote {SEASON_OUTPUT_PATH}")
+        if season["available"]:
+            mine = next((r for r in season["standings"] if r["manager_id"] == team_id), None)
+            if mine:
+                status = "(season already settled)" if season["settled"] else f"({season['weeks_remaining']} GWs left)"
+                print(
+                    f"\nP(finish 1st by GW{season['target_gameweek']}) {status}: "
+                    f"{mine['p_finish_1st_by_gw19']:.1%}, projected total {mine['projected_total_by_gw19']}"
+                )
+        else:
+            print(f"  season simulation unavailable: {season['reason']}")
 
 
 if __name__ == "__main__":

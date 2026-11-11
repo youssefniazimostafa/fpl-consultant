@@ -137,7 +137,7 @@ CHIP_URGENCY_WINDOW = 3
 REQUIRED_TABLES = ["players", "xp_by_gameweek"]
 OPTIONAL_TABLES = [
     "league_picks", "league_history", "league_managers", "league_swings",
-    "league_strategy", "league_chips_grid", "my_transfers",
+    "league_strategy", "league_chips_grid", "league_free_transfers", "my_transfers",
 ]
 
 
@@ -184,6 +184,22 @@ def resolve_my_squad(
     ]
     bank = int(hist_row["bank"].iloc[0]) if not hist_row.empty else 0
     return squad_ids, bank, gameweek
+
+
+def resolve_free_transfers(league_free_transfers: pd.DataFrame, team_id: int) -> int:
+    """Step 12: free transfers available right now, from ``fpl.league``'s
+    computed ``league_free_transfers.parquet`` (walks your whole transfer
+    history -- see ``fpl.league._free_transfers_for_manager``) -- replaces
+    the old hand-typed ``config.json`` ``free_transfers``/``transfers_made``
+    pair, which only ever covered "me" and had to be updated by hand every
+    week. Falls back to the standard 1 free transfer if the table is
+    missing or doesn't have a row for ``team_id`` (e.g. manual-snapshot
+    mode with no chips/history tracked yet), rather than raising.
+    """
+    if league_free_transfers.empty:
+        return 1
+    row = league_free_transfers[league_free_transfers["manager_id"] == team_id]
+    return int(row["free_transfers"].iloc[0]) if not row.empty else 1
 
 
 # ---------------------------------------------------------------------------
@@ -769,7 +785,7 @@ def main() -> None:
     raw_weekly_xp = lookup_weekly_xp(xp_by_gw, weeks, pool_ids)
     adj_weekly_value = strategy_adjusted(raw_weekly_xp, league_eo, mode)
 
-    effective_free = max(int(config.get("free_transfers", 1)) - int(config.get("transfers_made", 0)), 0)
+    effective_free = resolve_free_transfers(tables["league_free_transfers"], team_id)
 
     print(f"Strategy mode: {mode.upper()}. Solving a {len(weeks)}-week horizon over a {len(pool_ids)}-player pool...")
     baseline = solve_horizon(

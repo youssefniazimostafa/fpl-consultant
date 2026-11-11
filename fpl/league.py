@@ -43,17 +43,19 @@ Run with `uv run python -m fpl.league`.
 """
 
 from pathlib import Path
+import json
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
 import fpl.league_snapshot as league_snapshot
-from fpl.fetch import load_config
+from fpl.fetch import load_config, resolve_my_entry_id
 
 ROOT = Path(__file__).resolve().parent.parent
 TABLES_DIR = ROOT / "data" / "tables"
 MANUAL_SNAPSHOT_PATH = ROOT / "data" / "manual" / "league_snapshot.json"
+LEAGUE_SNAPSHOTS_DIR = ROOT / "data" / "league"
 
 # FPL chip rules (2024/25 onward): each of the 4 chip types can be played
 # once in each half of the season, split at this gameweek boundary. This
@@ -67,6 +69,21 @@ CHIP_HALF_BOUNDARY = 19
 CHIP_NAMES = ["wildcard", "freehit", "bboost", "3xc"]
 TOTAL_GAMEWEEKS = 38
 
+# Step 12: the two *transfer* chips (as opposed to "team" chips bboost/3xc,
+# which never touch the transfer market) -- confirmed live from
+# bootstrap-static's own ``chips`` list (each entry's ``chip_type`` is
+# "transfer" for wildcard/freehit, "team" for bboost/3xc).
+TRANSFER_CHIPS = {"wildcard", "freehit"}
+
+# Free-transfer cap (2024/25 onward): you can bank up to this many *extra*
+# free transfers on top of the 1 you're guaranteed every gameweek, so the
+# most you can ever have available in a single week is this number.
+# Confirmed live from bootstrap-static's ``game_config.rules.
+# max_extra_free_transfers`` (4) rather than hardcoded from memory, since
+# FPL has changed this cap before (2 free transfers were bankable before
+# 2024/25) and may again.
+FREE_TRANSFER_CAP = 5
+
 # A gameweek score at or above this percentile (across everyone who played
 # that week) counts as a "haul" for transfer-chasing detection -- adaptive
 # to that week's scoring environment rather than a fixed points cutoff.
@@ -79,6 +96,15 @@ HAUL_PERCENTILE = 0.90
 TYPICAL_WEEKLY_SWING = 6
 
 STRATEGY_MODES = {"chasing", "protecting", "balanced"}
+
+# Step 12: how many of the most recent gameweeks count as "recent form"
+# when sizing the rolling-average alternative to ``rival_window_points``.
+ROLLING_AVERAGE_WINDOW_GWS = 5
+
+# Step 12: default size of the "relevant rivals" window (points, either
+# direction) when config.json doesn't set ``rival_window_points`` --
+# roughly a strong gameweek in this league.
+DEFAULT_RIVAL_WINDOW_POINTS = 60
 
 # Rank-weighted EO (an extension beyond the spec's plain average): a rival
 # ``RANK_WEIGHT_SCALE`` points away from you in the table counts ~37% as
@@ -215,6 +241,37 @@ def build_weighted_swings_table(
     return table[["player_id", "weighted_league_eo", "weighted_swing"]]
 
 
+def build_rival_window_swings_table(
+    league_picks: pd.DataFrame,
+    team_id: int,
+    gameweek: int,
+    window_manager_ids: set[int],
+) -> pd.DataFrame:
+    """Step 12: the same ownership/EO shape as ``build_swings_table``, but
+    the rival pool is restricted to just the managers inside your rival
+    window (see ``build_rival_window_table``) instead of the whole
+    league -- "who's actually relevant right now" applied to
+    ownership/EO, not just the standings gap, since a differential or
+    threat against someone 300 points back isn't a differential or
+    threat that matters. Meant to be merged onto ``build_swings_table``'s
+    output as extra ``rival_window_*`` columns; returns an empty frame
+    (not an error) if the window has no rivals in it, since this is only
+    ever a supplementary column set.
+    """
+    gw_picks = league_picks[league_picks["gameweek"] == gameweek]
+    rivals = gw_picks[gw_picks["manager_id"].isin(window_manager_ids)]
+    n_rivals = rivals["manager_id"].nunique()
+    if n_rivals == 0:
+        return pd.DataFrame(columns=["player_id", "rival_window_ownership_pct", "rival_window_eo"])
+
+    window_eo = rivals.groupby("player_id")["multiplier"].sum() / n_rivals
+    window_ownership = rivals.groupby("player_id")["manager_id"].nunique() / n_rivals
+    table = pd.DataFrame({"player_id": sorted(window_eo.index)})
+    table["rival_window_ownership_pct"] = (table["player_id"].map(window_ownership).fillna(0.0) * 100).round(1)
+    table["rival_window_eo"] = table["player_id"].map(window_eo).fillna(0.0).round(2)
+    return table
+
+
 # ---------------------------------------------------------------------------
 # chips remaining
 # ---------------------------------------------------------------------------
@@ -249,6 +306,80 @@ def build_chips_grid(
     grid["chips_remaining"] = (grid[slot_columns] == "available").sum(axis=1)
     return grid.merge(league_managers, on="manager_id", how="left")[
         ["manager_id", "entry_name", "player_name", *slot_columns, "chips_remaining"]
+    ]
+
+
+# ---------------------------------------------------------------------------
+# free transfers remaining (every manager, computed -- not typed in by hand)
+# ---------------------------------------------------------------------------
+
+
+def _free_transfers_for_manager(history: pd.DataFrame, chip_events: set[int]) -> int:
+    """Walk one manager's ``league_history`` rows gameweek by gameweek and
+    return the free transfers available for the gameweek *after* the last
+    one in ``history`` -- i.e. "how many FT do I have right now".
+
+    Rule (2024/25+): you start on 1 FT; each gameweek without a transfer
+    banks +1, capped at ``FREE_TRANSFER_CAP``; a gameweek where you spend
+    points on extra transfers (``event_transfers_cost > 0``) means you used
+    every FT you had plus paid for the rest, so the bank resets to the
+    standard 1 for the following gameweek; and playing Wildcard or Free Hit
+    leaves the FT bank completely untouched (the chip doesn't consume or
+    grow it), confirmed by the live API reporting ``event_transfers: 0``
+    for those gameweeks regardless of how many swaps the chip allowed.
+    """
+    history = history.sort_values("gameweek")
+    ft = 1  # the standard free transfer every manager starts the season with
+    for row in history.itertuples():
+        if row.gameweek in chip_events:
+            continue  # wildcard/free hit this gameweek: FT bank carries through unchanged
+        if row.event_transfers_cost and row.event_transfers_cost > 0:
+            ft = 1  # took a hit: used everything they had, nothing left to bank
+        else:
+            used = int(row.event_transfers) if pd.notna(row.event_transfers) else 0
+            ft = min(FREE_TRANSFER_CAP, ft - used + 1)
+    return max(ft, 0)
+
+
+def build_free_transfers_table(
+    league_history: pd.DataFrame,
+    league_chips: pd.DataFrame,
+    league_managers: pd.DataFrame,
+    config: dict[str, Any],
+    team_id: int | None,
+) -> pd.DataFrame:
+    """Free transfers available right now, for every manager in the league
+    -- replaces the old hand-typed ``config.json`` ``free_transfers``/
+    ``transfers_made`` pair, which only ever covered "me" and had to be
+    updated by hand every week.
+
+    ``config.json``'s ``free_transfers_override`` is the documented escape
+    hatch for the rare week the computed number is wrong (e.g. a
+    mid-season rule change this project doesn't know about yet) -- it only
+    ever applies to ``team_id``, and using it appends a dated entry to
+    ``config.json``'s ``override_reasons`` log so the override is never
+    silently forgotten about in a later week.
+    """
+    if league_chips.empty:
+        transfer_chip_events: dict[int, set[int]] = {}
+    else:
+        transfer_chips = league_chips[league_chips["name"].isin(TRANSFER_CHIPS)]
+        transfer_chip_events = (
+            transfer_chips.groupby("manager_id")["event"].apply(set).to_dict()
+        )
+
+    rows = []
+    for manager_id, history in league_history.groupby("manager_id"):
+        computed = _free_transfers_for_manager(history, transfer_chip_events.get(manager_id, set()))
+        source = "computed"
+        if manager_id == team_id and config.get("free_transfers_override") is not None:
+            computed = int(config["free_transfers_override"])
+            source = "override"
+        rows.append({"manager_id": manager_id, "free_transfers": computed, "source": source})
+
+    table = pd.DataFrame(rows)
+    return table.merge(league_managers, on="manager_id", how="left")[
+        ["manager_id", "entry_name", "player_name", "free_transfers", "source"]
     ]
 
 
@@ -421,6 +552,128 @@ def determine_strategy(
 
 
 # ---------------------------------------------------------------------------
+# relevant-rival window
+# ---------------------------------------------------------------------------
+
+
+def build_rival_window_table(
+    league_history: pd.DataFrame,
+    league_managers: pd.DataFrame,
+    team_id: int,
+    gameweek: int,
+    window_points: float,
+) -> pd.DataFrame:
+    """Who's actually relevant right now: every manager within
+    ``window_points`` of you in the standings at ``gameweek``, either
+    direction -- teams further away than that can't realistically catch
+    you, and you can't realistically catch them, so they shouldn't shape
+    any recommendation. Recomputed every gameweek from the auto-pulled
+    standings (not cached), since teams drift in and out as the season
+    moves.
+
+    Also reports what the window would be if it were sized from the
+    league's own rolling average gameweek score over the last
+    ``ROLLING_AVERAGE_WINDOW_GWS`` gameweeks instead of the fixed
+    ``window_points`` default, as a point of comparison -- not used to
+    filter anything itself.
+    """
+    totals = league_history[league_history["gameweek"] == gameweek].set_index("manager_id")["total_points"]
+    if team_id not in totals.index:
+        raise ValueError(f"manager {team_id} has no league_history row at gameweek {gameweek}")
+    your_points = totals[team_id]
+
+    recent = league_history[league_history["gameweek"] > gameweek - ROLLING_AVERAGE_WINDOW_GWS]
+    rolling_average_points = float(recent["points"].mean()) if not recent.empty else float("nan")
+
+    table = totals.rename("total_points").reset_index()
+    table["gap_to_you"] = (table["total_points"] - your_points).round(0).astype(int)
+    table["in_window"] = table["gap_to_you"].abs() <= window_points
+    table["in_rolling_average_window"] = table["gap_to_you"].abs() <= rolling_average_points
+    table["window_points"] = window_points
+    table["rolling_average_window_points"] = round(rolling_average_points, 1)
+    table = table.merge(league_managers, on="manager_id", how="left")
+    return table.sort_values("total_points", ascending=False).reset_index(drop=True)[
+        [
+            "manager_id", "entry_name", "player_name", "total_points", "gap_to_you",
+            "in_window", "in_rolling_average_window", "window_points", "rolling_average_window_points",
+        ]
+    ]
+
+
+# ---------------------------------------------------------------------------
+# JSON-safety (same convention as fpl.publish.records/_to_native)
+# ---------------------------------------------------------------------------
+
+
+def records(df: pd.DataFrame) -> list[dict[str, Any]]:
+    return [{k: _to_native(v) for k, v in row.items()} for row in df.to_dict("records")]
+
+
+def _to_native(value: Any) -> Any:
+    if isinstance(value, (np.generic,)):
+        value = value.item()
+    if isinstance(value, float) and np.isnan(value):
+        return None
+    if value is pd.NaT:
+        return None
+    if isinstance(value, pd.Timestamp):
+        return value.isoformat()
+    return value
+
+
+# ---------------------------------------------------------------------------
+# gameweek snapshot archive -- the live API only ever hands back *current*
+# cumulative standings, never a history of them, so this project has to
+# build its own "how the league has moved over the season" archive one
+# finished gameweek at a time.
+# ---------------------------------------------------------------------------
+
+
+def write_gw_snapshots(
+    league_history: pd.DataFrame,
+    league_managers: pd.DataFrame,
+    league_chips: pd.DataFrame,
+    free_transfers: pd.DataFrame,
+    finished_gameweeks: list[int],
+) -> list[int]:
+    """Writes ``data/league/gw<N>.json`` for every gameweek in
+    ``finished_gameweeks`` that doesn't already have one -- a finished
+    gameweek's standings never change again, so existing files are never
+    overwritten, and the very first run backfills every finished gameweek
+    in one go rather than only archiving new ones from here on.
+
+    Each file is a point-in-time snapshot: every manager's cumulative
+    total/rank, their free transfers banked at that moment, and any chip
+    played that gameweek -- enough for the dashboard to chart standings
+    trends without needing to replay the whole live-API history again.
+    """
+    LEAGUE_SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+    written = []
+    for gw in sorted(finished_gameweeks):
+        path = LEAGUE_SNAPSHOTS_DIR / f"gw{gw}.json"
+        if path.exists():
+            continue
+        rows = league_history[league_history["gameweek"] == gw]
+        if rows.empty:
+            continue
+        standings = (
+            rows.merge(league_managers[["manager_id", "entry_name", "player_name"]], on="manager_id", how="left")
+            .sort_values("total_points", ascending=False)
+        )
+        chips_this_gw = (
+            league_chips[league_chips["event"] == gw] if not league_chips.empty else pd.DataFrame(columns=["manager_id", "name"])
+        )
+        payload = {
+            "gameweek": gw,
+            "standings": records(standings[["manager_id", "entry_name", "player_name", "points", "total_points", "event_transfers", "event_transfers_cost"]]),
+            "chips_played": records(chips_this_gw[["manager_id", "name"]]) if not chips_this_gw.empty else [],
+        }
+        path.write_text(json.dumps(payload, indent=2))
+        written.append(gw)
+    return written
+
+
+# ---------------------------------------------------------------------------
 # orchestration
 # ---------------------------------------------------------------------------
 
@@ -429,6 +682,48 @@ def write_table(df: pd.DataFrame, name: str) -> None:
     path = TABLES_DIR / name
     df.to_parquet(path, index=False)
     print(f"  wrote {path} ({len(df)} rows)")
+
+
+class StandingsValidationError(RuntimeError):
+    """Raised when ``league_history``'s per-manager cumulative totals don't
+    reconcile with the live ``leagues-classic`` standings endpoint -- a
+    pagination bug, a partial fetch, or an unannounced FPL API change would
+    show up here first. Deliberately fatal: Step 12 asks to stop with a
+    clear error rather than publish numbers that don't match the league's
+    own scoreboard."""
+
+
+def validate_standings(
+    league_managers: pd.DataFrame, league_history: pd.DataFrame, gameweek: int
+) -> None:
+    """Cross-checks every manager's ``league_history`` total at
+    ``gameweek`` against the ``standings_total`` the standings endpoint
+    itself reported for them (see ``fetch_league_managers``). A mismatch
+    means the two tables were built from inconsistent data -- e.g. a
+    manager's history fetch failed silently, or the standings page didn't
+    fully load -- and the pipeline should not keep going."""
+    if "standings_total" not in league_managers.columns:
+        return  # manual-snapshot mode: nothing from the standings endpoint to check
+    latest = league_history[league_history["gameweek"] == gameweek].set_index("manager_id")["total_points"]
+    mismatches = []
+    for row in league_managers.itertuples():
+        if pd.isna(row.standings_total):
+            continue
+        history_total = latest.get(row.manager_id)
+        if history_total is None:
+            mismatches.append(
+                f"{row.entry_name} (manager {row.manager_id}): no league_history row at gameweek {gameweek}"
+            )
+        elif int(history_total) != int(row.standings_total):
+            mismatches.append(
+                f"{row.entry_name} (manager {row.manager_id}): league_history total is {int(history_total)}, "
+                f"standings endpoint says {int(row.standings_total)}"
+            )
+    if mismatches:
+        raise StandingsValidationError(
+            "standings validation failed -- league_history doesn't reconcile with the live "
+            "leagues-classic standings endpoint:\n  " + "\n  ".join(mismatches)
+        )
 
 
 def _cross_check_snapshot(
@@ -465,14 +760,14 @@ def _cross_check_snapshot(
 
 
 def resolve_team_id(config: dict[str, Any], league_managers: pd.DataFrame) -> int | None:
-    """Step F: ``team_id`` is explicit in config.json in live-API mode, but
-    manual-snapshot mode derives "you" from the snapshot and flags that
-    row with ``is_me`` in ``league_managers`` -- so downstream steps
+    """Step F: ``my_entry_id`` is explicit in config.json in live-API mode,
+    but manual-snapshot mode derives "you" from the snapshot and flags
+    that row with ``is_me`` in ``league_managers`` -- so downstream steps
     (fpl.optimise, fpl.publish) can resolve it from there instead of
     requiring it in config.json at all."""
-    team_id = config.get("team_id")
+    team_id = resolve_my_entry_id(config)
     if team_id is not None:
-        return int(team_id)
+        return team_id
     if "is_me" in league_managers.columns:
         me = league_managers[league_managers["is_me"]]
         if not me.empty:
@@ -486,11 +781,10 @@ def main() -> None:
 
     if league_id is not None:
         # Step F: league_id set -> live API picks are authoritative.
-        team_id = config.get("team_id")
+        team_id = resolve_my_entry_id(config)
         if team_id is None:
-            print("No team_id set in config.json; skipping league intelligence (nothing to compare against).")
+            print("No my_entry_id set in config.json; skipping league intelligence (nothing to compare against).")
             return
-        team_id = int(team_id)
 
         tables = load_tables()
         players, league_picks, league_history, league_chips, league_managers = (
@@ -505,6 +799,7 @@ def main() -> None:
             return
         gameweek = latest_gameweek(league_picks)
         source = "the live API (league_id set in config.json)"
+        validate_standings(league_managers, league_history, gameweek)
         if MANUAL_SNAPSHOT_PATH.exists():
             _cross_check_snapshot(players, league_picks, league_managers, gameweek)
     else:
@@ -534,10 +829,20 @@ def main() -> None:
 
     print(f"Building league intelligence as of gameweek {gameweek}, from {source}...")
 
+    window_points = float(config.get("rival_window_points") or DEFAULT_RIVAL_WINDOW_POINTS)
+    rival_window = build_rival_window_table(league_history, league_managers, team_id, gameweek, window_points)
+    window_manager_ids = set(rival_window.loc[rival_window["in_window"], "manager_id"]) - {team_id}
+
     swings = build_swings_table(league_picks, players, team_id, gameweek)
     rival_weights = build_rival_weights(league_history, team_id, gameweek)
     weighted = build_weighted_swings_table(league_picks, team_id, gameweek, rival_weights)
     swings = swings.merge(weighted, on="player_id", how="left")
+    window_swings = build_rival_window_swings_table(league_picks, team_id, gameweek, window_manager_ids)
+    if not window_swings.empty:
+        swings = swings.merge(window_swings, on="player_id", how="left")
+        swings["rival_window_ownership_pct"] = swings["rival_window_ownership_pct"].fillna(0.0)
+        swings["rival_window_eo"] = swings["rival_window_eo"].fillna(0.0)
+        swings["rival_window_swing"] = (swings["your_multiplier"] - swings["rival_window_eo"]).round(2)
     write_table(swings, "league_swings.parquet")
 
     if league_id is not None:
@@ -545,6 +850,22 @@ def main() -> None:
     else:
         grid = league_snapshot.build_chips_grid(league_chips, league_managers, gameweek)
     write_table(grid, "league_chips_grid.parquet")
+
+    free_transfers = build_free_transfers_table(league_history, league_chips, league_managers, config, team_id)
+    write_table(free_transfers, "league_free_transfers.parquet")
+
+    gameweeks_path = TABLES_DIR / "gameweeks.parquet"
+    if gameweeks_path.exists():
+        gameweeks_table = pd.read_parquet(gameweeks_path)
+        finished_gameweeks = gameweeks_table.loc[gameweeks_table["finished"], "gameweek"].tolist()
+    else:
+        # No gameweeks.parquet (manual-snapshot mode, or an older fetch
+        # cache) -- treat every gameweek before the current one as safely
+        # finished, which is true in every case this project runs in.
+        finished_gameweeks = [gw for gw in league_history["gameweek"].unique() if gw < gameweek]
+    newly_archived = write_gw_snapshots(league_history, league_managers, league_chips, free_transfers, finished_gameweeks)
+    if newly_archived:
+        print(f"  archived data/league/gw{{{','.join(map(str, newly_archived))}}}.json")
 
     player_matches_path = TABLES_DIR / "player_matches.parquet"
     if player_matches_path.exists():
@@ -561,6 +882,8 @@ def main() -> None:
     strategy_row = pd.DataFrame([{"gameweek": gameweek, "mode": mode, **detail}])
     write_table(strategy_row, "league_strategy.parquet")
 
+    write_table(rival_window, "league_rival_window.parquet")
+
     print(f"\nStrategy mode: {mode.upper()} ({detail['source']})")
     if detail["source"] == "auto":
         print(
@@ -575,6 +898,16 @@ def main() -> None:
 
     print("\nCheckpoint: chips-remaining grid for every rival:")
     print(grid.to_string(index=False))
+
+    print("\nCheckpoint: free transfers available right now, every manager:")
+    print(free_transfers.to_string(index=False))
+
+    n_in_window = int(rival_window["in_window"].sum()) - 1  # exclude yourself
+    print(
+        f"\nCheckpoint: {n_in_window} rival(s) inside the {window_points:g}-point window "
+        f"(rolling-average alternative would be {rival_window['rolling_average_window_points'].iloc[0]:g} points):"
+    )
+    print(rival_window.to_string(index=False))
 
 
 if __name__ == "__main__":

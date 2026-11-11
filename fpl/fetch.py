@@ -69,6 +69,17 @@ def load_config() -> dict[str, Any]:
     return json.loads(CONFIG_PATH.read_text())
 
 
+def resolve_my_entry_id(config: dict[str, Any]) -> int | None:
+    """Step 12: ``config.json`` only ever has to carry ``my_entry_id`` (the
+    FPL entry/team ID from your "Points" page URL) -- ``team_id`` is kept
+    as a backward-compatible alias so older configs/CLI flags still work.
+    """
+    entry_id = config.get("my_entry_id")
+    if entry_id is None:
+        entry_id = config.get("team_id")
+    return int(entry_id) if entry_id is not None else None
+
+
 def write_table(df: pd.DataFrame, name: str) -> None:
     path = TABLES_DIR / name
     df.to_parquet(path, index=False)
@@ -162,6 +173,18 @@ def completed_gameweeks(bootstrap: dict[str, Any]) -> list[int]:
     return [e["id"] for e in events if e.get("finished") or e.get("is_current")]
 
 
+def build_gameweeks_table(bootstrap: dict[str, Any]) -> pd.DataFrame:
+    """One row per gameweek (``bootstrap-static``'s ``events``) with just
+    the fields Step 12 needs downstream: whether it's ``finished`` (safe to
+    archive permanently -- see ``fpl.league``'s GW snapshot writer),
+    ``is_current``/``is_next``, and ``deadline_time`` (for the dashboard's
+    "next deadline" countdown)."""
+    events = pd.DataFrame(bootstrap["events"])
+    return events[["id", "finished", "is_current", "is_next", "deadline_time"]].rename(
+        columns={"id": "gameweek"}
+    )
+
+
 # ---------------------------------------------------------------------------
 # fixtures.parquet — from fixtures/
 # ---------------------------------------------------------------------------
@@ -231,15 +254,23 @@ def fetch_league_managers(
             break
         page += 1
 
-    managers = pd.DataFrame(results)[["entry", "entry_name", "player_name"]].rename(
-        columns={"entry": "manager_id"}
-    )
+    # keep `total`/`rank` alongside the names -- they're not used for
+    # anything in this table on their own, but fpl.league's standings
+    # validation cross-checks them against league_history's per-manager
+    # cumulative total, so a pagination/parsing bug surfaces immediately
+    # instead of silently publishing a wrong table.
+    managers = pd.DataFrame(results)[
+        ["entry", "entry_name", "player_name", "total", "rank"]
+    ].rename(columns={"entry": "manager_id", "total": "standings_total", "rank": "standings_rank"})
     if team_id is not None and team_id not in managers["manager_id"].values:
         managers = pd.concat(
             [
                 managers,
                 pd.DataFrame(
-                    [{"manager_id": team_id, "entry_name": None, "player_name": None}]
+                    [{
+                        "manager_id": team_id, "entry_name": None, "player_name": None,
+                        "standings_total": None, "standings_rank": None,
+                    }]
                 ),
             ],
             ignore_index=True,
@@ -311,13 +342,14 @@ def main() -> None:
         "--league-id", type=int, default=None, help="override config.json league_id"
     )
     parser.add_argument(
-        "--team-id", type=int, default=None, help="override config.json team_id"
+        "--team-id", "--my-entry-id", dest="team_id", type=int, default=None,
+        help="override config.json my_entry_id",
     )
     args = parser.parse_args()
 
     config = load_config()
     league_id = args.league_id or config.get("league_id")
-    team_id = args.team_id or config.get("team_id")
+    team_id = args.team_id or resolve_my_entry_id(config)
 
     day_dir = RAW_DIR / date.today().isoformat()
     day_dir.mkdir(parents=True, exist_ok=True)
@@ -329,6 +361,7 @@ def main() -> None:
     write_table(players, "players.parquet")
     write_table(build_teams_table(bootstrap), "teams.parquet")
     write_table(build_scoring_table(bootstrap), "scoring_rules.parquet")
+    write_table(build_gameweeks_table(bootstrap), "gameweeks.parquet")
 
     print("Fetching fixtures...")
     write_table(build_fixtures_table(day_dir), "fixtures.parquet")

@@ -60,14 +60,23 @@
 </header>
 <main>
 <p class="muted">How this site turns raw FPL data into a weekly verdict, and how well it's actually done so far.
-Every number below is produced by code in this repo -- no step is manual except the mid-week config edit and the
-rival squad transcription (private league, no API access to rivals' picks).</p>
+As of Step 12 every number below is produced automatically from the official API on a schedule -- the only
+manual step left is optionally editing <code>config.json</code> (e.g. a news override, or a strategy mode
+override), and the site runs and republishes itself without anyone visiting it.</p>
 
 <h2>Data sources</h2>
 <ul>
   <li><strong>Official FPL API</strong> (<code>bootstrap-static</code>, <code>fixtures</code>, <code>entry/&lt;id&gt;/history</code>) --
     every player's price, ownership, status/flags, and the fixture list. The source of truth for gameweek
     resolution (the latest <code>finished</code> event) throughout, never hardcoded.</li>
+  <li><strong>Official FPL league API</strong> (<code>leagues-classic/&lt;id&gt;/standings</code>, every rival's
+    own <code>entry/&lt;id&gt;/event/&lt;gw&gt;/picks</code>) -- with <code>league_id</code> set in
+    <code>config.json</code> (the default, live mode), rivals' squads, captains, chips and standings are fetched
+    automatically every run, with no manual transcription. Every run also cross-checks
+    <code>league_history</code>'s cumulative totals against the standings endpoint's own numbers
+    (<code>fpl.league.validate_standings</code>)
+    and stops with a clear error rather than publish anything that doesn't reconcile with the league's own
+    scoreboard.</li>
   <li><strong>The Odds API</strong> -- match-result odds, converted to a clean-sheet / goals-scored probability per
     team per fixture, when a key is configured and the match is covered.</li>
   <li><strong>ClubElo</strong> -- a team-strength Elo rating, blended with recent underlying numbers into a fixture
@@ -75,11 +84,11 @@ rival squad transcription (private league, no API access to rivals' picks).</p>
     round) -- every fixture-driven number on the site is tagged with which of the two actually produced it.</li>
   <li><strong>Understat</strong> -- underlying xG/xA per player, blended with FPL's own history for the attacking
     side of the model.</li>
-  <li><strong>Manual league snapshot</strong> (<code>data/manual/league_snapshot.json</code> + <code>data/
-    manual_snapshots/&lt;gw&gt;.json</code>) -- this is a private 10-manager league with no public
-    <code>league_id</code>, so rivals' squads, captains and chips are hand-transcribed from the app each week and
-    validated by a regression test (each squad's computed points must equal its leaderboard score) before anything
-    downstream trusts it.</li>
+  <li><strong>Manual league snapshot (fallback only)</strong> (<code>data/manual/league_snapshot.json</code>) --
+    for a genuinely private league with no resolvable <code>league_id</code>, rivals' squads can still be
+    hand-transcribed and validated by a regression test (each squad's computed points must equal its leaderboard
+    score). When a <code>league_id</code> is also set, the live API wins outright and the snapshot is only
+    cross-checked against it as a staleness warning, never a blocker.</li>
 </ul>
 
 <h2>The xP model</h2>
@@ -106,11 +115,39 @@ and the top three simulated ranks convert to the real 3/2/1 bonus. Summing expec
 gameweek lands on exactly <code>6 × number of fixtures</code> (3+2+1 per match) when the math is right -- a check
 this model passes.</p>
 
+<h2>Free transfers, automatically</h2>
+<p>Every manager's free-transfer count is walked from their own full transfer history
+(<code>fpl.league.build_free_transfers_table</code>): start the season on 1, bank +1 per gameweek with no transfer
+made (capped at the usual limit), reset to 1 the gameweek after a hit was taken, and Wildcard/Free Hit leave the
+bank untouched. This replaced a hand-typed <code>free_transfers</code>/<code>transfers_made</code> pair in
+<code>config.json</code> that had to be updated every week and was easy to get wrong (an earlier run of this exact
+computation caught its own stale manual value out by 2). <code>config.json</code>'s
+<code>free_transfers_override</code> stays available for the rare week the computed number and the real in-app
+number disagree (e.g. an API lag right after a deadline).</p>
+
+<h2>Rival window</h2>
+<p>Not every manager in the league is actually relevant to a given recommendation -- a team 400 points back can't
+be caught and can't catch you. <code>fpl.league.build_rival_window_table</code> flags every manager within
+<code>rival_window_points</code> (config.json, either direction) as "in window" each gameweek, recomputed fresh
+every run from live standings (never cached), and reports what the window would be if sized off the league's own
+recent scoring spread instead, as a sanity check. Squad-overlap threats, ownership and EO feeding the
+differentials/threats panels all prefer this window over the whole league once it's non-empty -- a player nobody
+in your actual title fight owns is a real differential, even if he's template two leagues down.</p>
+
+<h2>Gameweek snapshot archive</h2>
+<p><code>fpl.league.write_gw_snapshots</code> writes one <code>data/league/gw&lt;N&gt;.json</code> per finished
+gameweek the first time it's seen -- a point-in-time record of every manager's total, rank, free transfers and any
+chip played that week -- and never rewrites a file for a gameweek that already has one, since a finished
+gameweek's standings don't change again. The very first run backfills every finished gameweek at once; after
+that, one new file lands per week. This is what gives the season simulation and rival-habit models something to
+learn from beyond this run's single live snapshot.</p>
+
 <h2>Effective ownership &amp; strategy</h2>
 <p>League EO is each rival's ownership weighted toward the managers closest to you in the table (the ones actually
 fighting for the same rank), not flat league-wide ownership. <code>config.json</code>'s <code>strategy</code> mode
 (chasing/protecting/balanced) shifts the transfer/captain optimiser's objective toward low-EO differentials when
-chasing, or high-EO template picks when protecting a lead.</p>
+chasing, or high-EO template picks when protecting a lead, and is picked automatically each run from your points
+gap to first and the gameweeks remaining (<code>fpl.league.determine_strategy</code>) unless overridden.</p>
 
 <h2>Decision engine</h2>
 <p>Transfers, starting XI, captain and chip timing are one mixed-integer program (not a greedy swap search), solved
@@ -126,13 +163,47 @@ shared picks like Haaland move together across squads, not independently) -- for
 alternative, and each rival's last-known squad carried forward unchanged (no visibility into rivals' actual
 transfers). It reports how often each of my candidate plans comes out on top, shown next to the optimiser's own
 highest-average-xP pick. This is deliberately scoped to <em>this gameweek's</em> rank, not a season-long title
-race (simulating the whole rest of the season is future work), and Poisson is a simplifying, admittedly
-under-dispersed, stand-in for FPL's real scoring distribution.</p>
+race, and Poisson is a simplifying, admittedly under-dispersed, stand-in for FPL's real scoring distribution.</p>
 
-<h2>Rival transfer forecasting (not yet live)</h2>
-<p>A model to predict each rival's next transfer from their own habits is scaffolded (<code>fpl/
-rival_transfers.py</code>) but deliberately not switched on: it needs several gameweeks of archived rival squads to
-learn a habit from, and only one archive exists so far. It'll switch on once enough history has accumulated.</p>
+<h2>Season simulation: P(finish 1st by GW19)</h2>
+<p>The gameweek-level simulation above deliberately doesn't answer "who wins the league" -- that needs a
+coarser, season-long projection instead. <code>fpl.simulation.simulate_season_standings</code> draws each
+manager's remaining gameweeks from <code>Normal(their own historical mean, their own historical std)</code> (std
+floored at a minimum so a manager with little history doesn't get an artificial zero-variance advantage), sums to
+a target gameweek (19 -- roughly the season's halfway point), and reports how often each manager's simulated total
+beats everyone else's across 20,000 Monte Carlo draws. This is a team-level model, not a full squad/xP
+re-simulation of every future gameweek -- it trades precision for being cheap enough to run every week from the
+start of the season, and feeds directly into the chip panel's "season context" (a chip is worth more when it
+visibly moves this number, not just this week's score).</p>
+
+<h2>Rival transfer forecasting</h2>
+<p>This used to be scaffolded but switched off: with no <code>league_id</code>, the only history of rivals'
+squads was a single hand-transcribed snapshot, and one data point isn't a habit. Now that <code>league_id</code>
+pulls every manager's picks for every gameweek played so far, <code>fpl.rival_transfers</code> diffs each rival's
+squad between consecutive gameweeks to get their real transfer history, turns it into three habit numbers --
+hit rate, how often an incoming player had just hauled ("chases form"), and how often an outgoing player was
+already flagged before being sold -- and predicts each rival's single most-likely in/out for the next gameweek
+with a plain-English reason attached (<code>league_rival_transfer_forecast.parquet</code>), or "no clear signal"
+when none of those signals fire. It's published as its own advisory table alongside (never folded into) the
+confirmed, standings-validated EO -- a forecast swap is by definition not yet a real pick. The dashboard also
+shows the underlying habit rates (<code>league_rival_habits.parquet</code>) and gameweeks of history behind each
+forecast, so a reader can judge for themselves how much to trust a prediction built on 2 gameweeks of data versus
+20.</p>
+
+<h2>Fully automatic, anywhere</h2>
+<p>Step 12's second goal was dropping the last manual steps and making the dashboard usable away from a laptop.
+A scheduled GitHub Actions run does the whole pipeline -- fetch, league, rival transfers, scoring, optimiser,
+simulation, publish -- end to end with no one visiting the site, and a failed run simply leaves the previous
+<code>site/data/latest.json</code> in place rather than publishing a half-built one (nothing downstream ever
+trusts a partial write). The page itself is an installable PWA (<code>manifest.json</code> + a service worker
+caching the static shell) so it adds to a phone's home screen like a native app and keeps showing the last
+successfully fetched data if you open it with no connection. Every data table collapses into stacked cards
+instead of a sideways-scrolling table under ~640px wide, and a status strip at the top -- current/next gameweek,
+your free transfers, and the next deadline converted to US Eastern client-side via
+<code>Intl.DateTimeFormat</code> (so EST/EDT just works, no hand-rolled offset) -- answers "what do I need to
+know right now" without reading a single panel. Staleness itself is a client-side check: the page compares
+<code>generated_at</code> against your own clock and flags it if the data looks old, rather than the pipeline
+ever claiming to know "now" from a server that only runs on a schedule.</p>
 
 <h2>Accuracy track record</h2>
 <p>Every post-gameweek run scores last week's saved predictions against what actually happened, split by error

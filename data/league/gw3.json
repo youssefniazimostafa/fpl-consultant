@@ -1,0 +1,113 @@
+{
+  "gameweek": 3,
+  "standings": [
+    {
+      "manager_id": 31059,
+      "entry_name": "Lowkerkezenuinely",
+      "player_name": "andy scotty",
+      "points": 74,
+      "total_points": 220,
+      "event_transfers": 2,
+      "event_transfers_cost": 0
+    },
+    {
+      "manager_id": 2413487,
+      "entry_name": "Struijkout Squad",
+      "player_name": "Ansel Lewis",
+      "points": 43,
+      "total_points": 199,
+      "event_transfers": 0,
+      "event_transfers_cost": 0
+    },
+    {
+      "manager_id": 4576301,
+      "entry_name": "vini's new chin",
+      "player_name": "Jordyn C",
+      "points": 67,
+      "total_points": 194,
+      "event_transfers": 1,
+      "event_transfers_cost": 0
+    },
+    {
+      "manager_id": 4062804,
+      "entry_name": "Erik Ten Heisenberg",
+      "player_name": "Ted Otengo",
+      "points": 45,
+      "total_points": 187,
+      "event_transfers": 2,
+      "event_transfers_cost": 0
+    },
+    {
+      "manager_id": 230377,
+      "entry_name": "Delap Fan Club",
+      "player_name": "Christian Wurapa",
+      "points": 53,
+      "total_points": 182,
+      "event_transfers": 2,
+      "event_transfers_cost": 4
+    },
+    {
+      "manager_id": 7262069,
+      "entry_name": "not too xabi",
+      "player_name": "suhas ravi",
+      "points": 45,
+      "total_points": 175,
+      "event_transfers": 0,
+      "event_transfers_cost": 0
+    },
+    {
+      "manager_id": 7312318,
+      "entry_name": "JP Morgan",
+      "player_name": "Youssef Mostafa",
+      "points": 37,
+      "total_points": 172,
+      "event_transfers": 1,
+      "event_transfers_cost": 0
+    },
+    {
+      "manager_id": 4204694,
+      "entry_name": "drexham",
+      "player_name": "kunaal krishnan",
+      "points": 45,
+      "total_points": 163,
+      "event_transfers": 0,
+      "event_transfers_cost": 0
+    },
+    {
+      "manager_id": 4724556,
+      "entry_name": "Foot Freak FC",
+      "player_name": "David E",
+      "points": 64,
+      "total_points": 161,
+      "event_transfers": 0,
+      "event_transfers_cost": 0
+    },
+    {
+      "manager_id": 10178909,
+      "entry_name": "double U",
+      "player_name": "Angel VP",
+      "points": 37,
+      "total_points": 37,
+      "event_transfers": 0,
+      "event_transfers_cost": 0
+    }
+  ],
+  "chips_played": [
+    {
+      "manager_id": 2413487,
+      "name": "wildcard"
+    },
+    {
+      "manager_id": 4576301,
+      "name": "3xc"
+    },
+    {
+      "manager_id": 31059,
+      "name": "3xc"
+    },
+    {
+      "manager_id": 230377,
+      "name": "3xc"
+    }
+  ]
+}

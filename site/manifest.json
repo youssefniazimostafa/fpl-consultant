@@ -1,0 +1,16 @@
+{
+  "name": "FPL Consultant",
+  "short_name": "FPL Consultant",
+  "description": "Automatic Fantasy Premier League consultant: standing vs rivals, transfers, team improvement and differential opportunities.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f1419",
+  "theme_color": "#0f1419",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
