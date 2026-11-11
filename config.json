@@ -2,9 +2,9 @@
   "league_id": 859793,
   "my_entry_id": 7312318,
   "rival_window_points": 60,
-  "free_transfers_override": null,
+  "free_transfers_override": 1,
   "p_start_overrides": [],
   "override_reasons": {
-    "free_transfers_override": null
+    "free_transfers_override": "2026-11-11: computed value was 2, but the FPL app shows 1 free transfer for this team -- overriding until the discrepancy is understood."
   }
 }

@@ -244,13 +244,15 @@
 </header>
 <div id="status-strip"></div>
 <nav class="tabs" id="tabs">
-  <button data-tab="standing" class="active">1 · Standing vs rivals</button>
-  <button data-tab="transfers">2 · Transfers</button>
-  <button data-tab="improve">3 · Improve my team</button>
-  <button data-tab="differentials">4 · Differentials</button>
+  <button data-tab="myteam" class="active">1 · My team</button>
+  <button data-tab="standing">2 · Standing vs rivals</button>
+  <button data-tab="transfers">3 · Transfers</button>
+  <button data-tab="improve">4 · Improve my team</button>
+  <button data-tab="differentials">5 · Differentials</button>
 </nav>
 <main id="app">
-  <div class="tab-panel active" data-tab="standing"><section class="panel wide"><p class="unavailable">Loading <code>data/latest.json</code>…</p></section></div>
+  <div class="tab-panel active" data-tab="myteam"><section class="panel wide"><p class="unavailable">Loading <code>data/latest.json</code>…</p></section></div>
+  <div class="tab-panel" data-tab="standing"></div>
   <div class="tab-panel" data-tab="transfers"></div>
   <div class="tab-panel" data-tab="improve"></div>
   <div class="tab-panel" data-tab="differentials"></div>
@@ -323,6 +325,71 @@ function renderVerdict(v) {
     ].join('')),
   ]);
   return panel('Verdict', `GW${v.gameweek}`, body, true);
+}
+
+// Step 12: "My team" is the single at-a-glance answer to "what should my
+// squad look like for the next gameweek" -- the one recommended transfer
+// (respecting however many free transfers you actually have, see
+// config.json's free_transfers_override) plus the full XI/bench/captain
+// for that same gameweek. It's deliberately just gameweek 0 of the wider
+// 6-week transfer plan and the same xi panel the other tabs already show
+// in more depth -- this tab's only job is to not make you go hunting for
+// them. Nothing here needs a manual update: optimise.py always solves
+// from the current gameweek forward, so once a deadline passes and the
+// pipeline re-runs, this tab silently starts recommending the next one.
+function renderMyTeam(verdict, xi, transferPlan, status) {
+  if (!verdict.available && !xi.available) {
+    return unavailablePanel('My team', 'Not available yet -- set team_id in config.json and run fpl.optimise first.', true);
+  }
+  const gw = verdict.available ? verdict.gameweek : xi.gameweek;
+  const parts = [];
+
+  const metaBits = [];
+  if (status && status.your_free_transfers !== null && status.your_free_transfers !== undefined) {
+    const ft = status.your_free_transfers;
+    metaBits.push(`${ft} free transfer${ft === 1 ? '' : 's'} available`);
+  }
+  if (status && status.next_deadline_utc) {
+    metaBits.push(`deadline ${EASTERN_FMT.format(new Date(status.next_deadline_utc))}`);
+  }
+  if (metaBits.length) parts.push(el('p', { class: 'verdict-meta' }, metaBits.join(' · ')));
+
+  if (verdict.available) {
+    // A gameweek can carry more than one recommended transfer (e.g. a hit
+    // taken to cover two swaps at once) -- take the most urgent of all of
+    // them, not just whichever happens to be first in the table.
+    const URGENCY_RANK = { forced: 0, flagged: 1, model_edge: 2 };
+    const week0Moves = transferPlan.available
+      ? transferPlan.weeks.filter((w) => w.gameweek === gw && w.player_out)
+      : [];
+    const worst = week0Moves.sort((a, b) => URGENCY_RANK[a.urgency] - URGENCY_RANK[b.urgency])[0];
+    const headlineNode = el('div', { class: 'headline' }, verdict.headline);
+    if (worst) {
+      headlineNode.appendChild(el('span', { html: ` <span class="pill ${worst.urgency}">${URGENCY_LABELS[worst.urgency] || worst.urgency}</span>` }));
+    }
+    parts.push(headlineNode);
+    for (const w of week0Moves) {
+      if (w.news) parts.push(el('p', { class: 'unavailable' }, `${w.player_out}: ${w.news}`));
+    }
+  }
+
+  if (xi.available) {
+    const order = { captain: 0, xi: 1, bench: 2 };
+    const rows = [...xi.players].sort((a, b) => (order[a.role] - order[b.role]));
+    parts.push(table(rows.map((p) => ({ ...p, __rowClass: p.role === 'captain' ? 'captain' : '' })), [
+      { key: 'web_name', label: 'Player' },
+      { key: 'position', label: 'Pos' },
+      { label: 'Role', render: (r) => rolePill(r.role) },
+      { label: '', render: (r) => r.transferred_in ? '<span class="pill yes">IN</span>' : '' },
+    ]));
+  }
+
+  parts.push(el('p', { class: 'unavailable' },
+    `This is the recommended squad for GW${gw}. Once the GW${gw} deadline passes and the site re-publishes, ` +
+    `this tab will automatically switch to recommending GW${gw + 1}'s team, using whatever free transfer(s) are ` +
+    `available by then (1 per gameweek, banked up to the usual cap if unused).`));
+
+  return panel('My team', `GW${gw} · recommended squad`, el('div', {}, parts), true);
 }
 
 function renderXi(xi) {
@@ -879,7 +946,7 @@ async function main() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     data = await res.json();
   } catch (err) {
-    fillTab('standing', [panel(
+    fillTab('myteam', [panel(
       'No data yet', null,
       el('p', { class: 'unavailable' },
         'Could not load data/latest.json. Run `uv run python -m fpl.pipeline` (or wait for the ' +
@@ -898,7 +965,13 @@ async function main() {
   }
   if (data.status) renderStatusStrip(data.status, data.generated_at);
 
-  // Tab 1: standing vs rivals
+  // Tab 1: my team -- the single recommended squad for the next gameweek,
+  // one free transfer at a time (see renderMyTeam's comment above).
+  fillTab('myteam', [
+    renderMyTeam(data.verdict, data.xi, data.transfer_plan, data.status),
+  ]);
+
+  // Tab 2: standing vs rivals
   fillTab('standing', [
     renderLeagueTable(data.league_table),
     renderVsLeader(data.vs_leader),
@@ -909,7 +982,7 @@ async function main() {
     renderOwnershipHeatmap(data.ownership_heatmap),
   ]);
 
-  // Tab 2: transfers
+  // Tab 3: transfers
   fillTab('transfers', [
     renderVerdict(data.verdict),
     renderTransferPlan(data.transfer_plan),
@@ -918,7 +991,7 @@ async function main() {
     renderNewsFlags(data.news_flags),
   ]);
 
-  // Tab 3: improve my team
+  // Tab 4: improve my team
   fillTab('improve', [
     renderXi(data.xi),
     renderCaptainBoard(data.captain_board),
@@ -932,7 +1005,7 @@ async function main() {
     renderTopXp(data.top_xp),
   ]);
 
-  // Tab 4: differential opportunities
+  // Tab 5: differential opportunities
   fillTab('differentials', [
     renderDifferentials(data.differentials),
   ]);
