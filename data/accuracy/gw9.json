@@ -1,11 +1,11 @@
 {
   "gameweek": 9,
-  "generated_at": "2026-11-13T22:10:57.637971+00:00",
+  "generated_at": "2026-11-13T22:16:31.974426+00:00",
   "predictions": {
     "available": true,
     "gameweek": 9,
     "snapshot_path": "data/predictions/gw9.parquet",
-    "snapshot_logged_at": "gw9",
+    "snapshot_logged_at": "2026-10-31T03:29:14.855794+00:00",
     "n_players": 669,
     "missing_actuals": 0,
     "has_component_breakdown": false,
@@ -133,7 +133,11 @@
         "actual_total_points": 9,
         "residual": 6.349746452908636
       }
-    ]
+    ],
+    "ep_next_experiment": {
+      "available": false,
+      "reason": "this gameweek's snapshot has no ep_next column (logged before the experiment started)."
+    }
   },
   "league_results": {
     "available": true,

@@ -487,6 +487,57 @@ PREDICTION_BREAKDOWN_COLUMNS = [
 ]
 
 
+# Measurement-only columns for the live ep_next experiment (fpl.scoring
+# scores our xP vs FPL's ep_next vs a 50/50 blend every gameweek). Nothing
+# in the model or the optimiser reads them.
+#   ep_next  -- FPL's own expected points from this run's bootstrap-static
+#               (written to players.parquet by fpl.fetch earlier in the same
+#               pipeline run). FPL only publishes ep_next for the *next*
+#               gameweek, so it's set on that gameweek's file only and left
+#               NaN for later gameweeks in the horizon. It's a per-player,
+#               whole-gameweek number, so in a double gameweek both of a
+#               player's fixture rows carry the same value -- fpl.scoring
+#               aggregates per player before comparing.
+#   p_start  -- this model's start probability, so the experiment can
+#               report rank correlation on predicted likely starters
+#               (p_start > 0.5), same subset as fpl.backtest.
+EXPERIMENT_COLUMNS = ["ep_next", "p_start"]
+
+
+def _next_gameweek() -> int | None:
+    path = TABLES_DIR / "gameweeks.parquet"
+    if not path.exists():
+        return None
+    gameweeks = pd.read_parquet(path)
+    nxt = gameweeks.loc[gameweeks["is_next"].astype(bool), "gameweek"]
+    return int(nxt.iloc[0]) if not nxt.empty else None
+
+
+def attach_experiment_columns(xp: pd.DataFrame) -> pd.DataFrame:
+    """Adds ``EXPERIMENT_COLUMNS`` to a copy of ``xp`` (NaN wherever the
+    source table is missing, so logging never fails because of them)."""
+    xp = xp.copy()
+
+    features_path = TABLES_DIR / "features.parquet"
+    if features_path.exists():
+        p_start = pd.read_parquet(features_path, columns=["player_id", "fixture_id", "p_start"])
+        xp = xp.drop(columns=["p_start"], errors="ignore").merge(
+            p_start.drop_duplicates(["player_id", "fixture_id"]), on=["player_id", "fixture_id"], how="left"
+        )
+    else:
+        xp["p_start"] = np.nan
+
+    xp["ep_next"] = np.nan
+    players_path = TABLES_DIR / "players.parquet"
+    next_gw = _next_gameweek()
+    if players_path.exists() and next_gw is not None:
+        ep = pd.read_parquet(players_path, columns=["id", "ep_next"])
+        ep_next = pd.to_numeric(ep["ep_next"], errors="coerce").set_axis(ep["id"])
+        is_next = xp["event"] == next_gw
+        xp.loc[is_next, "ep_next"] = xp.loc[is_next, "player_id"].map(ep_next).to_numpy()
+    return xp
+
+
 def _gameweek_deadlines() -> dict[int, pd.Timestamp]:
     """Deadlines from the cached bootstrap-static gameweeks table (written
     by fpl.fetch earlier in the pipeline), so the predictions stage doesn't
@@ -520,6 +571,7 @@ def log_live_predictions(xp: pd.DataFrame) -> list[Path]:
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
     logged_at = pd.Timestamp.now("UTC")
     deadlines = _gameweek_deadlines()
+    xp = attach_experiment_columns(xp)
 
     written: list[Path] = []
     for event, rows in xp.groupby("event"):
@@ -530,6 +582,7 @@ def log_live_predictions(xp: pd.DataFrame) -> list[Path]:
         snapshot = rows[
             ["fixture_id", "event", "player_id", "web_name", "position", "team_short", "opponent_short", "xp"]
             + PREDICTION_BREAKDOWN_COLUMNS
+            + EXPERIMENT_COLUMNS
         ].copy()
         snapshot.insert(0, "logged_at", logged_at)
         path = PREDICTIONS_DIR / f"gw{event}.parquet"

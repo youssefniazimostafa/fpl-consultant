@@ -257,12 +257,19 @@ def score_predictions(gw: int, bootstrap: dict[str, Any] | None = None) -> dict[
         by_component = sorted(rows, key=lambda r: r["mae"], reverse=True)
 
     worst = merged.reindex(merged["residual"].abs().sort_values(ascending=False).index).head(15)
+    experiment = score_ep_next_experiment(merged, gw)
 
     return {
         "available": True,
         "gameweek": gw,
         "snapshot_path": str(snapshot_path.relative_to(ROOT)),
-        "snapshot_logged_at": snapshot_path.stem,
+        # gw{N}.parquet files carry their real time in the logged_at column;
+        # legacy files only in their (timestamp) filename.
+        "snapshot_logged_at": (
+            pd.Timestamp(predicted["logged_at"].iloc[0]).isoformat()
+            if "logged_at" in predicted.columns and not predicted.empty
+            else snapshot_path.stem
+        ),
         "n_players": int(len(merged)),
         "missing_actuals": int(missing_actuals),
         "has_component_breakdown": has_breakdown,
@@ -272,7 +279,69 @@ def score_predictions(gw: int, bootstrap: dict[str, Any] | None = None) -> dict[
         "worst_predictions": records(
             worst[["web_name", "position", "team_short", "xp", "actual_total_points", "residual"]]
         ),
+        "ep_next_experiment": experiment,
         "_merged": merged,  # kept for the CSV writer below; stripped before JSON export
+    }
+
+
+# ---------------------------------------------------------------------------
+# 3b. live ep_next experiment (measurement only -- nothing here feeds the model)
+# ---------------------------------------------------------------------------
+
+EXPERIMENT_MODELS = {"xp": "our xP", "ep_next": "FPL ep_next", "blend": "50/50 blend"}
+EXPERIMENT_METRICS = ["mae", "starter_spearman", "top10", "top20", "captain_pts"]
+
+
+def score_ep_next_experiment(merged: pd.DataFrame, gw: int) -> dict[str, Any]:
+    """Our xP vs FPL's pre-deadline ep_next vs a 50/50 blend, on the players
+    that have both, using the same metric definitions as fpl.backtest:
+    MAE, Spearman on predicted likely starters (p_start > 0.5, averaged
+    across positions), top-10/20 hit rate per position, and the actual
+    points of each model's single top-ranked player (captain points,
+    un-doubled).
+
+    ``ep_next`` is only present in snapshots logged after this experiment
+    started (see ``fpl.xp.EXPERIMENT_COLUMNS``) -- older gameweeks report
+    ``available: False`` rather than being silently scored on nothing."""
+    from fpl.backtest import captain_accuracy, spearman_by_position, topn_hit_rate
+
+    if "ep_next" not in merged.columns or merged["ep_next"].notna().sum() == 0:
+        return {"available": False, "reason": "this gameweek's snapshot has no ep_next column (logged before the experiment started)."}
+
+    if "p_start" not in merged.columns:
+        merged = merged.assign(p_start=np.nan)
+    # Snapshot rows are per fixture; ep_next and actual points are per
+    # player for the whole gameweek -- collapse to one row per player.
+    per_player = merged.groupby("player_id", as_index=False).agg(
+        position=("position", "first"),
+        xp=("xp", "sum"),
+        ep_next=("ep_next", "first"),
+        p_start=("p_start", "max"),
+        total_points=("actual_total_points", "first"),
+    )
+    per_player = per_player.dropna(subset=["ep_next"])
+    per_player["blend"] = 0.5 * per_player["xp"] + 0.5 * per_player["ep_next"]
+    per_player["event"] = gw
+    starters = per_player[per_player["p_start"] > 0.5]
+
+    models = {}
+    for col in EXPERIMENT_MODELS:
+        starter_corr = spearman_by_position(starters, col)
+        metrics = {
+            "mae": (per_player[col] - per_player["total_points"]).abs().mean(),
+            "starter_spearman": np.mean(list(starter_corr.values())) if starter_corr else None,
+            "top10": topn_hit_rate(per_player, col, 10),
+            "top20": topn_hit_rate(per_player, col, 20),
+            "captain_pts": captain_accuracy(per_player, col),
+        }
+        # None, not NaN, for anything undefined -- the gw JSON is written
+        # with allow_nan=False.
+        models[col] = {k: _to_native(float(v)) if v is not None else None for k, v in metrics.items()}
+    return {
+        "available": True,
+        "n_players": int(len(per_player)),
+        "n_likely_starters": int(len(starters)),
+        "models": models,
     }
 
 
@@ -437,6 +506,12 @@ def write_accuracy_outputs(gw: int, prediction_result: dict[str, Any], league_re
             for c in prediction_result["by_component"]:
                 row[f"mae_{c['component']}"] = c["mae"]
                 row[f"bias_{c['component']}"] = c["bias"]
+        experiment = prediction_result.get("ep_next_experiment") or {}
+        if experiment.get("available"):
+            row["exp_n_players"] = experiment["n_players"]
+            for model, metrics in experiment["models"].items():
+                for metric in EXPERIMENT_METRICS:
+                    row[f"exp_{metric}_{model}"] = metrics[metric]
         log_df = pd.DataFrame([row])
         if ACCURACY_LOG_CSV.exists():
             existing = pd.read_csv(ACCURACY_LOG_CSV)
@@ -471,6 +546,18 @@ def main() -> None:
         if prediction_result["by_component"]:
             worst = prediction_result["by_component"][0]
             print(f"  biggest error source: {worst['component']} (MAE={worst['mae']:.2f})")
+        experiment = prediction_result["ep_next_experiment"]
+        if experiment["available"]:
+            print(f"  ep_next experiment ({experiment['n_players']} players):")
+            print(f"    {'model':<13}" + "".join(f"{m:>18}" for m in EXPERIMENT_METRICS))
+            for model, label in EXPERIMENT_MODELS.items():
+                cells = "".join(
+                    f"{'n/a' if v is None else f'{v:.3f}':>18}"
+                    for v in (experiment["models"][model][m] for m in EXPERIMENT_METRICS)
+                )
+                print(f"    {label:<13}{cells}")
+        else:
+            print(f"  ep_next experiment: {experiment['reason']}")
     else:
         print(f"  predictions: {prediction_result['reason']}")
 
