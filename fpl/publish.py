@@ -254,7 +254,10 @@ def _next_fixture_by_player(features: pd.DataFrame, gw0: int) -> dict[int, dict[
 
 
 def _recommended_team_card(
-    player_id: int, players_by_id: dict[int, dict[str, Any]], fixtures_by_player: dict[int, dict[str, Any]]
+    player_id: int,
+    players_by_id: dict[int, dict[str, Any]],
+    fixtures_by_player: dict[int, dict[str, Any]],
+    xp_next_by_player: dict[int, float] | None = None,
 ) -> dict[str, Any]:
     info = players_by_id.get(player_id, {})
     status = info.get("status")
@@ -262,16 +265,42 @@ def _recommended_team_card(
     chance = None if pd.isna(chance) else float(chance) if chance is not None else None
     news = info.get("news")
     fixture = fixtures_by_player.get(player_id)
+    now_cost = info.get("now_cost")
+    projected = (xp_next_by_player or {}).get(player_id)
     return {
         "player_id": player_id,
         "web_name": info.get("web_name"),
         "team_code": None if pd.isna(info.get("team_code")) else int(info.get("team_code")),
+        "team_short": info.get("team_short_name"),
         "status": status,
         "chance_of_playing_next_round": chance,
         "flagged": status in PITCH_FLAGGED_STATUSES,
         "news": news if isinstance(news, str) and news else None,
         "fixture": fixture,
+        # desktop app: price in £m and projected points for the next gameweek
+        "price": None if now_cost is None or pd.isna(now_cost) else round(float(now_cost) / 10, 1),
+        "projected_points": None if projected is None or pd.isna(projected) else round(float(projected), 2),
     }
+
+
+def _xp_next_by_player(xp_by_gameweek: pd.DataFrame, gw0: int) -> dict[int, float]:
+    col = f"gw{gw0}_xp"
+    if xp_by_gameweek.empty or col not in xp_by_gameweek.columns:
+        return {}
+    return {int(pid): float(v) for pid, v in zip(xp_by_gameweek["player_id"], xp_by_gameweek[col]) if pd.notna(v)}
+
+
+def _match_player_out(name: str | None, position: str | None, players: pd.DataFrame, exclude: set[int]) -> int | None:
+    """optimise_transfers names players by web_name; resolve the outgoing
+    one to an id, preferring the incoming player's position (FPL transfers
+    are like-for-like) and skipping anyone already in the new squad."""
+    if not name or players.empty:
+        return None
+    hits = players[(players["web_name"] == name) & (~players["id"].isin(exclude))]
+    if position is not None and "position" in hits.columns and len(hits) > 1:
+        same_pos = hits[hits["position"] == position]
+        hits = same_pos if not same_pos.empty else hits
+    return int(hits["id"].iloc[0]) if not hits.empty else None
 
 
 def build_recommended_team(
@@ -281,6 +310,7 @@ def build_recommended_team(
     features: pd.DataFrame,
     league_free_transfers: pd.DataFrame,
     team_id: int | None,
+    xp_by_gameweek: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
     """Step 12: the full 15-man squad *after* the recommended transfer(s)
     (or the current squad unchanged if the recommendation is to roll),
@@ -296,9 +326,10 @@ def build_recommended_team(
     squad0 = optimise_squad[optimise_squad["gameweek"] == gw0].copy()
     players_by_id = players.set_index("id").to_dict("index")
     fixtures_by_player = _next_fixture_by_player(features, gw0)
+    xp_next = _xp_next_by_player(xp_by_gameweek if xp_by_gameweek is not None else pd.DataFrame(), gw0)
 
     def card(row) -> dict[str, Any]:
-        base = _recommended_team_card(int(row.player_id), players_by_id, fixtures_by_player)
+        base = _recommended_team_card(int(row.player_id), players_by_id, fixtures_by_player, xp_next)
         base.update(
             {
                 "position": row.position,
@@ -334,6 +365,8 @@ def build_recommended_team(
     hits_taken = 0
     hit_reason = None
     summary = "Rolling the free transfer -- no transfer recommended this week."
+    # desktop app: each recommended move as full out/in player cards
+    transfers: list[dict[str, Any]] = []
     if not optimise_transfers.empty:
         wk0 = optimise_transfers[optimise_transfers["gameweek"] == gw0]
         if not wk0.empty:
@@ -347,6 +380,23 @@ def build_recommended_team(
                     f"OUT: {r.player_out or '?'} -> IN: {r.player_in or '?'}" for r in moves.itertuples()
                 )
                 summary = pairs
+                squad_ids = {int(x) for x in squad0["player_id"]}
+                incoming = {p["web_name"]: p for p in starting_xi + bench if p["transferred_in"]}
+                for r in moves.itertuples():
+                    in_card = incoming.get(r.player_in)
+                    out_id = _match_player_out(
+                        r.player_out, in_card["position"] if in_card else None, players, squad_ids
+                    )
+                    out_card = None
+                    if out_id is not None:
+                        out_card = _recommended_team_card(out_id, players_by_id, fixtures_by_player, xp_next)
+                        out_card["position"] = players_by_id.get(out_id, {}).get("position")
+                    transfers.append(
+                        {
+                            "player_out": out_card or {"web_name": r.player_out},
+                            "player_in": in_card or {"web_name": r.player_in},
+                        }
+                    )
 
     free_transfers_available = None
     if not league_free_transfers.empty and team_id is not None:
@@ -358,6 +408,7 @@ def build_recommended_team(
         "available": True,
         "gameweek": gw0,
         "summary": summary,
+        "transfers": transfers,
         "free_transfers_available": free_transfers_available,
         "hits_taken": hits_taken,
         "hit_reason": hit_reason,
@@ -1027,7 +1078,7 @@ def main() -> None:
         "verdict": build_verdict(optimise_transfers, optimise_squad),
         "xi": build_xi(optimise_squad),
         "recommended_team": build_recommended_team(
-            optimise_squad, optimise_transfers, players, features, league_free_transfers, team_id
+            optimise_squad, optimise_transfers, players, features, league_free_transfers, team_id, xp_by_gameweek
         ),
         "captain_board": build_captain_board(optimise_captain_board),
         "captaincy_risk": build_captaincy_risk(optimise_captaincy_risk),
