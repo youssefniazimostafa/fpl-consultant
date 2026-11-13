@@ -1,7 +1,7 @@
 [project]
 name = "fpl-consultant"
 version = "0.1.0"
-description = "Add your description here"
+description = "A Fantasy Premier League advisor: models player expected points, recommends transfers/captain/chips that respect your real free-transfer count, tracks your mini-league, and publishes a self-updating static site."
 readme = "README.md"
 authors = [
     { name = "Youssef Mostafa", email = "ymostafa1@babson.edu" }
