@@ -95,6 +95,42 @@ cd site && python3 -m http.server 8000
 `fpl.odds` needs `ODDS_API_KEY` set in your environment (see below); every
 other stage works with just the public FPL API.
 
+## How to run the app
+
+`app/` is a macOS desktop app (Tauri v2 + React/TypeScript) for personal use,
+not signed or distributed. For now it's a shell: a status bar (next-deadline
+countdown, when the data was generated, data source, Refresh button) and five
+placeholder tabs showing raw `latest.json` fields.
+
+Needs Node, the Rust toolchain (`rustup`), `uv` and `git` on your PATH.
+
+```sh
+cd app
+npm install
+npm run tauri dev                          # development, with hot reload
+npm run tauri build -- --bundles app       # builds the .app
+```
+
+The built app is `app/src-tauri/target/release/bundle/macos/FPL Consultant.app`.
+Drag it into Applications.
+
+- **Data:** on launch it loads the latest local `latest.json` (from your last
+  Refresh) if there is one, otherwise the published site's. The status bar
+  shows which one is in use.
+- **Refresh:** runs the full pipeline locally and reloads the data when it
+  finishes. It runs in its own copy of the repo,
+  `~/Library/Application Support/FPL Consultant/engine/` (cloned on first
+  use, reset to GitHub's `main` before every run), never in this dev repo,
+  and it never commits or pushes from there. `ODDS_API_KEY` is passed through
+  only if it's set in your shell; without it the pipeline skips the odds feed.
+  The first Refresh is slower because it clones the repo and installs the
+  Python environment.
+- **Diagnostics:** `~/Library/Application Support/FPL Consultant/app.log`
+  (restarted on each launch) records what was loaded and each refresh's
+  stages and result. Launching with `FPL_CONSULTANT_AUTOREFRESH=1` (e.g.
+  `open --env FPL_CONSULTANT_AUTOREFRESH=1 "FPL Consultant.app"`) starts one
+  Refresh automatically, which is useful for testing.
+
 ## `config.json` fields
 
 All fields are optional -- an empty or missing `config.json` still runs
