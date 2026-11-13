@@ -17,6 +17,7 @@ on:
       - "site/**"
       - "config.json"
       - ".github/workflows/update.yml"
+      - ".github/scripts/**"
 
 # contents: write so the prediction-log commit below can push; pages/id-token
 # write are what actions/deploy-pages needs to publish the artifact.
@@ -47,13 +48,12 @@ jobs:
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
 
+      # Commits the data files, then pull --rebase + push with up to 3
+      # attempts -- a run queued behind another one starts from an outdated
+      # checkout, so a plain push was rejected. Exits 0 when there's nothing
+      # to commit, so Pages still deploys. See the script for details.
       - name: Save the prediction log, accuracy track record and source fallbacks
-        run: |
-          git config user.name "fpl-bot"
-          git config user.email "fpl-bot@users.noreply.github.com"
-          git add data/predictions data/accuracy data/manual/override_log.json data/league data/last_good
-          git commit -m "Prediction log + accuracy track record + GW snapshot archive" || true
-          git push
+        run: bash .github/scripts/save_bot_data.sh
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
