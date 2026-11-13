@@ -81,7 +81,10 @@ override), and the site runs and republishes itself without anyone visiting it.<
     team per fixture, when a key is configured and the match is covered.</li>
   <li><strong>ClubElo</strong> -- a team-strength Elo rating, blended with recent underlying numbers into a fixture
     difficulty estimate whenever the odds feed doesn't cover a match (friendlies, lower-profile fixtures early in a
-    round) -- every fixture-driven number on the site is tagged with which of the two actually produced it.</li>
+    round) -- every fixture-driven number on the site is tagged with which of the two actually produced it.
+    If ClubElo can't be reached, the site starts from ClubElo's last successfully fetched ratings and updates them
+    with every Premier League result since, using a standard Elo formula (checked against ClubElo's own history:
+    within about 5 Elo points on average after four gameweeks). The warning banner says when this is in use.</li>
   <li><strong>Understat</strong> -- underlying xG/xA per player, blended with FPL's own history for the attacking
     side of the model.</li>
   <li><strong>Manual league snapshot (fallback only)</strong> (<code>data/manual/league_snapshot.json</code>) --

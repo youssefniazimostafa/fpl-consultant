@@ -6,7 +6,8 @@ fpl.elo scrapes clubelo.com pages and fpl.understat calls an undocumented
 understat.com endpoint -- both have broken once already, silently, with
 the pipeline carrying on but fixture difficulty quietly losing that input.
 This module gives every source a visible status (``ok`` / ``stale`` /
-``failed``), a last-successful-fetch time, a row count, and a short error
+``failed``; fpl.elo adds ``fallback_derived`` for ratings derived from its
+last-good seed plus FPL results), a last-successful-fetch time, a row count, and a short error
 message, and -- when a fetch fails or fails a sanity check -- a small,
 committed "last good" table to fall back to instead of nothing.
 

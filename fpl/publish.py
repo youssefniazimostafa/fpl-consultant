@@ -26,7 +26,8 @@ owns.
   site can show *which* model is driving each number.
 * ``source_health`` -- ``data/tables/source_health.json`` (``fpl.source_health``):
   per-source (fpl_api / odds / elo / understat) status ("ok" / "stale" /
-  "failed"), last successful fetch time, row count, and a short error --
+  "failed", plus "fallback_derived" for elo -- see fpl.elo), last
+  successful fetch time, row count, and a short error --
   so the site can show a warning banner when a fallback is in use.
 * ``model_accuracy`` -- Step 7's ``fpl/backtest_results_log.csv``: our
   model's MAE/rank-correlation against FPL's own ``ep_next`` and two naive
@@ -688,7 +689,15 @@ def build_source_health() -> dict[str, Any]:
         if rec["status"] == "ok":
             continue
         source = rec["source"]
-        if rec["status"] == "stale":
+        if rec["status"] == "fallback_derived":
+            n = rec.get("matches_applied", 0)
+            msg = (f"ClubElo unavailable: using its ratings from {rec.get('seed_date', 'an unknown date')}, "
+                   f"updated with {n} result{'s' if n != 1 else ''} since.")
+            if rec.get("unseeded_teams"):
+                msg += (f" Not in that ClubElo snapshot, so started at its lowest rating: "
+                        f"{', '.join(rec['unseeded_teams'])}.")
+            warnings.append(msg)
+        elif rec["status"] == "stale":
             age = "an unknown age"
             if rec.get("last_success_at"):
                 age_hours = (pd.Timestamp.now("UTC") - pd.Timestamp(rec["last_success_at"])).total_seconds() / 3600
