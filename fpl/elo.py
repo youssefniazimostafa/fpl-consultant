@@ -11,6 +11,11 @@ club's page (e.g. https://clubelo.com/Arsenal) embeds its full Elo history
 as a Vega-Lite dataset inside a ``<script>`` tag. This module reads that
 embedded JSON instead of the dead CSV endpoints.
 
+This has broken silently once already, so the result is run through
+``fpl.source_health``: it must cover all 20 current PL teams and carry
+plausible Elo values, or the last known-good table is used instead and
+the site shows a visible warning (see ``data/tables/source_health.json``).
+
 Run with `uv run python -m fpl.elo`.
 """
 
@@ -22,6 +27,7 @@ import pandas as pd
 import requests
 
 from fpl.net import cached_get
+from fpl.source_health import check_team_coverage, check_value_range, combine_checks, record, write_health_record
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
@@ -29,6 +35,22 @@ TABLES_DIR = ROOT / "data" / "tables"
 ALIASES_PATH = Path(__file__).resolve().parent / "team_aliases.csv"
 
 BASE = "https://clubelo.com"
+
+# Elo systems like ClubElo's have historically kept Premier League clubs
+# somewhere around 1300-2100; padded generously to 1000-2300 so this only
+# flags genuinely broken data (e.g. a parsing bug returning zeros or a
+# constant placeholder), not a real top/bottom-of-division swing.
+PLAUSIBLE_ELO_RANGE = (1000.0, 2300.0)
+
+
+def _sanity_check(elo: pd.DataFrame) -> str | None:
+    """Elo must cover every current PL team and every value must be in a
+    plausible range -- a failed check is reported exactly like a failed
+    fetch, so the site shows a warning either way."""
+    return combine_checks(
+        check_team_coverage(elo, "team_id"),
+        check_value_range(elo, "elo", *PLAUSIBLE_ELO_RANGE),
+    )
 
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": "fpl-consultant (ymostafa1@babson.edu)"})
@@ -91,13 +113,24 @@ def main() -> None:
 
     print("Fetching ClubElo ratings (per-club page scrape; the CSV API is dead)...")
     elo = build_elo_table(day_dir)
-    if elo.empty:
-        print("ClubElo was unavailable for every club; elo.parquet was not written.")
+
+    used, health = record("elo", elo, _sanity_check)
+    write_health_record(health)
+    if health["status"] == "ok":
+        print(f"  health: ok ({health['row_count']} rows)")
+    elif health["status"] == "stale":
+        print(f"  health: STALE -- {health['error']}; falling back to the last good table "
+              f"(saved {health['last_success_at']})")
+    else:
+        print(f"  health: FAILED -- {health['error']}; no last-good table to fall back to either")
+
+    if used.empty:
+        print("ClubElo was unavailable for every club, with no usable fallback; elo.parquet was not written.")
         return
 
     path = TABLES_DIR / "elo.parquet"
-    elo.to_parquet(path, index=False)
-    print(f"  wrote {path} ({len(elo)} rows, {elo['team'].nunique()} teams)")
+    used.to_parquet(path, index=False)
+    print(f"  wrote {path} ({len(used)} rows, {used['team'].nunique()} teams)")
 
 
 if __name__ == "__main__":

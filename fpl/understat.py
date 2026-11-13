@@ -16,6 +16,12 @@ calls that JSON endpoint directly instead — understat is scraped either way,
 so this keeps the "once a day, cache everything" politeness the task asks
 for without depending on a page layout understat.com no longer serves.
 
+This has broken silently once already, so team_xg (the table that feeds
+fixture difficulty) is run through ``fpl.source_health``: it must cover
+all 20 current PL teams with plausible xG values, or the last known-good
+table is used instead and the site shows a visible warning (see
+``data/tables/source_health.json``). player_xg falls back the same way.
+
 Run with `uv run python -m fpl.understat`.
 """
 
@@ -28,12 +34,35 @@ import requests
 from rapidfuzz import fuzz, process
 
 from fpl.net import cached_get
+from fpl.source_health import (
+    check_team_coverage,
+    check_value_range,
+    combine_checks,
+    load_last_good,
+    record,
+    save_last_good,
+    write_health_record,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
 TABLES_DIR = ROOT / "data" / "tables"
 ALIASES_PATH = Path(__file__).resolve().parent / "team_aliases.csv"
 PLAYER_MAP_PATH = Path(__file__).resolve().parent / "player_map.csv"
+
+# Per-match xG; mirrors fpl.odds' MAX_GOALS=10 grid -- a value past this is
+# almost certainly a parsing bug, not a real match.
+PLAUSIBLE_TEAM_XG_RANGE = (0.0, 10.0)
+
+
+def _team_xg_sanity_check(team_xg: pd.DataFrame) -> str | None:
+    """team_xg feeds fixture difficulty directly (fpl.features' Elo/xG
+    fallback lambda), so its health record is what Fix 3 cares about --
+    player_xg degrades the same way underneath it, without its own entry."""
+    return combine_checks(
+        check_team_coverage(team_xg, "team_id"),
+        check_value_range(team_xg, "xg_for", *PLAUSIBLE_TEAM_XG_RANGE),
+    )
 
 LEAGUE = "EPL"
 BASE = f"https://understat.com/getLeagueData/{LEAGUE}"
@@ -64,7 +93,16 @@ def current_season() -> str:
 def fetch_league_data(day_dir: Path, season: str) -> dict:
     cache_file = day_dir / f"understat_{LEAGUE}_{season}.json"
     text = cached_get(SESSION, f"{BASE}/{season}", cache_file)
-    return json.loads(text) if text else {}
+    if not text:
+        return {}
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # understat has answered with an HTML error/rate-limit page instead
+        # of JSON before; treat it the same as "no data" so main() falls
+        # back to the last good table instead of crashing the pipeline.
+        print(f"  understat returned a non-JSON response ({len(text)} chars); treating as unavailable")
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -226,25 +264,42 @@ def main() -> None:
     season = current_season()
     print(f"Fetching Understat {LEAGUE} {season} league data...")
     payload = fetch_league_data(day_dir, season)
-    if not payload:
-        print("Understat was unavailable; team_xg.parquet / player_xg.parquet were not written.")
-        return
 
     aliases = load_aliases()
+    team_xg_raw = build_team_xg_table(payload, aliases) if payload else pd.DataFrame()
+    if not team_xg_raw.empty:
+        team_xg_raw = add_rolling_strength(team_xg_raw)
 
-    team_xg = build_team_xg_table(payload, aliases)
-    if team_xg.empty:
-        print("No completed Understat matches found; team_xg.parquet not written.")
+    team_xg, health = record("understat", team_xg_raw, _team_xg_sanity_check)
+    write_health_record(health)
+    if health["status"] == "ok":
+        print(f"  health: ok ({health['row_count']} rows)")
+    elif health["status"] == "stale":
+        print(f"  health: STALE -- {health['error']}; falling back to the last good team_xg table "
+              f"(saved {health['last_success_at']})")
     else:
-        team_xg = add_rolling_strength(team_xg)
+        print(f"  health: FAILED -- {health['error']}; no last-good team_xg table to fall back to either")
+
+    if team_xg.empty:
+        print("No team_xg data available (fetch + fallback both empty); team_xg.parquet not written.")
+    else:
         path = TABLES_DIR / "team_xg.parquet"
         team_xg.to_parquet(path, index=False)
         print(f"  wrote {path} ({len(team_xg)} rows, {team_xg['team_id'].nunique()} teams)")
 
-    player_xg = build_player_xg_table(payload)
-    if player_xg.empty:
-        print("No Understat player data found; player_xg.parquet not written.")
-        return
+    player_xg_raw = build_player_xg_table(payload) if payload else pd.DataFrame()
+    if player_xg_raw.empty:
+        # Falls back the same way as team_xg, keyed separately since it's a
+        # different shape -- but doesn't get its own source_health entry
+        # (team_xg's record above already represents "understat" health).
+        player_xg, saved_at = load_last_good("understat_player_xg")
+        if player_xg.empty:
+            print("No Understat player data available (fetch + fallback both empty); player_xg.parquet not written.")
+            return
+        print(f"  falling back to the last good player_xg table (saved {saved_at})")
+    else:
+        player_xg = player_xg_raw
+        save_last_good("understat_player_xg", player_xg)
 
     players_path = TABLES_DIR / "players.parquet"
     if not players_path.exists():

@@ -20,8 +20,14 @@ owns.
   module never needs to know which one it was).
 * ``fixture_ticker`` -- Step 5/6's ``features.parquet``: one row per team
   per upcoming fixture, with ``source`` ("odds" when The Odds API covered
-  that match, "elo_xg_blend" when it fell back to Elo + xG) so the site can
-  show *which* model is driving each number -- the "odds vs Elo" view.
+  that match, else whichever of "elo+xg" / "elo_only" / "xg_only" /
+  "league_avg" actually fed the fallback lambda -- truthful even when Elo
+  or Understat themselves fell back to a stale last-good table) so the
+  site can show *which* model is driving each number.
+* ``source_health`` -- ``data/tables/source_health.json`` (``fpl.source_health``):
+  per-source (fpl_api / odds / elo / understat) status ("ok" / "stale" /
+  "failed"), last successful fetch time, row count, and a short error --
+  so the site can show a warning banner when a fallback is in use.
 * ``model_accuracy`` -- Step 7's ``fpl/backtest_results_log.csv``: our
   model's MAE/rank-correlation against FPL's own ``ep_next`` and two naive
   baselines, one row per backtest run.
@@ -661,6 +667,46 @@ def build_vs_leader(
     }
 
 
+SOURCE_HEALTH_PATH = TABLES_DIR / "source_health.json"
+
+
+def build_source_health() -> dict[str, Any]:
+    """Per-source status from ``fpl.source_health`` (fpl_api / odds / elo /
+    understat), plus a `warnings` list of plain-English messages for any
+    source that isn't "ok", so the site can show a banner without having
+    to know each source's quirks itself."""
+    if not SOURCE_HEALTH_PATH.exists():
+        return {
+            "available": False,
+            "reason": "data/tables/source_health.json not found -- run fpl.fetch / fpl.odds / fpl.elo / "
+            "fpl.understat first.",
+        }
+    records_ = json.loads(SOURCE_HEALTH_PATH.read_text())
+
+    warnings = []
+    for rec in records_:
+        if rec["status"] == "ok":
+            continue
+        source = rec["source"]
+        if rec["status"] == "stale":
+            age = "an unknown age"
+            if rec.get("last_success_at"):
+                age_hours = (pd.Timestamp.now("UTC") - pd.Timestamp(rec["last_success_at"])).total_seconds() / 3600
+                age = f"{age_hours:.0f}h old" if age_hours < 48 else f"{age_hours / 24:.1f} days old"
+            warnings.append(
+                f"{source}: using a fallback table ({age}) -- {rec['error']}"
+            )
+        else:
+            warnings.append(f"{source}: failed, no fallback available -- {rec['error']}")
+
+    return {
+        "available": True,
+        "sources": records_,
+        "all_ok": all(rec["status"] == "ok" for rec in records_),
+        "warnings": warnings,
+    }
+
+
 def build_fixture_ticker(features: pd.DataFrame) -> dict[str, Any]:
     if features.empty:
         return {"available": False, "reason": "features.parquet not found -- run fpl.features first."}
@@ -993,6 +1039,7 @@ def main() -> None:
         "ownership_heatmap": build_ownership_heatmap(league_picks, league_managers, league_swings),
         "vs_leader": build_vs_leader(league_history, league_managers, league_squad_overlap, config),
         "fixture_ticker": build_fixture_ticker(features),
+        "source_health": build_source_health(),
         "model_accuracy": build_model_accuracy(backtest_log),
         "live_accuracy": build_live_accuracy(),
         "simulation": build_simulation(),

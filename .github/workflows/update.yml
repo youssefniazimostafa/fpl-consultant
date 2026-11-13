@@ -47,11 +47,11 @@ jobs:
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
 
-      - name: Save the prediction log and accuracy track record
+      - name: Save the prediction log, accuracy track record and source fallbacks
         run: |
           git config user.name "fpl-bot"
           git config user.email "fpl-bot@users.noreply.github.com"
-          git add data/predictions data/accuracy data/manual/override_log.json data/league
+          git add data/predictions data/accuracy data/manual/override_log.json data/league data/last_good
           git commit -m "Prediction log + accuracy track record + GW snapshot archive" || true
           git push
 

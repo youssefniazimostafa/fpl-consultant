@@ -375,6 +375,12 @@ def build_fixture_team_table(fixtures: pd.DataFrame, horizon: int) -> pd.DataFra
 
 
 def _elo_xg_fallback_lambdas(fixture_team: pd.DataFrame, elo: pd.DataFrame, team_xg: pd.DataFrame) -> pd.DataFrame:
+    """Returns a DataFrame with `lambda_for` and a truthful per-row `source`
+    label -- `elo+xg`, `elo_only`, `xg_only`, or `league_avg` -- naming
+    exactly what fed each estimate, so the site's fixture ticker doesn't
+    claim "Elo + xG" for a fixture that actually fell back to the plain
+    league average (e.g. both sources stale/failed, or one team missing
+    from a partial fallback table)."""
     latest_elo = elo.sort_values("date").groupby("team_id")["elo"].last() if not elo.empty else pd.Series(dtype=float)
     if not team_xg.empty:
         latest_xg = team_xg.sort_values("date").groupby("team_id").last()
@@ -387,33 +393,47 @@ def _elo_xg_fallback_lambdas(fixture_team: pd.DataFrame, elo: pd.DataFrame, team
         attack_12 = defence_12 = pd.Series(dtype=float)
         league_avg = league_avg_home = league_avg_away = np.nan
 
-    def lambda_for_row(team_id: int, opp_id: int, is_home: bool) -> float:
+    def lambda_for_row(team_id: int, opp_id: int, is_home: bool) -> tuple[float, str]:
         league_base = league_avg_home if is_home else league_avg_away
         estimates = []
+        used_xg = used_elo = False
 
         if team_id in attack_12.index and opp_id in defence_12.index and pd.notna(league_avg):
             attack_index = attack_12[team_id] / league_avg
             defence_index = defence_12[opp_id] / league_avg
             estimates.append(league_base * attack_index * defence_index)
+            used_xg = True
 
         if team_id in latest_elo.index and opp_id in latest_elo.index and pd.notna(league_base):
             elo_diff = latest_elo[team_id] - latest_elo[opp_id] + (HOME_ADV_ELO if is_home else -HOME_ADV_ELO)
             p_this_side = 1.0 / (1.0 + 10 ** (-elo_diff / 400.0))
             estimates.append(league_base * 2 * p_this_side)
+            used_elo = True
+
+        if used_xg and used_elo:
+            source = "elo+xg"
+        elif used_xg:
+            source = "xg_only"
+        elif used_elo:
+            source = "elo_only"
+        else:
+            source = "league_avg"
 
         if estimates:
-            return float(np.mean(estimates))
-        return float(league_base) if pd.notna(league_base) else np.nan
+            return float(np.mean(estimates)), source
+        return (float(league_base) if pd.notna(league_base) else np.nan), source
 
-    return fixture_team.apply(
-        lambda r: lambda_for_row(r["team_id"], r["opponent_id"], r["is_home"]), axis=1
+    results = fixture_team.apply(
+        lambda r: lambda_for_row(r["team_id"], r["opponent_id"], r["is_home"]), axis=1, result_type="expand"
     )
+    results.columns = ["lambda_for", "source"]
+    return results
 
 
 def attach_fixture_lambdas(fixture_team: pd.DataFrame, odds_goals: pd.DataFrame, elo: pd.DataFrame, team_xg: pd.DataFrame) -> pd.DataFrame:
     fixture_team = fixture_team.copy()
     fixture_team["lambda_for"] = np.nan
-    fixture_team["source"] = "elo_xg_blend"
+    fixture_team["source"] = "league_avg"
 
     if not odds_goals.empty:
         home_rows = fixture_team["is_home"]
@@ -437,7 +457,9 @@ def attach_fixture_lambdas(fixture_team: pd.DataFrame, odds_goals: pd.DataFrame,
 
     missing = fixture_team["lambda_for"].isna()
     if missing.any():
-        fixture_team.loc[missing, "lambda_for"] = _elo_xg_fallback_lambdas(fixture_team.loc[missing], elo, team_xg)
+        fallback = _elo_xg_fallback_lambdas(fixture_team.loc[missing], elo, team_xg)
+        fixture_team.loc[missing, "lambda_for"] = fallback["lambda_for"].to_numpy()
+        fixture_team.loc[missing, "source"] = fallback["source"].to_numpy()
 
     # lambda_against = the opponent's lambda_for in the same fixture, so
     # clean_sheet_prob (odds-sourced or not) always lines up with lambda_against.

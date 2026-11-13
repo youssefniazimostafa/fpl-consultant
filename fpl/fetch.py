@@ -14,12 +14,14 @@ the fix is applied without hitting the API again.
 import argparse
 import json
 import time
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import requests
+
+from fpl.source_health import write_health_record
 
 BASE = "https://fantasy.premierleague.com/api"
 ROOT = Path(__file__).resolve().parent.parent
@@ -359,9 +361,25 @@ def main() -> None:
     bootstrap = fetch_bootstrap(day_dir)
     players = build_players_table(bootstrap)
     write_table(players, "players.parquet")
-    write_table(build_teams_table(bootstrap), "teams.parquet")
+    teams = build_teams_table(bootstrap)
+    write_table(teams, "teams.parquet")
     write_table(build_scoring_table(bootstrap), "scoring_rules.parquet")
     write_table(build_gameweeks_table(bootstrap), "gameweeks.parquet")
+
+    # The FPL API itself isn't given a last-good fallback (a stale player-price
+    # or injury-status roster is worse than no data -- see pipeline.py), and a
+    # real HTTP failure already crashes this run by design. This is just a
+    # best-effort health record of the one thing that can go wrong silently:
+    # bootstrap-static returning an incomplete team list without an error.
+    n_teams = len(teams)
+    fpl_api_health = {
+        "source": "fpl_api",
+        "status": "ok" if n_teams == 20 else "failed",
+        "last_success_at": datetime.now(timezone.utc).isoformat() if n_teams == 20 else None,
+        "row_count": n_teams,
+        "error": None if n_teams == 20 else f"bootstrap-static returned {n_teams}/20 current PL teams",
+    }
+    write_health_record(fpl_api_health)
 
     print("Fetching fixtures...")
     write_table(build_fixtures_table(day_dir), "fixtures.parquet")

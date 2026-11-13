@@ -22,6 +22,11 @@ secret, never in code. Free plans only cover current odds and have a modest
 monthly request budget, so this fetches at most once a day (the cache keys
 on today's date) and should be run at most once a day in any scheduled job.
 
+Odds can go missing for a run (no key, quota exhausted, an off day with no
+markets yet) -- this is run through ``fpl.source_health`` the same as Elo
+and Understat, so a missing/invalid fetch falls back to the last good
+table instead of silently dropping the input, and the site shows a warning.
+
 Run with `uv run python -m fpl.odds`.
 """
 
@@ -37,6 +42,7 @@ from scipy.optimize import minimize
 from scipy.stats import poisson
 
 from fpl.net import cached_get
+from fpl.source_health import check_value_range, combine_checks, record, write_health_record
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
@@ -46,6 +52,17 @@ ALIASES_PATH = Path(__file__).resolve().parent / "team_aliases.csv"
 SPORT_KEY = "soccer_epl"
 BASE = f"https://api.the-odds-api.com/v4/sports/{SPORT_KEY}/odds"
 MAX_GOALS = 10  # grid size for the Poisson scoreline model; P(either team scores 10+) is negligible
+
+# Mirrors MAX_GOALS: a fitted lambda outside this range is a solver/data bug,
+# not a real match.
+PLAUSIBLE_LAMBDA_RANGE = (0.0, float(MAX_GOALS))
+
+
+def _sanity_check(odds_goals: pd.DataFrame) -> str | None:
+    return combine_checks(
+        check_value_range(odds_goals, "lambda_home", *PLAUSIBLE_LAMBDA_RANGE),
+        check_value_range(odds_goals, "lambda_away", *PLAUSIBLE_LAMBDA_RANGE),
+    )
 
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": "fpl-consultant (ymostafa1@babson.edu)"})
@@ -206,34 +223,50 @@ def build_odds_table(events: list[dict], aliases: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     api_key = os.environ.get("ODDS_API_KEY")
+    odds_goals = pd.DataFrame()
+    empty_message = None
+
     if not api_key:
         print(
-            "ODDS_API_KEY is not set; skipping odds_goals.parquet.\n"
+            "ODDS_API_KEY is not set; falling back to the last good odds table (if any).\n"
             "  Get a free key at https://the-odds-api.com, then either:\n"
             "    export ODDS_API_KEY=... (locally), or\n"
             "    add it as a GitHub secret named ODDS_API_KEY (CI) -- never hardcode it."
         )
+        empty_message = "ODDS_API_KEY not set"
+    else:
+        day_dir = RAW_DIR / date.today().isoformat()
+        day_dir.mkdir(parents=True, exist_ok=True)
+        TABLES_DIR.mkdir(parents=True, exist_ok=True)
+
+        print("Fetching The Odds API h2h/totals odds for soccer_epl...")
+        events = fetch_odds(day_dir, api_key)
+        if not events:
+            empty_message = "no odds returned (bad key, no upcoming events, or quota exhausted)"
+        else:
+            aliases = load_aliases()
+            odds_goals = build_odds_table(events, aliases)
+            if odds_goals.empty:
+                empty_message = "no fixtures had usable odds"
+
+    used, health = record("odds", odds_goals, _sanity_check, empty_message=empty_message)
+    write_health_record(health)
+    if health["status"] == "ok":
+        print(f"  health: ok ({health['row_count']} rows)")
+    elif health["status"] == "stale":
+        print(f"  health: STALE -- {health['error']}; falling back to the last good odds table "
+              f"(saved {health['last_success_at']})")
+    else:
+        print(f"  health: FAILED -- {health['error']}; no last-good odds table to fall back to either")
+
+    if used.empty:
+        print("No odds data available (fetch + fallback both empty); odds_goals.parquet not written.")
         return
 
-    day_dir = RAW_DIR / date.today().isoformat()
-    day_dir.mkdir(parents=True, exist_ok=True)
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
-
-    print("Fetching The Odds API h2h/totals odds for soccer_epl...")
-    events = fetch_odds(day_dir, api_key)
-    if not events:
-        print("No odds returned (bad key, no upcoming events, or quota exhausted); odds_goals.parquet not written.")
-        return
-
-    aliases = load_aliases()
-    odds_goals = build_odds_table(events, aliases)
-    if odds_goals.empty:
-        print("No fixtures had usable odds; odds_goals.parquet not written.")
-        return
-
     path = TABLES_DIR / "odds_goals.parquet"
-    odds_goals.to_parquet(path, index=False)
-    print(f"  wrote {path} ({len(odds_goals)} fixtures)")
+    used.to_parquet(path, index=False)
+    print(f"  wrote {path} ({len(used)} fixtures)")
 
 
 if __name__ == "__main__":
