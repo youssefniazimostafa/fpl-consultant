@@ -1021,7 +1021,9 @@ function renderModelAccuracy(ma) {
     fill.style.width = `${p}%`;
   });
   const body = el('div', {}, [
-    el('p', { class: 'verdict-meta' }, `MAE on total points, latest backtest (${ma.runs.length} run(s) logged). Longer bar = more accurate.`),
+    el('p', { class: 'verdict-meta' }, `MAE on total points, latest backtest` +
+      (latest.scope === 'fpl_xp_valid_gws' ? `, all models on the same ${latest.n_gameweeks} gameweeks` : '') +
+      ` (${ma.runs.length} run(s) logged). Longer bar = more accurate.`),
     ...rows,
   ]);
   return panel('Model accuracy', `run ${esc(latest.run_at).slice(0, 10)}`, body);

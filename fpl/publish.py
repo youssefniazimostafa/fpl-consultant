@@ -726,7 +726,12 @@ def build_model_accuracy(backtest_log: pd.DataFrame) -> dict[str, Any]:
             "(a one-off validation step, not part of the scheduled pipeline).",
         }
     runs = records(backtest_log.sort_values("run_at"))
-    return {"available": True, "runs": runs, "latest": runs[-1]}
+    # The headline panel compares every model on the same gameweeks, so it
+    # uses the latest matched-scope run (FPL-xP-valid gameweeks only). Runs
+    # logged before the 'scope' column existed mixed samples, so they're
+    # only used if no matched run exists yet.
+    matched = [r for r in runs if r.get("scope") == "fpl_xp_valid_gws"]
+    return {"available": True, "runs": runs, "latest": matched[-1] if matched else runs[-1]}
 
 
 ACCURACY_DIR = ROOT / "data" / "accuracy"
