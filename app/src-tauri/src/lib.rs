@@ -118,6 +118,96 @@ fn load_local_data() -> Result<Option<LocalData>, String> {
     Ok(Some(LocalData { json, path: path.display().to_string(), modified_ms }))
 }
 
+// ---------------------------------------------------------------------------
+// offline support
+// ---------------------------------------------------------------------------
+
+/// Last successfully fetched *published* latest.json, so the app still has
+/// data offline even before the first local refresh.
+fn published_cache_path() -> Result<PathBuf, String> {
+    Ok(support_dir()?.join("published-latest.json"))
+}
+
+#[tauri::command]
+fn save_published_cache(json: String) -> Result<(), String> {
+    let dir = support_dir()?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = published_cache_path()?;
+    std::fs::write(&path, json).map_err(|e| format!("writing {}: {e}", path.display()))
+}
+
+#[tauri::command]
+fn load_published_cache() -> Result<Option<LocalData>, String> {
+    let path = published_cache_path()?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let json = std::fs::read_to_string(&path).map_err(|e| format!("reading {}: {e}", path.display()))?;
+    let modified_ms = std::fs::metadata(&path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    Ok(Some(LocalData { json, path: path.display().to_string(), modified_ms }))
+}
+
+/// A club's shirt from the FPL site's image server, cached on disk under
+/// ~/Library/Application Support/FPL Consultant/shirts/ (personal use only)
+/// and returned as a data: URL. Errors (offline with no cached copy, unknown
+/// club) make the UI fall back to a drawn shirt in the club's colours.
+#[tauri::command]
+async fn shirt_image(team_code: u32, goalkeeper: bool) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || shirt_image_blocking(team_code, goalkeeper))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Test aid: FPL_CONSULTANT_SIMULATE_OFFLINE=1 makes the app behave as if
+/// there were no network (no published-data fetch, no shirt downloads), to
+/// check it still works from its on-disk caches.
+fn simulate_offline() -> bool {
+    std::env::var("FPL_CONSULTANT_SIMULATE_OFFLINE").as_deref() == Ok("1")
+}
+
+#[tauri::command]
+fn offline_simulated() -> bool {
+    simulate_offline()
+}
+
+fn shirt_image_blocking(team_code: u32, goalkeeper: bool) -> Result<String, String> {
+    use base64::Engine;
+    let name = format!("shirt_{team_code}{}-110.png", if goalkeeper { "_1" } else { "" });
+    let dir = support_dir()?.join("shirts");
+    let path = dir.join(&name);
+    if !path.exists() && simulate_offline() {
+        return Err(format!("offline (simulated) and {name} isn't cached"));
+    }
+    if !path.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let url = format!("https://fantasy.premierleague.com/dist/img/shirts/standard/{name}");
+        let tmp = dir.join(format!("{name}.{}.part", std::process::id()));
+        let status = Command::new("/usr/bin/curl")
+            .args(["-fsSL", "--max-time", "15", "-o"])
+            .arg(&tmp)
+            .arg(&url)
+            .stdin(Stdio::null())
+            .status()
+            .map_err(|e| format!("couldn't run curl: {e}"))?;
+        if !status.success() {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(format!("couldn't download {url}"));
+        }
+        std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
+    }
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    if !bytes.starts_with(b"\x89PNG") {
+        let _ = std::fs::remove_file(&path);
+        return Err(format!("{name} isn't a PNG"));
+    }
+    Ok(format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
+}
+
 #[tauri::command]
 fn is_refreshing(lock: State<'_, RefreshLock>) -> bool {
     lock.0.load(Ordering::SeqCst)
@@ -359,8 +449,24 @@ pub fn run() {
     reset_log();
     tauri::Builder::default()
         .manage(RefreshLock::default())
+        .setup(|app| {
+            // Screenshot aid: FPL_CONSULTANT_WINDOW=390,844 opens the window at
+            // that logical size, top-left at (40, 60) on the main screen.
+            if let Ok(spec) = std::env::var("FPL_CONSULTANT_WINDOW") {
+                let dims: Vec<f64> = spec.split(',').filter_map(|s| s.trim().parse().ok()).collect();
+                if let (Some(window), [w, h]) = (app.get_webview_window("main"), dims.as_slice()) {
+                    let _ = window.set_size(tauri::LogicalSize::new(*w, *h));
+                    let _ = window.set_position(tauri::LogicalPosition::new(40.0, 60.0));
+                }
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             load_local_data,
+            save_published_cache,
+            load_published_cache,
+            shirt_image,
+            offline_simulated,
             start_refresh,
             is_refreshing,
             ui_log,

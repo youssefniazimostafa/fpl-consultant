@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getPath, loadInitial, loadLocal, type LoadedData } from "./data";
+import { getPath, loadInitial, loadLocal, sourceLabel, type LoadedData } from "./data";
 import { TABS } from "./tabs";
+import { AppHeader, Banner, BottomNav, StatusBar } from "./components/Chrome";
+import { TeamPage } from "./pages/TeamPage";
+import { PlaceholderPage } from "./pages/PlaceholderPage";
 
 interface Progress {
   stage: string;
@@ -26,7 +29,9 @@ function log(message: string) {
 function fmtTime(iso: string | null): string {
   if (!iso) return "unknown";
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 function countdown(deadlineIso: string | undefined, now: number): string {
@@ -40,13 +45,6 @@ function countdown(deadlineIso: string | undefined, now: number): string {
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
   return `${d > 0 ? `${d}d ` : ""}${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-}
-
-function renderValue(value: unknown): string {
-  if (value === undefined) return "(missing)";
-  if (typeof value === "string") return value;
-  const text = JSON.stringify(value);
-  return text.length > 400 ? `${text.slice(0, 400)}…` : text;
 }
 
 export default function App() {
@@ -151,70 +149,44 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="statusbar">
-        <div className="stat">
-          <span className="label">Next deadline{nextGw !== undefined ? ` (GW${nextGw})` : ""}</span>
-          <span className="value mono">{data ? countdown(deadline, now) : "…"}</span>
-        </div>
-        <div className="stat">
-          <span className="label">Last refreshed</span>
-          <span className="value">{loaded ? fmtTime(loaded.generatedAt) : "…"}</span>
-        </div>
-        <div className="stat grow">
-          <span className="label">Data source</span>
-          <span className="value small" title={loaded?.location}>
-            {loaded ? (loaded.source === "local" ? "Local refresh" : "Published site") : "loading…"}
-          </span>
-        </div>
-        <button className="refresh" onClick={onRefresh} disabled={refreshing}>
-          {refreshing ? "Refreshing…" : "Refresh"}
-        </button>
-      </header>
+      <AppHeader tabs={TABS} active={tab} onSelect={setTab} />
+      <div className="rule" />
+      <StatusBar
+        deadlineLabel={`GW${nextGw ?? "?"} deadline`}
+        countdown={data ? countdown(deadline, now) : "…"}
+        refreshed={loaded ? fmtTime(loaded.generatedAt) : "…"}
+        source={loaded ? sourceLabel(loaded.source) : "loading…"}
+        sourceTitle={loaded?.location}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+      />
 
       {refreshing && (
-        <div className="banner info">
-          <strong>Running pipeline — {stage ?? "starting"}</strong>
+        <Banner tone="info">
+          <strong>Updating your data: {stage ?? "starting"}</strong>
           {elapsed !== null && <span> · {elapsed}s</span>}
-          {lastLine && <div className="mono small faded">{lastLine}</div>}
-        </div>
+          {lastLine && <div className="small faded">{lastLine}</div>}
+        </Banner>
       )}
       {refreshError && (
-        <div className="banner error">
-          <strong>Refresh failed — still showing the previous data.</strong>
+        <Banner tone="error">
+          <strong>Refresh failed. Still showing the previous data.</strong>
           <pre>{refreshError}</pre>
-        </div>
+        </Banner>
       )}
-      {!refreshing && !refreshError && lastResult && <div className="banner ok">{lastResult}</div>}
-
-      <nav className="tabs">
-        {TABS.map((t) => (
-          <button key={t.id} className={t.id === tab ? "active" : ""} onClick={() => setTab(t.id)}>
-            {t.name}
-          </button>
-        ))}
-      </nav>
+      {!refreshing && !refreshError && lastResult && <Banner tone="ok">{lastResult}</Banner>}
 
       <main className="content">
-        <h1>{current.name}</h1>
-        {loadError && !data && <div className="banner error">Couldn't load any data: {loadError}</div>}
-        {data && (
-          <dl className="fields">
-            {current.fields.map((f) => (
-              <div key={f.path} className="field">
-                <dt>
-                  {f.label} <code>{f.path}</code>
-                </dt>
-                <dd className="mono">{renderValue(getPath(data, f.path))}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
+        {loadError && !data && <Banner tone="error">Couldn't load any data: {loadError}</Banner>}
+        {data && (current.id === "team" ? <TeamPage data={data} /> : <PlaceholderPage tab={current} data={data} />)}
         {loaded && (
           <p className="footnote">
-            Source: {loaded.source} · <code>{loaded.location}</code> · generated_at {loaded.generatedAt ?? "unknown"}
+            Data: {sourceLabel(loaded.source)} · generated {fmtTime(loaded.generatedAt)}
           </p>
         )}
       </main>
+
+      <BottomNav tabs={TABS} active={tab} onSelect={setTab} />
     </div>
   );
 }

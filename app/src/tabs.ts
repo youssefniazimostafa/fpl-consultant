@@ -1,24 +1,16 @@
-// Placeholder tabs: each shows a few raw latest.json fields to prove the
-// data flows. The real pages replace these one by one.
+// The app's five pages. "Your team" is a real page (pages/TeamPage.tsx);
+// the other four are still placeholders that show a few raw latest.json
+// fields to prove the data flows. The real pages replace these one by one.
 
 export interface TabDef {
   id: string;
   name: string;
+  short?: string; // label under the dot in the phone bottom nav
   fields: { label: string; path: string }[];
 }
 
 export const TABS: TabDef[] = [
-  {
-    id: "team",
-    name: "Your team",
-    fields: [
-      { label: "Verdict", path: "verdict.headline" },
-      { label: "Captain", path: "verdict.captain.web_name" },
-      { label: "Recommended changes", path: "recommended_team.summary" },
-      { label: "Free transfers", path: "status.your_free_transfers" },
-      { label: "First XI player", path: "xi.players.0" },
-    ],
-  },
+  { id: "team", name: "Your team", short: "Team", fields: [] },
   {
     id: "league",
     name: "League",
@@ -32,6 +24,7 @@ export const TABS: TabDef[] = [
   {
     id: "overview",
     name: "FPL overview",
+    short: "Overview",
     fields: [
       { label: "Current gameweek", path: "status.current_gameweek" },
       { label: "Next gameweek", path: "status.next_gameweek" },
