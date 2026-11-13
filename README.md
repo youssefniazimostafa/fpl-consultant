@@ -98,9 +98,21 @@ other stage works with just the public FPL API.
 ## How to run the app
 
 `app/` is a macOS desktop app (Tauri v2 + React/TypeScript) for personal use,
-not signed or distributed. For now it's a shell: a status bar (next-deadline
-countdown, when the data was generated, data source, Refresh button) and five
-placeholder tabs showing raw `latest.json` fields.
+not signed or distributed. Every page has a status bar (next-deadline
+countdown, when the data was generated, data source, Refresh button). The
+home page, **Your team**, is built: the recommended XI on a pitch, the bench,
+transfers, captain, chips and a plain-English "Why this team" (screenshots in
+`docs/screenshots/`). The other four tabs are still placeholders showing raw
+`latest.json` fields.
+
+The shared design system lives in `app/src/theme/` (colours, radii and font
+in `theme.ts`, styles in `theme.css`, club colours in `clubColours.ts`) and
+`app/src/components/` (Shirt, PlayerTile, Pitch/Bench, Card/Pill, app
+chrome). Shirts use each club's real shirt image from the FPL site (personal
+use only), cached in `~/Library/Application Support/FPL Consultant/shirts/`,
+with a drawn club-colours shirt as the fallback. Set `SHIRT_STYLE` in
+`app/src/config.ts` to `"club-colours"` to use only the drawn shirts, e.g.
+before sharing the app.
 
 Needs Node, the Rust toolchain (`rustup`), `uv` and `git` on your PATH.
 
@@ -115,8 +127,9 @@ The built app is `app/src-tauri/target/release/bundle/macos/FPL Consultant.app`.
 Drag it into Applications.
 
 - **Data:** on launch it loads the latest local `latest.json` (from your last
-  Refresh) if there is one, otherwise the published site's. The status bar
-  shows which one is in use.
+  Refresh) if there is one, otherwise the published site's, otherwise (when
+  offline) the last published copy it saved. The status bar shows which one
+  is in use.
 - **Refresh:** runs the full pipeline locally and reloads the data when it
   finishes. It runs in its own copy of the repo,
   `~/Library/Application Support/FPL Consultant/engine/` (cloned on first
@@ -129,7 +142,10 @@ Drag it into Applications.
   (restarted on each launch) records what was loaded and each refresh's
   stages and result. Launching with `FPL_CONSULTANT_AUTOREFRESH=1` (e.g.
   `open --env FPL_CONSULTANT_AUTOREFRESH=1 "FPL Consultant.app"`) starts one
-  Refresh automatically, which is useful for testing.
+  Refresh automatically, which is useful for testing. Two more test aids:
+  `FPL_CONSULTANT_WINDOW=390,844` opens the window at that size (for
+  screenshots), and `FPL_CONSULTANT_SIMULATE_OFFLINE=1` makes the app act as
+  if there were no network, using only its saved data and cached shirts.
 
 ## `config.json` fields
 
