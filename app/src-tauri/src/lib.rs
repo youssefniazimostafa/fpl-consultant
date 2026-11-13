@@ -1,0 +1,371 @@
+//! FPL Consultant desktop shell -- backend.
+//!
+//! Two jobs:
+//! 1. Load the most recent *local* latest.json (produced by a local refresh
+//!    in the engine copy); the front end falls back to the published one.
+//! 2. Refresh: run the full Python pipeline in an isolated working copy of
+//!    the repo (~/Library/Application Support/FPL Consultant/engine), never
+//!    in the dev repo, streaming the "=== stage ===" lines to the UI.
+//!    The engine copy is only ever updated *from* GitHub; the app never
+//!    commits or pushes (its push URL is deliberately set to an invalid value).
+
+use std::collections::VecDeque;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
+use std::thread;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
+
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, Manager, State};
+
+const REPO_URL: &str = "https://github.com/youssefniazimostafa/fpl-consultant.git";
+const BRANCH: &str = "main";
+const DISABLED_PUSH_URL: &str = "DISABLED--the-FPL-Consultant-app-never-pushes";
+const LOG_TAIL_LINES: usize = 40;
+
+/// Only one refresh at a time.
+#[derive(Default)]
+struct RefreshLock(AtomicBool);
+
+/// Clears the lock however the refresh thread exits (success, error, panic).
+struct LockGuard<'a>(&'a AtomicBool);
+impl Drop for LockGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+#[derive(Serialize, Clone)]
+struct LocalData {
+    json: String,
+    path: String,
+    modified_ms: u128,
+}
+
+#[derive(Serialize, Clone)]
+struct Progress {
+    stage: String,
+    line: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+struct Done {
+    ok: bool,
+    error: Option<String>,
+    seconds: f64,
+}
+
+fn support_dir() -> Result<PathBuf, String> {
+    let home = std::env::var_os("HOME").ok_or("HOME is not set")?;
+    Ok(PathBuf::from(home).join("Library/Application Support/FPL Consultant"))
+}
+
+fn engine_dir() -> Result<PathBuf, String> {
+    Ok(support_dir()?.join("engine"))
+}
+
+/// Plain-text diagnostics log (~/Library/Application Support/FPL Consultant/
+/// app.log), started fresh on every launch: what was loaded, refresh stages
+/// and outcomes. Best-effort -- logging never fails the app.
+fn app_log(message: &str) {
+    let Ok(dir) = support_dir() else { return };
+    let _ = std::fs::create_dir_all(&dir);
+    let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("app.log")) {
+        let _ = writeln!(f, "[{secs}] {message}");
+    }
+}
+
+fn reset_log() {
+    if let Ok(dir) = support_dir() {
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = std::fs::write(dir.join("app.log"), "");
+    }
+    app_log(&format!("FPL Consultant {} started", env!("CARGO_PKG_VERSION")));
+}
+
+#[tauri::command]
+fn ui_log(message: String) {
+    app_log(&format!("ui: {message}"));
+}
+
+/// Launching with FPL_CONSULTANT_AUTOREFRESH=1 makes the UI start one
+/// refresh after its first data load -- used to test the whole flow without
+/// clicking (e.g. `open --env FPL_CONSULTANT_AUTOREFRESH=1 "FPL Consultant.app"`).
+#[tauri::command]
+fn autorefresh_requested() -> bool {
+    std::env::var("FPL_CONSULTANT_AUTOREFRESH").as_deref() == Ok("1")
+}
+
+#[tauri::command]
+fn load_local_data() -> Result<Option<LocalData>, String> {
+    let path = engine_dir()?.join("site/data/latest.json");
+    if !path.exists() {
+        return Ok(None);
+    }
+    let json = std::fs::read_to_string(&path).map_err(|e| format!("reading {}: {e}", path.display()))?;
+    serde_json::from_str::<serde_json::Value>(&json)
+        .map_err(|e| format!("{} is not valid JSON: {e}", path.display()))?;
+    let modified_ms = std::fs::metadata(&path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    Ok(Some(LocalData { json, path: path.display().to_string(), modified_ms }))
+}
+
+#[tauri::command]
+fn is_refreshing(lock: State<'_, RefreshLock>) -> bool {
+    lock.0.load(Ordering::SeqCst)
+}
+
+/// Cross-process lock (an OS advisory lock on a file next to the engine
+/// copy), so a dev build and the installed app can't refresh the same
+/// engine copy at once. Released automatically when the file is closed --
+/// including if the app crashes -- so it can't go stale.
+fn acquire_engine_lock() -> Result<std::fs::File, String> {
+    let dir = support_dir()?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("creating {}: {e}", dir.display()))?;
+    let path = dir.join("refresh.lock");
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(&path)
+        .map_err(|e| format!("opening {}: {e}", path.display()))?;
+    match file.try_lock() {
+        Ok(()) => Ok(file),
+        Err(std::fs::TryLockError::WouldBlock) => {
+            Err("A refresh is already running in another FPL Consultant window or build.".into())
+        }
+        Err(std::fs::TryLockError::Error(e)) => Err(format!("locking {}: {e}", path.display())),
+    }
+}
+
+#[tauri::command]
+fn start_refresh(app: AppHandle, lock: State<'_, RefreshLock>) -> Result<(), String> {
+    if lock.0.swap(true, Ordering::SeqCst) {
+        return Err("A refresh is already running.".into());
+    }
+    let engine_lock = match acquire_engine_lock() {
+        Ok(f) => f,
+        Err(e) => {
+            lock.0.store(false, Ordering::SeqCst);
+            return Err(e);
+        }
+    };
+    thread::spawn(move || {
+        let lock = app.state::<RefreshLock>();
+        let _guard = LockGuard(&lock.0);
+        let _engine_lock = engine_lock; // held until this thread ends
+        let started = Instant::now();
+        app_log("refresh: started");
+        let result = run_refresh(&app);
+        match &result {
+            Ok(()) => app_log(&format!("refresh: OK in {:.0}s", started.elapsed().as_secs_f64())),
+            Err(e) => app_log(&format!("refresh: FAILED after {:.0}s: {e}", started.elapsed().as_secs_f64())),
+        }
+        let _ = app.emit(
+            "refresh-done",
+            Done { ok: result.is_ok(), error: result.err(), seconds: started.elapsed().as_secs_f64() },
+        );
+    });
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// refresh steps
+// ---------------------------------------------------------------------------
+
+fn emit_stage(app: &AppHandle, stage: &str) {
+    app_log(&format!("refresh: stage {stage}"));
+    let _ = app.emit("refresh-progress", Progress { stage: stage.to_string(), line: None });
+}
+
+/// A Finder-launched app gets a minimal PATH and none of the shell's
+/// exported variables, so ask the user's login shell for PATH and
+/// ODDS_API_KEY (an already-set process variable wins, e.g. under
+/// `npm run tauri dev` started from a terminal).
+struct ShellEnv {
+    path: String,
+    odds_api_key: Option<String>,
+}
+
+fn shell_env() -> ShellEnv {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    let script = r#"printf '__FPL_PATH__=%s\n' "$PATH"; printf '__FPL_ODDS__=%s\n' "${ODDS_API_KEY-}""#;
+    let mut login_path = String::new();
+    let mut login_odds = String::new();
+    if let Ok(out) = Command::new(&shell).args(["-ilc", script]).stdin(Stdio::null()).output() {
+        for line in String::from_utf8_lossy(&out.stdout).lines() {
+            if let Some(v) = line.strip_prefix("__FPL_PATH__=") {
+                login_path = v.to_string();
+            } else if let Some(v) = line.strip_prefix("__FPL_ODDS__=") {
+                login_odds = v.to_string();
+            }
+        }
+    }
+    let home = std::env::var("HOME").unwrap_or_default();
+    let mut dirs: Vec<String> = Vec::new();
+    for part in [login_path, std::env::var("PATH").unwrap_or_default()] {
+        dirs.extend(part.split(':').filter(|s| !s.is_empty()).map(String::from));
+    }
+    // common install locations, in case neither PATH has them
+    for extra in [
+        format!("{home}/.local/bin"),
+        format!("{home}/.cargo/bin"),
+        "/opt/homebrew/bin".into(),
+        "/usr/local/bin".into(),
+        "/usr/bin".into(),
+        "/bin".into(),
+    ] {
+        dirs.push(extra);
+    }
+    let mut seen = std::collections::HashSet::new();
+    dirs.retain(|d| seen.insert(d.clone()));
+
+    let odds_api_key = std::env::var("ODDS_API_KEY")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .or_else(|| Some(login_odds).filter(|v| !v.is_empty()));
+    ShellEnv { path: dirs.join(":"), odds_api_key }
+}
+
+fn find_program(name: &str, path: &str) -> Result<PathBuf, String> {
+    path.split(':')
+        .map(|d| Path::new(d).join(name))
+        .find(|p| p.is_file())
+        .ok_or_else(|| format!("couldn't find `{name}` on PATH or in the usual install locations"))
+}
+
+fn git(git: &Path, cwd: &Path, args: &[&str], env_path: &str) -> Result<(), String> {
+    let out = Command::new(git)
+        .args(args)
+        .current_dir(cwd)
+        .env("PATH", env_path)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("couldn't run git {}: {e}", args.join(" ")))?;
+    if !out.status.success() {
+        return Err(format!("git {} failed:\n{}", args.join(" "), String::from_utf8_lossy(&out.stderr).trim()));
+    }
+    Ok(())
+}
+
+fn run_refresh(app: &AppHandle) -> Result<(), String> {
+    emit_stage(app, "preparing");
+    let env = shell_env();
+    let git_bin = find_program("git", &env.path)?;
+    let uv_bin = find_program("uv", &env.path)?;
+    let engine = engine_dir()?;
+    let parent = engine.parent().ok_or("bad engine path")?.to_path_buf();
+    std::fs::create_dir_all(&parent).map_err(|e| format!("creating {}: {e}", parent.display()))?;
+
+    if !engine.join(".git").exists() {
+        if engine.exists() {
+            // half-finished earlier clone; the folder is app-owned
+            std::fs::remove_dir_all(&engine).map_err(|e| format!("clearing {}: {e}", engine.display()))?;
+        }
+        emit_stage(app, "cloning engine copy (first run)");
+        git(&git_bin, &parent, &["clone", "--branch", BRANCH, REPO_URL, "engine"], &env.path)?;
+    }
+    // Belt and braces: make pushing from the engine copy impossible.
+    git(&git_bin, &engine, &["remote", "set-url", "--push", "origin", DISABLED_PUSH_URL], &env.path)?;
+
+    // "git pull", made safe for a copy the pipeline writes into: the
+    // pipeline modifies tracked data files (prediction snapshots, accuracy
+    // log), which would make a plain pull refuse to merge on the second
+    // refresh. The engine never keeps local commits, so match GitHub
+    // exactly; untracked/ignored caches (data/raw, data/tables, .venv) stay.
+    emit_stage(app, "updating engine copy (git pull)");
+    git(&git_bin, &engine, &["fetch", "origin", BRANCH], &env.path)?;
+    git(&git_bin, &engine, &["reset", "--hard", &format!("origin/{BRANCH}")], &env.path)?;
+
+    emit_stage(app, "starting pipeline");
+    let mut cmd = Command::new(&uv_bin);
+    cmd.args(["run", "python", "-m", "fpl.pipeline"])
+        .current_dir(&engine)
+        .env("PATH", &env.path)
+        .env("PYTHONUNBUFFERED", "1")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    app_log(&format!(
+        "refresh: uv={} ODDS_API_KEY {}",
+        uv_bin.display(),
+        if env.odds_api_key.is_some() { "passed through" } else { "not set (pipeline will skip odds)" }
+    ));
+    match &env.odds_api_key {
+        Some(key) => cmd.env("ODDS_API_KEY", key),
+        None => cmd.env_remove("ODDS_API_KEY"),
+    };
+    let mut child = cmd.spawn().map_err(|e| format!("couldn't start the pipeline: {e}"))?;
+
+    // merge stdout + stderr, line by line
+    let (tx, rx) = mpsc::channel::<String>();
+    let streams: Vec<Box<dyn Read + Send>> = vec![
+        Box::new(child.stdout.take().ok_or("no stdout")?),
+        Box::new(child.stderr.take().ok_or("no stderr")?),
+    ];
+    for stream in streams {
+        let tx = tx.clone();
+        thread::spawn(move || {
+            for line in BufReader::new(stream).lines().map_while(Result::ok) {
+                if tx.send(line).is_err() {
+                    break;
+                }
+            }
+        });
+    }
+    drop(tx);
+
+    let mut tail: VecDeque<String> = VecDeque::with_capacity(LOG_TAIL_LINES);
+    let mut stage = String::from("starting pipeline");
+    let mut completed = false;
+    for line in rx {
+        let trimmed = line.trim();
+        if let Some(name) = trimmed.strip_prefix("=== ").and_then(|s| s.strip_suffix(" ===")) {
+            stage = name.to_string();
+            app_log(&format!("refresh: stage {stage}"));
+        }
+        if trimmed == "Pipeline complete." {
+            completed = true;
+        }
+        if tail.len() == LOG_TAIL_LINES {
+            tail.pop_front();
+        }
+        tail.push_back(line.clone());
+        let _ = app.emit("refresh-progress", Progress { stage: stage.clone(), line: Some(line) });
+    }
+    let status = child.wait().map_err(|e| format!("waiting for the pipeline: {e}"))?;
+    if !status.success() || !completed {
+        let code = status.code().map(|c| format!("exit code {c}")).unwrap_or_else(|| "killed by a signal".into());
+        let tail_text = tail.into_iter().collect::<Vec<_>>().join("\n");
+        return Err(format!("Pipeline failed during \"{stage}\" ({code}).\nLast output:\n{tail_text}"));
+    }
+    if load_local_data()?.is_none() {
+        return Err("Pipeline finished but site/data/latest.json wasn't written.".into());
+    }
+    Ok(())
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    reset_log();
+    tauri::Builder::default()
+        .manage(RefreshLock::default())
+        .invoke_handler(tauri::generate_handler![
+            load_local_data,
+            start_refresh,
+            is_refreshing,
+            ui_log,
+            autorefresh_requested
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
