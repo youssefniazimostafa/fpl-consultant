@@ -33,6 +33,26 @@ backtest exercises the part of the model Step 6 called "the heart of the
 project": the minutes model, per-90 rate shrinkage/decay, and the
 Poisson-based scoring formula -- not the external-data blend.
 
+Data-quality note on the FPL ep_next baseline: for 27 of this season's 38
+gameweeks, the cloned repo's per-gameweek ``xP{N}.csv`` scrape file is
+missing, and ``merged_gw.csv``'s ``xP`` column is backfilled with a flat
+0.0 for every player that gameweek. ``find_degenerate_fpl_xp_gws`` detects
+and nulls these out so the FPL-xP baseline is only scored on the 11
+gameweeks it actually has a prediction for. Even on those, the cloned
+repo's own ``DATA_DICTIONARY.md``/``README.md`` flag ``xP`` as sourced
+from ``ep_this`` (scraped *after* each gameweek ends) rather than the
+pre-deadline ``ep_next`` managers actually see, with a documented risk of
+post-match lookahead bias -- so treat the FPL-xP numbers here as an
+optimistic upper bound, not a clean baseline.
+
+Reporting note: pooled (all-rows) Spearman is dominated by the ~60% of
+player-gameweeks where nobody plays, which every baseline ranks near zero
+correctly but ``ppg``/``last5`` do most easily since they're literally
+built from recent playing time. The predicted-likely-starter subset
+(``p_start > 0.5``), top-N hit rate and captain accuracy are reported
+separately and are the metrics that should gate any change to the model,
+not the pooled figure.
+
 Run with `uv run python -m fpl.backtest`.
 """
 
@@ -281,15 +301,68 @@ def calibration_table(df: pd.DataFrame, pred_col: str) -> pd.DataFrame:
     )
 
 
+def topn_hit_rate(df: pd.DataFrame, pred_col: str, n: int, min_group: int = 3) -> float:
+    """Of each model's top-``n`` picks per position per gameweek (or all of
+    a smaller pool), what share were actually in the real top-``n`` for
+    that position/gameweek by ``total_points``. More decision-relevant than
+    pooled Spearman: this is literally "how often would this model's
+    shortlist have contained the gameweek's best performers"."""
+    df = df.dropna(subset=[pred_col])
+    hits, total = 0, 0
+    for (_pos, _event), group in df.groupby(["position", "event"]):
+        if len(group) < min_group:
+            continue
+        k = min(n, len(group))
+        actual_top = set(group.nlargest(k, "total_points")["player_id"])
+        pred_top = set(group.nlargest(k, pred_col)["player_id"])
+        hits += len(actual_top & pred_top)
+        total += k
+    return hits / total if total else float("nan")
+
+
+def captain_accuracy(df: pd.DataFrame, pred_col: str) -> float:
+    """Mean points scored by each model's single highest-ranked player
+    (across the whole pool, not per position) per gameweek -- i.e. "if you
+    captained whoever this model rated highest every week, how many points
+    did that actually return"."""
+    points = []
+    for _event, group in df.groupby("event"):
+        group = group.dropna(subset=[pred_col])
+        if group.empty:
+            continue
+        points.append(group.loc[group[pred_col].idxmax(), "total_points"])
+    return float(np.mean(points)) if points else float("nan")
+
+
 # ---------------------------------------------------------------------------
 # orchestration
 # ---------------------------------------------------------------------------
 
 
+def find_degenerate_fpl_xp_gws(gw: pd.DataFrame) -> set[int]:
+    """Gameweeks where vaastav's per-gameweek ``xP{N}.csv`` scrape file is
+    missing from this clone of the repo, so ``merged_gw.csv``'s ``xP``
+    column (renamed ``fpl_xp``) is backfilled with a flat 0.0 for *every*
+    player that gameweek -- not a real FPL ``ep_next`` prediction. A
+    genuine snapshot always has some spread (even heavily-benched players
+    get a small non-zero xP), so "every single row is exactly 0.0" is a
+    reliable signature of a missing source file rather than real data
+    (verified against this clone: it matches the missing-``xPN.csv`` list
+    exactly, 27 of 38 gameweeks). Scoring the FPL-xP baseline against these
+    gameweeks would unfairly crater its measured accuracy against a vector
+    of zeros it never actually produced."""
+    all_zero = gw.groupby("GW")["fpl_xp"].apply(lambda s: (s == 0).all())
+    return set(all_zero[all_zero].index)
+
+
 def run_backtest() -> pd.DataFrame:
     """One row per player per backtested gameweek with our model's xP,
-    all three baselines and the actual points scored."""
+    all three baselines and the actual points scored. ``fpl_xp`` is NaN
+    for gameweeks where the source data was missing (see
+    ``find_degenerate_fpl_xp_gws``) so the FPL-xP baseline is only scored
+    against gameweeks it actually had a real prediction for."""
     season_dir, gw = load_backtest_season()
+    degenerate_fpl_xp_gws = find_degenerate_fpl_xp_gws(gw)
     players_like = build_players_like(gw)
     pairs = build_team_match_pairs(gw)
     scoring = pd.read_parquet(TABLES_DIR / "scoring_rules.parquet")
@@ -309,7 +382,7 @@ def run_backtest() -> pd.DataFrame:
 
         xp = build_xp(features, scoring, players_like, gw_so_far=target_gw - 1, prior=prior)
         xp = xp.merge(
-            features[["player_id", "fixture_id", "total_points", "fpl_xp", "ppg", "last5", "actual_minutes"]],
+            features[["player_id", "fixture_id", "total_points", "fpl_xp", "ppg", "last5", "actual_minutes", "p_start"]],
             on=["player_id", "fixture_id"],
             how="left",
         )
@@ -317,6 +390,8 @@ def run_backtest() -> pd.DataFrame:
         # back into one row per player per gameweek, summing the per-match
         # quantities (predicted and actual points both add up across two
         # matches) and keeping the single season-level baselines as is.
+        # p_start doesn't vary per fixture within a gameweek, so "max" is
+        # just a way to collapse the (identical) duplicate rows.
         xp = xp.groupby(["player_id", "event"], as_index=False).agg(
             web_name=("web_name", "first"),
             position=("position", "first"),
@@ -326,17 +401,33 @@ def run_backtest() -> pd.DataFrame:
             ppg=("ppg", "first"),
             last5=("last5", "first"),
             actual_minutes=("actual_minutes", "sum"),
+            p_start=("p_start", "max"),
         )
         results.append(xp)
 
-    return pd.concat(results, ignore_index=True)
+    results = pd.concat(results, ignore_index=True)
+    # re-null after the fact (rather than relying on NaN surviving the
+    # groupby sum above, which would silently turn an all-NaN double
+    # gameweek back into 0.0) so degenerate gameweeks are excluded from
+    # every FPL-xP metric, not just the ones computed on raw per-row data.
+    results.loc[results["event"].isin(degenerate_fpl_xp_gws), "fpl_xp"] = np.nan
+    return results
 
 
 def summarize(results: pd.DataFrame) -> dict:
     """MAE, rank correlation by position, and calibration for every model,
     both over the full backtested season and split before/after the GW6
-    blend cutoff so the "don't overfit early" blend's effect is visible."""
+    blend cutoff so the "don't overfit early" blend's effect is visible.
+
+    Pooled (all-rows) Spearman is dominated by the ~60% of player-gameweeks
+    where nobody plays -- trivially rankable near zero by any model, and
+    especially easy for ``ppg``/``last5`` since they *are* recent playing
+    time. It's kept for reference only; the predicted-starter subset
+    (``p_start > 0.5``), top-N hit rate and captain accuracy below are what
+    actually drives transfer/captain decisions and should be the bar for
+    adopting any change."""
     summary = {"n_gameweeks": results["event"].nunique(), "n_predictions": len(results)}
+    likely_starters = results[results["p_start"] > 0.5]
 
     for col in BASELINE_COLUMNS:
         subset = results.dropna(subset=[col])
@@ -346,6 +437,12 @@ def summarize(results: pd.DataFrame) -> dict:
         late = subset[subset["event"] > 6]
         summary[f"spearman_{col}_early"] = spearman_by_position(early, col) if not early.empty else {}
         summary[f"spearman_{col}_late"] = spearman_by_position(late, col) if not late.empty else {}
+
+        likely_subset = likely_starters.dropna(subset=[col])
+        summary[f"spearman_{col}_likely_starter"] = spearman_by_position(likely_subset, col)
+        summary[f"top10_{col}"] = topn_hit_rate(results, col, 10)
+        summary[f"top20_{col}"] = topn_hit_rate(results, col, 20)
+        summary[f"captain_{col}"] = captain_accuracy(results, col)
 
     summary["calibration_xp"] = calibration_table(results, "xp")
     return summary
@@ -358,7 +455,8 @@ def print_report(summary: dict) -> None:
     for col, label in BASELINE_COLUMNS.items():
         print(f"  {label:<16} {summary[f'mae_{col}']:.3f}")
 
-    print("\nSpearman rank correlation by position, full season (higher is better):")
+    print("\nSpearman rank correlation by position, full season, all rows (higher is better,")
+    print("reference only -- dominated by non-playing players, see predicted-starter table below):")
     positions = sorted({p for col in BASELINE_COLUMNS for p in summary[f"spearman_{col}"]})
     header = "  " + "".join(f"{p:>8}" for p in positions)
     print(f"{'':<16}{header}")
@@ -366,6 +464,22 @@ def print_report(summary: dict) -> None:
         row = summary[f"spearman_{col}"]
         cells = "".join(f"{row.get(p, float('nan')):8.3f}" for p in positions)
         print(f"  {label:<14}{cells}")
+
+    print("\nSpearman rank correlation by position, predicted likely starters only (p_start > 0.5) --")
+    print("this is the subset that actually drives transfer/captain decisions:")
+    print(f"{'':<16}{header}")
+    for col, label in BASELINE_COLUMNS.items():
+        row = summary[f"spearman_{col}_likely_starter"]
+        cells = "".join(f"{row.get(p, float('nan')):8.3f}" for p in positions)
+        print(f"  {label:<14}{cells}")
+
+    print("\nTop-N hit rate (share of each model's top-N picks per position/gameweek that were")
+    print("actually in the real top-N) and captain accuracy (points from each model's #1 overall")
+    print("pick per gameweek):")
+    print(f"{'':<16}{'top10':>8}{'top20':>8}{'captain':>10}")
+    for col, label in BASELINE_COLUMNS.items():
+        print(f"  {label:<14}{summary[f'top10_{col}']:8.3f}{summary[f'top20_{col}']:8.3f}"
+              f"{summary[f'captain_{col}']:10.2f}")
 
     print("\nSpearman rank correlation by position -- GW<=6 (blend window) vs GW>6:")
     for col, label in BASELINE_COLUMNS.items():
@@ -378,11 +492,19 @@ def print_report(summary: dict) -> None:
     print("\nCalibration (our model), predicted xP bucket vs actual points:")
     print(summary["calibration_xp"].to_string())
 
-    our_overall = np.mean(list(summary["spearman_xp"].values())) if summary["spearman_xp"] else float("nan")
-    ep_overall = np.mean(list(summary["spearman_fpl_xp"].values())) if summary["spearman_fpl_xp"] else float("nan")
-    verdict = "BEATS" if our_overall > ep_overall else "DOES NOT beat"
-    print(f"\nCheckpoint: our model {verdict} FPL's ep_next on average rank correlation "
-          f"({our_overall:.3f} vs {ep_overall:.3f}).")
+    our_likely = summary["spearman_xp_likely_starter"]
+    our_overall = np.mean(list(our_likely.values())) if our_likely else float("nan")
+    ppg_likely = summary["spearman_ppg_likely_starter"]
+    ppg_overall = np.mean(list(ppg_likely.values())) if ppg_likely else float("nan")
+    verdict = "BEATS" if our_overall > ppg_overall else "DOES NOT beat"
+    print(f"\nCheckpoint: our model {verdict} season-PPG on predicted-likely-starter rank "
+          f"correlation ({our_overall:.3f} vs {ppg_overall:.3f}) -- this, not the pooled figure, "
+          "is the adoption bar.")
+    print("Note: FPL's ep_next (fpl_xp) numbers above exclude gameweeks where vaastav's source file")
+    print("was missing (backfilled with 0 for everyone), but the surviving values are themselves")
+    print("sourced from ep_this and may carry post-match lookahead bias per the cloned repo's own")
+    print("DATA_DICTIONARY.md/README caveat -- treat fpl_xp's numbers as an optimistic upper bound,")
+    print("not a clean baseline.")
 
 
 def log_results(summary: dict) -> None:
@@ -396,6 +518,11 @@ def log_results(summary: dict) -> None:
     for col in BASELINE_COLUMNS:
         row[f"mae_{col}"] = summary[f"mae_{col}"]
         row[f"spearman_{col}_overall"] = np.mean(list(summary[f"spearman_{col}"].values())) if summary[f"spearman_{col}"] else np.nan
+        likely = summary[f"spearman_{col}_likely_starter"]
+        row[f"spearman_{col}_likely_starter"] = np.mean(list(likely.values())) if likely else np.nan
+        row[f"top10_{col}"] = summary[f"top10_{col}"]
+        row[f"top20_{col}"] = summary[f"top20_{col}"]
+        row[f"captain_{col}"] = summary[f"captain_{col}"]
     log_df = pd.DataFrame([row])
     if RESULTS_LOG_PATH.exists():
         log_df = pd.concat([pd.read_csv(RESULTS_LOG_PATH), log_df], ignore_index=True)
