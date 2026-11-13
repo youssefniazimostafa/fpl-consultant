@@ -6,11 +6,12 @@ the round -- in practice always by 9am UK the next day, which is when the
 scheduled workflow fires). For the gameweek that just finished it:
 
 1. Finds the pre-deadline prediction snapshot ``fpl.xp.log_live_predictions``
-   wrote for that gameweek (the latest ``data/predictions/*.parquet`` file
-   logged *before* the gameweek's deadline that actually contains rows for
-   it), and the actual results from the live API's ``event/{gw}/live/``
-   endpoint -- every rostered player, every gameweek, regardless of whether
-   he played, with FPL's own per-category point breakdown (``explain``).
+   wrote for that gameweek (``data/predictions/gw{N}.parquet``, frozen once
+   the deadline passes; older whole-horizon, timestamped files from before
+   that scheme are still read as a fallback), and the actual results from
+   the live API's ``event/{gw}/live/`` endpoint -- every rostered player,
+   every gameweek, regardless of whether he played, with FPL's own
+   per-category point breakdown (``explain``).
 2. Joins the two on ``player_id`` and computes the residual (actual -
    predicted), split by component -- minutes, attacking returns (goals +
    assists), clean sheets/conceded, bonus, defensive contribution, saves,
@@ -38,6 +39,7 @@ to the latest finished gameweek per bootstrap-static).
 from __future__ import annotations
 
 import json
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -106,11 +108,17 @@ def deadline_time(bootstrap: dict[str, Any], gw: int) -> pd.Timestamp:
 # ---------------------------------------------------------------------------
 
 
-def find_prediction_snapshot(gw: int, deadline: pd.Timestamp) -> Path | None:
-    """The latest ``data/predictions/*.parquet`` logged strictly before
-    ``gw``'s deadline that actually has rows for it -- a snapshot logs a
-    whole horizon, not just the next gameweek, so an older file can still
-    be the right one if a newer one's horizon hadn't reached this gw yet."""
+_LEGACY_TIMESTAMP_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{6}")
+
+
+def _find_legacy_prediction_snapshot(gw: int, deadline: pd.Timestamp) -> Path | None:
+    """The old scheme: the latest ``data/predictions/<timestamp>.parquet``
+    logged strictly before ``gw``'s deadline that actually has rows for it
+    -- each snapshot logged a whole horizon, not just the next gameweek, so
+    an older file can still be the right one if a newer one's horizon
+    hadn't reached this gw yet. Kept as a fallback for gameweeks scored
+    from before fpl.xp switched to one file per gameweek, and reused by
+    fpl.migrate_prediction_snapshots to pick the file to migrate."""
     if not PREDICTIONS_DIR.exists():
         return None
     candidates = sorted(PREDICTIONS_DIR.glob("*.parquet"))
@@ -120,6 +128,8 @@ def find_prediction_snapshot(gw: int, deadline: pd.Timestamp) -> Path | None:
         # Filenames are "YYYY-MM-DDTHHMMSS"; parse explicitly rather than
         # relying on pandas' guesswork on a non-standard compact time.
         stem = path.stem
+        if not _LEGACY_TIMESTAMP_RE.fullmatch(stem):
+            continue  # skip the new gw{N}.parquet files (and anything else)
         logged_at = pd.Timestamp(
             f"{stem[:10]}T{stem[11:13]}:{stem[13:15]}:{stem[15:17]}", tz="UTC"
         )
@@ -131,6 +141,29 @@ def find_prediction_snapshot(gw: int, deadline: pd.Timestamp) -> Path | None:
         if best_logged_at is None or logged_at > best_logged_at:
             best, best_logged_at = path, logged_at
     return best
+
+
+def find_prediction_snapshot(gw: int, deadline: pd.Timestamp) -> Path | None:
+    """The frozen pre-deadline snapshot for ``gw``: prefers the current
+    ``data/predictions/gw{N}.parquet`` scheme (one file per gameweek,
+    overwritten every run until the deadline passes, then left alone),
+    falling back to the older whole-horizon, timestamped-file scheme for
+    gameweeks that were only ever logged before that change."""
+    if not PREDICTIONS_DIR.exists():
+        return None
+
+    gw_path = PREDICTIONS_DIR / f"gw{gw}.parquet"
+    if gw_path.exists():
+        df = pd.read_parquet(gw_path, columns=["logged_at", "event"])
+        if gw in set(df["event"].unique()):
+            logged_at = pd.Timestamp(df["logged_at"].iloc[0])
+            if logged_at < deadline:
+                return gw_path
+            # Clock skew / a retried run landed at-or-after the deadline --
+            # don't trust it; fall through in case an older, genuinely
+            # pre-deadline legacy file still exists for this gameweek.
+
+    return _find_legacy_prediction_snapshot(gw, deadline)
 
 
 def load_prediction_snapshot(path: Path, gw: int) -> pd.DataFrame:

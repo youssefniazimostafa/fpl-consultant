@@ -487,22 +487,55 @@ PREDICTION_BREAKDOWN_COLUMNS = [
 ]
 
 
-def log_live_predictions(xp: pd.DataFrame) -> Path:
-    """Snapshot this run's predictions with a timestamp (Step 7's "from this
-    season onward, log every live prediction... After each gameweek, score
-    it automatically" requirement). Every run gets its own file -- nothing
-    is overwritten -- since scoring a prediction later (Step 11) needs to
-    know exactly what was predicted and when, not just the latest one."""
+def _gameweek_deadlines() -> dict[int, pd.Timestamp]:
+    """Deadlines from the cached bootstrap-static gameweeks table (written
+    by fpl.fetch earlier in the pipeline), so the predictions stage doesn't
+    need its own API call just to know whether a gameweek has locked yet."""
+    path = TABLES_DIR / "gameweeks.parquet"
+    if not path.exists():
+        return {}
+    gameweeks = pd.read_parquet(path)
+    return {
+        int(row.gameweek): pd.Timestamp(row.deadline_time)
+        for row in gameweeks.itertuples()
+    }
+
+
+def log_live_predictions(xp: pd.DataFrame) -> list[Path]:
+    """Snapshot this run's predictions, one file per gameweek in the
+    horizon (``data/predictions/gw{N}.parquet``). Every run before that
+    gameweek's deadline overwrites its file with the latest prediction --
+    only the last one logged before the deadline is ever scored, so there's
+    no point keeping the earlier ones -- but once the deadline has passed
+    the file is never touched again, since fpl.scoring (Step 11) needs the
+    exact pre-deadline prediction frozen, not whatever the model says
+    after kickoff.
+
+    This replaces the old one-timestamped-file-per-run scheme, which wrote
+    a new ~65KB snapshot of the whole horizon every run (every 3 hours) and
+    was on course for ~100MB/season of committed, never-pruned history.
+    Older timestamped files are left in place untouched and are still read
+    as a fallback by fpl.scoring.find_prediction_snapshot.
+    """
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
     logged_at = pd.Timestamp.now("UTC")
-    snapshot = xp[
-        ["fixture_id", "event", "player_id", "web_name", "position", "team_short", "opponent_short", "xp"]
-        + PREDICTION_BREAKDOWN_COLUMNS
-    ].copy()
-    snapshot.insert(0, "logged_at", logged_at)
-    path = PREDICTIONS_DIR / f"{logged_at.strftime('%Y-%m-%dT%H%M%S')}.parquet"
-    snapshot.to_parquet(path, index=False)
-    return path
+    deadlines = _gameweek_deadlines()
+
+    written: list[Path] = []
+    for event, rows in xp.groupby("event"):
+        event = int(event)
+        deadline = deadlines.get(event)
+        if deadline is not None and logged_at >= deadline:
+            continue  # frozen -- deadline has passed, don't overwrite it
+        snapshot = rows[
+            ["fixture_id", "event", "player_id", "web_name", "position", "team_short", "opponent_short", "xp"]
+            + PREDICTION_BREAKDOWN_COLUMNS
+        ].copy()
+        snapshot.insert(0, "logged_at", logged_at)
+        path = PREDICTIONS_DIR / f"gw{event}.parquet"
+        snapshot.to_parquet(path, index=False)
+        written.append(path)
+    return written
 
 
 def main() -> None:
@@ -517,8 +550,12 @@ def main() -> None:
     by_gw.to_parquet(gw_path, index=False)
     print(f"  wrote {gw_path} ({len(by_gw)} players x {len(by_gw.columns) - 5} gameweeks)")
 
-    log_path = log_live_predictions(xp)
-    print(f"  logged predictions snapshot to {log_path}")
+    log_paths = log_live_predictions(xp)
+    if log_paths:
+        print(f"  logged predictions snapshot to {len(log_paths)} gameweek file(s): "
+              f"{', '.join(p.name for p in log_paths)}")
+    else:
+        print("  no predictions logged -- every gameweek in this horizon has already passed its deadline")
 
 
 if __name__ == "__main__":
