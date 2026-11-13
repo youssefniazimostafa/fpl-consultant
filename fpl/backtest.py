@@ -14,9 +14,10 @@ the player's own historical rows, same as live, but *not* shrunk toward a
 position average, since a nailed-on starter's own evidence shouldn't be
 diluted toward a rotation-prone position's typical rate. Each gameweek is
 then scored with ``fpl.xp.build_xp``'s own formula against
-three baselines: FPL's own pre-match ``xP`` (vaastav's name for FPL's
-``ep_next`` snapshot, captured before the deadline), the player's own
-season points-per-game so far, and his last-5-gameweek average.
+three baselines: FPL's own ``xP`` (vaastav's column for FPL's expected
+points -- see the data-quality note below on why it can't be treated as a
+confirmed pre-deadline ``ep_next``), the player's own season
+points-per-game so far, and his last-5-gameweek average.
 
 Scope note: the live pipeline's fixture lambdas blend Elo, betting-odds
 implied goals and rolling Understat xG (Step 4). Reproducing a full
@@ -44,6 +45,14 @@ from ``ep_this`` (scraped *after* each gameweek ends) rather than the
 pre-deadline ``ep_next`` managers actually see, with a documented risk of
 post-match lookahead bias -- so treat the FPL-xP numbers here as an
 optimistic upper bound, not a clean baseline.
+
+Matched-gameweek note: because FPL-xP only exists on those 11 gameweeks,
+comparing its numbers with the other models' all-gameweek numbers mixes
+two different samples (different weeks, different haul/blank mix). The
+report therefore prints every metric twice: once on the 11 gameweeks where
+*every* model has a prediction (``scope="fpl_xp_valid_gws"`` -- the only
+fair head-to-head with FPL-xP), and once on all backtested gameweeks for
+the three models that cover them (``scope="all_gws"``).
 
 Reporting note: pooled (all-rows) Spearman is dominated by the ~60% of
 player-gameweeks where nobody plays, which every baseline ranks near zero
@@ -414,7 +423,14 @@ def run_backtest() -> pd.DataFrame:
     return results
 
 
-def summarize(results: pd.DataFrame) -> dict:
+def fpl_xp_valid_gameweeks(results: pd.DataFrame) -> list[int]:
+    """Gameweeks where FPL's xP is a real prediction (not the all-zero
+    backfill) -- the only gameweeks on which every model can be compared
+    like for like."""
+    return sorted(int(e) for e in results.loc[results["fpl_xp"].notna(), "event"].unique())
+
+
+def summarize(results: pd.DataFrame, columns: dict[str, str] | None = None, scope: str = "all_gws") -> dict:
     """MAE, rank correlation by position, and calibration for every model,
     both over the full backtested season and split before/after the GW6
     blend cutoff so the "don't overfit early" blend's effect is visible.
@@ -425,11 +441,23 @@ def summarize(results: pd.DataFrame) -> dict:
     time. It's kept for reference only; the predicted-starter subset
     (``p_start > 0.5``), top-N hit rate and captain accuracy below are what
     actually drives transfer/captain decisions and should be the bar for
-    adopting any change."""
-    summary = {"n_gameweeks": results["event"].nunique(), "n_predictions": len(results)}
+    adopting any change.
+
+    ``columns`` picks which models to score (default: all of
+    ``BASELINE_COLUMNS``); ``scope`` is just a label carried into the
+    printed report and the results log so matched-gameweek and
+    all-gameweek runs are never confused with each other."""
+    columns = columns or BASELINE_COLUMNS
+    summary = {
+        "scope": scope,
+        "columns": columns,
+        "gameweeks": sorted(int(e) for e in results["event"].unique()),
+        "n_gameweeks": results["event"].nunique(),
+        "n_predictions": len(results),
+    }
     likely_starters = results[results["p_start"] > 0.5]
 
-    for col in BASELINE_COLUMNS:
+    for col in columns:
         subset = results.dropna(subset=[col])
         summary[f"mae_{col}"] = mean_absolute_error(subset, col)
         summary[f"spearman_{col}"] = spearman_by_position(subset, col)
@@ -448,19 +476,39 @@ def summarize(results: pd.DataFrame) -> dict:
     return summary
 
 
+def _mean(d: dict) -> float:
+    return float(np.mean(list(d.values()))) if d else float("nan")
+
+
+def print_headline_table(summary: dict) -> None:
+    """One row per model: the five numbers methods.html shows. "Pooled"
+    Spearman is the all-rows Spearman averaged across positions (the same
+    definition Fix 1 reported as 0.665 etc.); "starter" restricts to
+    predicted p_start > 0.5 first."""
+    print(f"\n[{summary['scope']}] {summary['n_gameweeks']} gameweeks, {summary['n_predictions']} player-gameweeks")
+    print(f"  gameweeks: {summary['gameweeks']}")
+    print(f"  {'model':<16}{'MAE':>7}{'pooled':>9}{'starter':>9}{'top10':>8}{'top20':>8}{'captain':>9}")
+    for col, label in summary["columns"].items():
+        print(f"  {label:<16}{summary[f'mae_{col}']:7.3f}{_mean(summary[f'spearman_{col}']):9.3f}"
+              f"{_mean(summary[f'spearman_{col}_likely_starter']):9.3f}{summary[f'top10_{col}']:8.3f}"
+              f"{summary[f'top20_{col}']:8.3f}{summary[f'captain_{col}']:9.2f}")
+
+
 def print_report(summary: dict) -> None:
-    print(f"\nBacktested {summary['n_gameweeks']} gameweeks, {summary['n_predictions']} player-gameweek predictions.\n")
+    columns = summary["columns"]
+    print(f"\n=== scope: {summary['scope']} ===")
+    print(f"Backtested {summary['n_gameweeks']} gameweeks, {summary['n_predictions']} player-gameweek predictions.\n")
 
     print("Mean absolute error (lower is better):")
-    for col, label in BASELINE_COLUMNS.items():
+    for col, label in columns.items():
         print(f"  {label:<16} {summary[f'mae_{col}']:.3f}")
 
     print("\nSpearman rank correlation by position, full season, all rows (higher is better,")
     print("reference only -- dominated by non-playing players, see predicted-starter table below):")
-    positions = sorted({p for col in BASELINE_COLUMNS for p in summary[f"spearman_{col}"]})
+    positions = sorted({p for col in columns for p in summary[f"spearman_{col}"]})
     header = "  " + "".join(f"{p:>8}" for p in positions)
     print(f"{'':<16}{header}")
-    for col, label in BASELINE_COLUMNS.items():
+    for col, label in columns.items():
         row = summary[f"spearman_{col}"]
         cells = "".join(f"{row.get(p, float('nan')):8.3f}" for p in positions)
         print(f"  {label:<14}{cells}")
@@ -468,7 +516,7 @@ def print_report(summary: dict) -> None:
     print("\nSpearman rank correlation by position, predicted likely starters only (p_start > 0.5) --")
     print("this is the subset that actually drives transfer/captain decisions:")
     print(f"{'':<16}{header}")
-    for col, label in BASELINE_COLUMNS.items():
+    for col, label in columns.items():
         row = summary[f"spearman_{col}_likely_starter"]
         cells = "".join(f"{row.get(p, float('nan')):8.3f}" for p in positions)
         print(f"  {label:<14}{cells}")
@@ -477,12 +525,12 @@ def print_report(summary: dict) -> None:
     print("actually in the real top-N) and captain accuracy (points from each model's #1 overall")
     print("pick per gameweek):")
     print(f"{'':<16}{'top10':>8}{'top20':>8}{'captain':>10}")
-    for col, label in BASELINE_COLUMNS.items():
+    for col, label in columns.items():
         print(f"  {label:<14}{summary[f'top10_{col}']:8.3f}{summary[f'top20_{col}']:8.3f}"
               f"{summary[f'captain_{col}']:10.2f}")
 
     print("\nSpearman rank correlation by position -- GW<=6 (blend window) vs GW>6:")
-    for col, label in BASELINE_COLUMNS.items():
+    for col, label in columns.items():
         early = summary[f"spearman_{col}_early"]
         late = summary[f"spearman_{col}_late"]
         early_avg = np.mean(list(early.values())) if early else float("nan")
@@ -500,22 +548,24 @@ def print_report(summary: dict) -> None:
     print(f"\nCheckpoint: our model {verdict} season-PPG on predicted-likely-starter rank "
           f"correlation ({our_overall:.3f} vs {ppg_overall:.3f}) -- this, not the pooled figure, "
           "is the adoption bar.")
-    print("Note: FPL's ep_next (fpl_xp) numbers above exclude gameweeks where vaastav's source file")
-    print("was missing (backfilled with 0 for everyone), but the surviving values are themselves")
-    print("sourced from ep_this and may carry post-match lookahead bias per the cloned repo's own")
-    print("DATA_DICTIONARY.md/README caveat -- treat fpl_xp's numbers as an optimistic upper bound,")
-    print("not a clean baseline.")
+    if "fpl_xp" in columns:
+        print("Note: this scope is restricted to the gameweeks where FPL's xP is a real prediction, so")
+        print("every model above is scored on the same weeks. The surviving FPL xP values are still")
+        print("sourced from ep_this and may carry post-match lookahead bias per the cloned repo's own")
+        print("DATA_DICTIONARY.md/README caveat -- treat fpl_xp's numbers as an optimistic upper bound,")
+        print("not a clean baseline.")
 
 
 def log_results(summary: dict) -> None:
     row = {
         "run_at": pd.Timestamp.now("UTC").isoformat(),
+        "scope": summary["scope"],
         "n_gameweeks": summary["n_gameweeks"],
         "n_predictions": summary["n_predictions"],
         "half_life_matches": HALF_LIFE_MATCHES,
         "shrinkage_matches": SHRINKAGE_MATCHES,
     }
-    for col in BASELINE_COLUMNS:
+    for col in summary["columns"]:
         row[f"mae_{col}"] = summary[f"mae_{col}"]
         row[f"spearman_{col}_overall"] = np.mean(list(summary[f"spearman_{col}"].values())) if summary[f"spearman_{col}"] else np.nan
         likely = summary[f"spearman_{col}_likely_starter"]
@@ -536,10 +586,21 @@ def main() -> None:
     results.to_parquet(path, index=False)
     print(f"  wrote {path} ({len(results)} rows)")
 
-    summary = summarize(results)
-    print_report(summary)
-    log_results(summary)
-    print(f"\nAppended this run's summary to {RESULTS_LOG_PATH}")
+    # Head-to-head: every model, including FPL's xP, on exactly the same
+    # gameweeks. This is the only table where FPL-xP can be compared.
+    valid_gws = fpl_xp_valid_gameweeks(results)
+    matched = summarize(results[results["event"].isin(valid_gws)], scope="fpl_xp_valid_gws")
+    # Full season, for the three models that predict every gameweek.
+    non_fpl = {k: v for k, v in BASELINE_COLUMNS.items() if k != "fpl_xp"}
+    full = summarize(results, columns=non_fpl, scope="all_gws")
+
+    for summary in (matched, full):
+        print_report(summary)
+    print("\n=== headline tables ===")
+    for summary in (matched, full):
+        print_headline_table(summary)
+        log_results(summary)
+    print(f"\nAppended both scopes' summaries to {RESULTS_LOG_PATH}")
 
 
 if __name__ == "__main__":

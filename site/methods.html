@@ -222,29 +222,43 @@ they're literally built from recent playing time. The number that actually matte
 decisions is rank correlation restricted to <strong>predicted likely starters</strong>, plus two decision-level
 metrics: top-N hit rate (of each model's top 10/20 gameweek picks per position, how many were actually a
 top-10/20 scorer) and captain accuracy (points returned by captaining each model's single highest-rated player,
-every gameweek):</p>
+every gameweek). Every model is compared on the <strong>same gameweeks</strong>: FPL's historical expected
+points only exist for 10 of the 37 backtested gameweeks (GW2-6, 8, 9, 24, 29, 38 -- see the footnote), so the
+head-to-head table uses just those 10:</p>
 <table>
-  <tr><th>Model</th><th>MAE</th><th>Rank corr. (pooled, reference only)</th>
+  <tr><th>Model (10 matched GWs)</th><th>MAE</th><th>Rank corr. (pooled, reference only)</th>
+      <th>Rank corr. (likely starters)</th><th>Top-10 hit rate</th><th>Top-20 hit rate</th>
+      <th>Captain pts/GW</th></tr>
+  <tr><td>This model</td><td>1.06</td><td>0.643</td><td>0.287</td><td>0.330</td><td>0.510</td><td>7.80</td></tr>
+  <tr><td>FPL's own expected points *</td><td>0.82</td><td>0.782</td><td>0.658</td><td>0.507</td><td>0.660</td><td>11.10</td></tr>
+  <tr><td>Points-per-game baseline</td><td>1.09</td><td>0.711</td><td>0.211</td><td>0.290</td><td>0.471</td><td>5.50</td></tr>
+  <tr><td>Last-5-average baseline</td><td>1.07</td><td>0.732</td><td>0.230</td><td>0.305</td><td>0.492</td><td>6.60</td></tr>
+</table>
+<p>The three models that predict every gameweek, over the full 37-gameweek backtest:</p>
+<table>
+  <tr><th>Model (all 37 GWs)</th><th>MAE</th><th>Rank corr. (pooled, reference only)</th>
       <th>Rank corr. (likely starters)</th><th>Top-10 hit rate</th><th>Top-20 hit rate</th>
       <th>Captain pts/GW</th></tr>
   <tr><td>This model</td><td>1.05</td><td>0.665</td><td>0.282</td><td>0.336</td><td>0.515</td><td>5.86</td></tr>
-  <tr><td>FPL's own <code>ep_next</code> *</td><td>0.82</td><td>0.782</td><td>0.658</td><td>0.508</td><td>0.660</td><td>11.10</td></tr>
   <tr><td>Points-per-game baseline</td><td>1.07</td><td>0.705</td><td>0.183</td><td>0.311</td><td>0.485</td><td>6.16</td></tr>
   <tr><td>Last-5-average baseline</td><td>1.05</td><td>0.743</td><td>0.224</td><td>0.291</td><td>0.499</td><td>4.16</td></tr>
 </table>
-<p class="muted">On the metric that matters (predicted-starter rank correlation), this model clearly beats both
-naive baselines (0.282 vs 0.183/0.224), reversing what the old pooled-only comparison suggested -- the pooled
-figures mostly reward correctly guessing that already-known non-starters won't score, which PPG/last-5 do
-trivially well since they <em>are</em> recent playing time.</p>
-<p class="muted">* FPL's <code>ep_next</code> numbers carry a real caveat: the historical source data is missing
-for 27 of the 38 backtested gameweeks (every player scored a flat 0 those weeks -- clearly not a real
-prediction), so those gameweeks are excluded from its column entirely, leaving only 11 valid gameweeks. Even on
-those, the underlying data is scraped from FPL's post-gameweek <code>ep_this</code> field rather than the
-pre-deadline number managers actually saw, and the historical dataset's own documentation flags a risk of
-post-match lookahead bias in that field. Treat <code>ep_next</code>'s figures above as an optimistic upper
-bound, not an apples-to-apples baseline -- which is also why this model doesn't blend its own prediction with
-<code>ep_next</code> despite the apparent gap: a delagged (one-gameweek-lagged, leakage-free) version of the same
-column tested no better than this model alone once the lookahead advantage was removed.</p>
+<p class="muted">On the metric that matters (predicted-starter rank correlation), this model beats both naive
+baselines in both tables (0.282 vs 0.183/0.224 over the season; 0.287 vs 0.211/0.230 on the matched weeks) --
+the pooled figures mostly reward correctly guessing that already-known non-starters won't score, which PPG/last-5
+do trivially well since they <em>are</em> recent playing time. Captaincy is mixed: over the full season PPG's
+top pick returned slightly more (6.16 vs 5.86 pts/GW), so this model doesn't clearly win there. The matched
+sample is small and half of it is GW2-6, when every model has the least data.</p>
+<p class="muted">* FPL's expected-points numbers carry a real caveat: the historical source data is missing for
+27 of the season's 38 gameweeks (every player scored a flat 0 those weeks -- clearly not a real prediction).
+Of the 11 real ones, GW1 can't be backtested (no prior history for the other models), leaving 10. Even on those,
+the underlying data is scraped from FPL's post-gameweek <code>ep_this</code> field rather than the pre-deadline
+<code>ep_next</code> managers actually saw, and the historical dataset's own documentation flags a risk of
+post-match lookahead bias in that field. Treat its figures as an optimistic upper bound, not an apples-to-apples
+baseline. Because of that, blending this model with FPL's <code>ep_next</code> can't be judged from this
+historical data at all. Instead, the live site now records the real pre-deadline <code>ep_next</code> next to
+this model's prediction every gameweek, and the in-season accuracy log scores this model, <code>ep_next</code>
+and a 50/50 blend side by side -- a clean test that will accumulate over the season.</p>
 <p class="muted">Also tested and <strong>not adopted</strong> after backtesting: a grid search over the recency
 half-life and shrinkage-strength constants (no combination meaningfully beat the current defaults on
 predicted-starter rank correlation, top-N hit rate or captain accuracy -- differences across the whole grid were
