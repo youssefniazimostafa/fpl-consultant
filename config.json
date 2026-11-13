@@ -2,9 +2,9 @@
   "league_id": 859793,
   "my_entry_id": 7312318,
   "rival_window_points": 60,
-  "free_transfers_override": 1,
+  "free_transfers": null,
   "p_start_overrides": [],
   "override_reasons": {
-    "free_transfers_override": "2026-11-11: computed value was 2, but the FPL app shows 1 free transfer for this team -- overriding until the discrepancy is understood."
+    "free_transfers": "2026-11-11: root cause found and fixed -- fpl.league._free_transfers_for_manager was counting a manager's opening gameweek as a normal banked week, inflating the computed value to 2 when the FPL app correctly shows 1 (FPL's rule: no free transfer is earned or spent building your initial squad). Override no longer needed now that the computed value matches the app; left as null/documented here for the next time a real discrepancy shows up."
   }
 }

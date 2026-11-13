@@ -124,6 +124,21 @@ TRANSFER_POOL_PER_POSITION = 40
 # model can still choose to sell him; his low xP already pushes that way).
 UNAVAILABLE_STATUSES = {"u", "i", "s"}
 
+# Step 12: a hit (-4/extra transfer) is never justified by pure value --
+# only by necessity. These are the same statuses ``UNAVAILABLE_STATUSES``
+# uses for "can't be bought", reused here for "can be sold with a hit";
+# a plain doubtful ("d") player only counts if his own
+# ``chance_of_playing_next_round`` has dropped to this level or below.
+HIT_JUSTIFY_STATUSES = {"u", "i", "s"}
+HIT_JUSTIFY_DOUBTFUL_CHANCE = 25
+# The hit must pay for itself: the incoming player's combined XI output
+# over this many future gameweeks has to beat holding (bench covering the
+# unavailable starter) by more than ``HIT_COST`` points *per hit taken* --
+# "projected points over the next 3 gameweeks" from the spec, using raw
+# (undiscounted, strategy-unadjusted) xP so the bar is a plain points
+# comparison, not the horizon objective's discounted/EO-adjusted value.
+HIT_JUSTIFY_WINDOW = 3
+
 # Adjusts xP toward (chasing) or away from (protecting) differentials.
 # EO_CENTER=0.5 is the spec's own example midpoint; balanced mode uses a
 # tiny lambda purely to break ties among otherwise-equal players.
@@ -311,6 +326,7 @@ def solve_horizon(
     weeks: list[int],
     discount: dict[int, float],
     held_weeks: frozenset[int] = frozenset(),
+    no_hit_weeks: frozenset[int] = frozenset(),
 ) -> dict[str, Any]:
     """One MILP covering every gameweek in ``weeks`` at once. A single
     gameweek is just ``weeks`` of length 1 -- there's no separate
@@ -319,6 +335,13 @@ def solve_horizon(
     ``held_weeks``: gameweeks where transfers are forced to zero (used by
     ``recommend_transfers`` to test "hold this week, keep flexibility to
     move later" against the free solve).
+
+    ``no_hit_weeks``: gameweeks where transfers are allowed but capped at
+    the free transfers available -- no points hit permitted. Step 12's
+    hit-justification policy (``justify_hits``) re-solves with this set
+    whenever the unconstrained solve's hit isn't earned by necessity, so
+    the model still finds the best *free* transfer (or correctly rolls)
+    instead of just forcing a hold.
     """
     # pulp >=4 ties every LpVariable to the LpProblem that will solve it
     # (created via ``m.add_variable``, not a free-standing constructor), so
@@ -381,6 +404,8 @@ def solve_horizon(
 
         transfers_used = pulp.lpSum(tin[(p, g)] for p in pool_ids)
         m += hits[g] >= transfers_used - prev_ft
+        if g in no_hit_weeks:
+            m += hits[g] <= 0
 
         m += bank[g] == prev_bank + pulp.lpSum(
             sell_price[p] * tout[(p, g)] - pool_info[p]["now_cost"] * tin[(p, g)] for p in pool_ids
@@ -429,6 +454,93 @@ def solve_horizon(
 # ---------------------------------------------------------------------------
 
 
+def is_flagged_unavailable(player_row: dict[str, Any]) -> bool:
+    """Step 12: a sold player justifies a hit only if he's genuinely
+    unavailable -- status ``i``/``s``/``u`` (injured/suspended/unavailable),
+    or ``d`` (doubtful) with his own ``chance_of_playing_next_round`` down
+    at or below ``HIT_JUSTIFY_DOUBTFUL_CHANCE``. A plain doubtful at, say,
+    75% is a risk to manage, not a forced sale."""
+    status = player_row.get("status")
+    if status in HIT_JUSTIFY_STATUSES:
+        return True
+    if status == "d":
+        chance = player_row.get("chance_of_playing_next_round")
+        return chance is not None and chance <= HIT_JUSTIFY_DOUBTFUL_CHANCE
+    return False
+
+
+def justify_hits(
+    plan: dict[str, Any],
+    held: dict[str, Any],
+    pool_info: dict[int, dict[str, Any]],
+    raw_weekly_xp: dict[tuple[int, int], float],
+    weeks: list[int],
+) -> tuple[bool, list[str]]:
+    """Step 12 rule 3: a hit is allowed only if it's earned by necessity,
+    never by pure value.
+
+    1. Every "paid" transfer (beyond the free transfers available) must be
+       selling a player who is both a regular starter in the *held* XI
+       (never a bench player -- a flagged 4th/5th-choice pick never
+       justifies a hit) and genuinely unavailable (``is_flagged_
+       unavailable``). Free transfers aren't restricted this way -- you get
+       those regardless of necessity.
+    2. Even then, the swap(s) have to pay for themselves: the combined XI
+       output over the next ``HIT_JUSTIFY_WINDOW`` gameweeks (raw,
+       undiscounted xP -- a plain points comparison) must beat holding (and
+       using the bench to cover the gap) by more than ``HIT_COST`` points
+       *per hit taken*.
+
+    Returns ``(justified, reasons)`` -- ``reasons`` names every flagged
+    starter sold and the net gain, for the site's hit warning.
+    """
+    week0 = plan["weeks"][0]
+    hits = week0["hits"]
+    if hits <= 0:
+        return True, []
+
+    held_xi_ids = held["weeks"][0]["xi_ids"]
+    flagged_outs = [
+        p for p in week0["transfers_out"]
+        if p in held_xi_ids and is_flagged_unavailable(pool_info.get(p, {}))
+    ]
+    # Every paid transfer (there are ``hits`` of them) must be covered by
+    # a flagged, nailed-starter sale -- the free transfer(s) can still be
+    # spent on a pure value swap, only the *extra* paid one(s) can't.
+    if len(flagged_outs) < hits:
+        return False, []
+
+    window = [g for g in weeks[:HIT_JUSTIFY_WINDOW]]
+
+    def xi_points(candidate: dict[str, Any]) -> float:
+        total = 0.0
+        for wk in candidate["weeks"]:
+            if wk["gameweek"] not in window:
+                continue
+            total += sum(raw_weekly_xp.get((p, wk["gameweek"]), 0.0) for p in wk["xi_ids"])
+            if wk["captain_id"] is not None:
+                total += raw_weekly_xp.get((wk["captain_id"], wk["gameweek"]), 0.0)
+        return total
+
+    net_gain = xi_points(plan) - xi_points(held)
+    required = HIT_COST * hits
+    if net_gain <= required:
+        return False, []
+
+    reasons = [
+        f"{pool_info[p]['web_name']} ({pool_info[p].get('status')}"
+        + (
+            f", {pool_info[p]['chance_of_playing_next_round']:.0f}% chance of playing"
+            if pool_info[p].get("chance_of_playing_next_round") is not None
+            else ""
+        )
+        + f") -- replacing him gains {net_gain:.1f} pts over the next {len(window)} GWs, "
+          f"beating the {required}-point hit cost"
+        for p in flagged_outs
+    ]
+    return True, reasons
+
+
 def recommend_transfers(
     baseline: dict[str, Any],
     pool_ids: list[int],
@@ -440,24 +552,49 @@ def recommend_transfers(
     free_transfers_now: int,
     weeks: list[int],
     discount: dict[int, float],
-) -> tuple[dict[str, Any], float, bool]:
+    raw_weekly_xp: dict[tuple[int, int], float] | None = None,
+) -> tuple[dict[str, Any], float, bool, list[str]]:
     """Only recommend this week's transfer if it beats holding (while still
     letting the model move in a *later* week instead) by at least
     ``TRANSFER_THRESHOLD_XP`` over the horizon -- "spot the right week to
     move" means testing whether *this* week is that week, not whether
-    moving beats never moving at all."""
+    moving beats never moving at all.
+
+    Step 12 rule 3: before that threshold check, a baseline that wants a
+    hit is first checked against ``justify_hits``. An unjustified hit gets
+    re-solved with that week's hits forced to zero (``no_hit_weeks``) --
+    the model still finds its best *free* transfer, it just can't buy its
+    way past the necessity bar -- so "at most your free transfers, unless
+    a flagged nailed starter justifies more" holds regardless of what the
+    unconstrained solve would have picked.
+    """
     week0 = weeks[0]
     if not baseline["weeks"][0]["transfers_in"]:
-        return baseline, 0.0, False
+        return baseline, 0.0, False, []
 
     held = solve_horizon(
         pool_ids, weekly_value, pool_info, my_squad_ids, sell_price,
         initial_bank, free_transfers_now, weeks, discount, held_weeks=frozenset({week0}),
     )
-    gain = (baseline["objective"] or 0.0) - (held["objective"] or 0.0)
+
+    plan = baseline
+    hit_reasons: list[str] = []
+    if plan["weeks"][0]["hits"] > 0 and raw_weekly_xp is not None:
+        justified, hit_reasons = justify_hits(plan, held, pool_info, raw_weekly_xp, weeks)
+        if not justified:
+            plan = solve_horizon(
+                pool_ids, weekly_value, pool_info, my_squad_ids, sell_price,
+                initial_bank, free_transfers_now, weeks, discount, no_hit_weeks=frozenset({week0}),
+            )
+            hit_reasons = []
+
+    if not plan["weeks"][0]["transfers_in"]:
+        return plan, 0.0, False, hit_reasons
+
+    gain = (plan["objective"] or 0.0) - (held["objective"] or 0.0)
     if gain < TRANSFER_THRESHOLD_XP:
-        return held, gain, False
-    return baseline, gain, True
+        return held, gain, False, []
+    return plan, gain, True, hit_reasons
 
 
 # ---------------------------------------------------------------------------
@@ -676,11 +813,32 @@ def write_table(df: pd.DataFrame, name: str) -> None:
 
 
 def build_squad_plan_table(
-    plan: dict[str, Any], pool_info: dict[int, dict[str, Any]], weeks: list[int]
+    plan: dict[str, Any],
+    pool_info: dict[int, dict[str, Any]],
+    weeks: list[int],
+    raw_weekly_xp: dict[tuple[int, int], float] | None = None,
 ) -> pd.DataFrame:
+    """Step 12 additions: ``is_vice_captain`` (the highest-xP XI player who
+    isn't the captain -- the same "next man up" tie-break the real game
+    uses) and ``bench_order`` (the reserve keeper is always first/unordered,
+    then outfield subs ranked by xP, highest first -- the autosub priority
+    the site's "Substitutes" strip labels "GKP, 1., 2., 3." the same way
+    the FPL site itself does)."""
+    raw_weekly_xp = raw_weekly_xp or {}
     rows = []
     for wk in plan["weeks"]:
         g = wk["gameweek"]
+        bench_ids = sorted(wk["squad_ids"] - wk["xi_ids"], key=lambda p: -raw_weekly_xp.get((p, g), 0.0))
+        bench_gk = [p for p in bench_ids if pool_info[p]["position"] == "GKP"]
+        bench_outfield = [p for p in bench_ids if pool_info[p]["position"] != "GKP"]
+        bench_order = {p: 0 for p in bench_gk}
+        bench_order.update({p: i + 1 for i, p in enumerate(bench_outfield)})
+
+        non_captain_xi = [p for p in wk["xi_ids"] if p != wk["captain_id"]]
+        vice_captain_id = (
+            max(non_captain_xi, key=lambda p: raw_weekly_xp.get((p, g), 0.0)) if non_captain_xi else None
+        )
+
         for p in wk["squad_ids"]:
             role = "captain" if p == wk["captain_id"] else ("xi" if p in wk["xi_ids"] else "bench")
             rows.append(
@@ -688,20 +846,31 @@ def build_squad_plan_table(
                     "gameweek": g, "player_id": p, "web_name": pool_info[p]["web_name"],
                     "position": pool_info[p]["position"], "role": role,
                     "transferred_in": p in wk["transfers_in"],
+                    "is_vice_captain": p == vice_captain_id,
+                    "bench_order": bench_order.get(p),
                 }
             )
     return pd.DataFrame(rows)
 
 
 def build_transfers_table(
-    plan: dict[str, Any], pool_info: dict[int, dict[str, Any]], gain: float, recommended: bool
+    plan: dict[str, Any],
+    pool_info: dict[int, dict[str, Any]],
+    gain: float,
+    recommended: bool,
+    hit_reasons: list[str] | None = None,
 ) -> pd.DataFrame:
     """The full horizon's transfer plan (the "6-week transfer plan" panel),
     one row per planned move in every week -- not just this week's. Only
     gameweek 0's move has actually been checked against the threshold (see
     ``recommend_transfers``); later weeks are the model's *current* plan
     for that week and can shift as news lands closer to its own deadline,
-    so ``horizon_gain_xp``/``recommended`` are only populated for week 0."""
+    so ``horizon_gain_xp``/``recommended`` are only populated for week 0.
+    ``hit_reason`` (Step 12): the hit-justification explanation for
+    gameweek 0's hit(s) -- only ever populated when ``recommend_transfers``
+    actually recommends one, since an unjustified hit is re-solved away
+    before this table is built (see ``justify_hits``)."""
+    hit_reason_text = "; ".join(hit_reasons) if hit_reasons else None
     rows = []
     for i, wk in enumerate(plan["weeks"]):
         ins, outs = sorted(wk["transfers_in"]), sorted(wk["transfers_out"])
@@ -714,6 +883,7 @@ def build_transfers_table(
                     "hits_taken": wk["hits"] if j == 0 else 0,
                     "horizon_gain_xp": round(gain, 2) if i == 0 else None,
                     "recommended": recommended if i == 0 else None,
+                    "hit_reason": hit_reason_text if (i == 0 and j == 0) else None,
                 }
             )
     return pd.DataFrame(rows)
@@ -773,7 +943,18 @@ def main() -> None:
     avoid_ids = {int(x) for x in (config.get("avoid") or []) if isinstance(x, int)}
     pool_ids = build_candidate_pool(players, xp_by_gw, my_squad_ids, avoid_ids)
 
-    pool_info = players.set_index("id")[["web_name", "position", "team", "now_cost"]].to_dict("index")
+    pool_source = players.set_index("id")[
+        ["web_name", "position", "team", "now_cost", "status", "chance_of_playing_next_round", "news"]
+    ].copy()
+    # NaN -> None for the hit-justification check (``is_flagged_unavailable``
+    # compares ``chance_of_playing_next_round`` with ``<=``, which silently
+    # (and correctly) treats real NaN as "not flagged" -- but keeping it as
+    # an actual ``None`` makes that explicit rather than relying on NaN's
+    # comparison quirk, and avoids a stray ``nan`` reaching the JSON/site).
+    pool_source["chance_of_playing_next_round"] = pool_source["chance_of_playing_next_round"].where(
+        pool_source["chance_of_playing_next_round"].notna(), None
+    )
+    pool_info = pool_source.to_dict("index")
     now_cost_map = {p: pool_info[p]["now_cost"] for p in pool_ids}
     sell_price = {p: sell_price_owned.get(p, now_cost_map[p]) for p in pool_ids}
 
@@ -792,9 +973,9 @@ def main() -> None:
         pool_ids, adj_weekly_value, pool_info, my_squad_ids, sell_price,
         bank, effective_free, weeks, discount,
     )
-    final_plan, gain, transfer_recommended = recommend_transfers(
+    final_plan, gain, transfer_recommended, hit_reasons = recommend_transfers(
         baseline, pool_ids, adj_weekly_value, pool_info, my_squad_ids, sell_price,
-        bank, effective_free, weeks, discount,
+        bank, effective_free, weeks, discount, raw_weekly_xp=raw_weekly_xp,
     )
 
     team_chips_row = None
@@ -815,8 +996,11 @@ def main() -> None:
         league_picks, league_history, league_managers, team_id, gameweek,
     )
 
-    write_table(build_squad_plan_table(final_plan, pool_info, weeks), "optimise_squad.parquet")
-    write_table(build_transfers_table(final_plan, pool_info, gain, transfer_recommended), "optimise_transfers.parquet")
+    write_table(build_squad_plan_table(final_plan, pool_info, weeks, raw_weekly_xp), "optimise_squad.parquet")
+    write_table(
+        build_transfers_table(final_plan, pool_info, gain, transfer_recommended, hit_reasons),
+        "optimise_transfers.parquet",
+    )
     write_table(chip_plan, "optimise_chip_plan.parquet")
     write_table(captain_board, "optimise_captain_board.parquet")
     write_table(captaincy_risk, "optimise_captaincy_risk.parquet")
@@ -836,6 +1020,8 @@ def main() -> None:
         in_names = ", ".join(pool_info[p]["web_name"] for p in sorted(wk0["transfers_in"]))
         print(f"  transfer: OUT {out_names} -> IN {in_names} ({wk0['hits']} hit(s)), "
               f"horizon gain {gain:.2f}xP vs holding -> {'recommended' if transfer_recommended else 'below threshold, holding instead'}")
+        for reason in hit_reasons:
+            print(f"  ! hit justified: {reason}")
     else:
         print("  no transfer recommended this week -- roll the free transfer.")
     captain_name = pool_info[wk0["captain_id"]]["web_name"] if wk0["captain_id"] else "none"

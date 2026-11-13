@@ -327,10 +327,23 @@ def _free_transfers_for_manager(history: pd.DataFrame, chip_events: set[int]) ->
     leaves the FT bank completely untouched (the chip doesn't consume or
     grow it), confirmed by the live API reporting ``event_transfers: 0``
     for those gameweeks regardless of how many swaps the chip allowed.
+
+    The manager's *first* row in ``history`` (GW1 for a manager who's
+    played the whole season, or a later GW for one who joined mid-season)
+    is always excluded from the roll-over walk, same as a chip gameweek --
+    FPL's own rule is "you will not require free transfers before your
+    first Gameweek", so building your initial squad never banks or costs
+    a transfer. Treating it as a normal week (the previous behaviour) let
+    an unused "transfer" in that opening gameweek inflate the bank by one
+    extra FT it was never entitled to -- confirmed against the live FPL
+    app showing 1 FT for a team whose GW1 row looked, by the old logic,
+    like a banked gameweek.
     """
     history = history.sort_values("gameweek")
     ft = 1  # the standard free transfer every manager starts the season with
-    for row in history.itertuples():
+    for i, row in enumerate(history.itertuples()):
+        if i == 0:
+            continue  # the manager's starting gameweek: no FT earned or spent
         if row.gameweek in chip_events:
             continue  # wildcard/free hit this gameweek: FT bank carries through unchanged
         if row.event_transfers_cost and row.event_transfers_cost > 0:
@@ -349,16 +362,16 @@ def build_free_transfers_table(
     team_id: int | None,
 ) -> pd.DataFrame:
     """Free transfers available right now, for every manager in the league
-    -- replaces the old hand-typed ``config.json`` ``free_transfers``/
-    ``transfers_made`` pair, which only ever covered "me" and had to be
-    updated by hand every week.
+    -- replaces the old hand-typed ``config.json`` ``transfers_made``
+    field, which only ever covered "me" and had to be updated by hand
+    every week.
 
-    ``config.json``'s ``free_transfers_override`` is the documented escape
-    hatch for the rare week the computed number is wrong (e.g. a
+    ``config.json``'s ``free_transfers`` is the documented, optional
+    escape hatch for the rare week the computed number is wrong (e.g. a
     mid-season rule change this project doesn't know about yet) -- it only
-    ever applies to ``team_id``, and using it appends a dated entry to
-    ``config.json``'s ``override_reasons`` log so the override is never
-    silently forgotten about in a later week.
+    ever applies to ``team_id``, and using it should get a dated entry
+    added to ``config.json``'s ``override_reasons`` log by hand so the
+    override is never silently forgotten about in a later week.
     """
     if league_chips.empty:
         transfer_chip_events: dict[int, set[int]] = {}
@@ -372,8 +385,8 @@ def build_free_transfers_table(
     for manager_id, history in league_history.groupby("manager_id"):
         computed = _free_transfers_for_manager(history, transfer_chip_events.get(manager_id, set()))
         source = "computed"
-        if manager_id == team_id and config.get("free_transfers_override") is not None:
-            computed = int(config["free_transfers_override"])
+        if manager_id == team_id and config.get("free_transfers") is not None:
+            computed = int(config["free_transfers"])
             source = "override"
         rows.append({"manager_id": manager_id, "free_transfers": computed, "source": source})
 

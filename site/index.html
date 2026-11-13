@@ -201,6 +201,152 @@
   }
   code { color: var(--accent); }
 
+  /* ---- Step 12: Recommended Team pitch view ---- */
+  .rt-summary { font-size: 0.95rem; margin-bottom: 0.4rem; }
+  .rt-summary b { color: var(--text); }
+  .rt-hit-warning {
+    background: #4a2330;
+    color: #ff9fb0;
+    border: 1px solid #6b2c3d;
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    margin: 0.5rem 0 0.75rem;
+  }
+  .pitch-wrap { width: 100%; max-width: 560px; margin: 0 auto; }
+  .pitch {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    border-radius: 10px;
+    overflow: hidden;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        #2e8b3d 0, #2e8b3d 12.5%,
+        #2a7f38 12.5%, #2a7f38 25%
+      );
+    border: 2px solid rgba(255, 255, 255, 0.55);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 2.5% 1.5% 1.5%;
+  }
+  /* white pitch markings, drawn with plain bordered divs so no image
+     assets (and no Premier League / "Fantasy" branding) are needed */
+  .pitch::before {
+    /* halfway line */
+    content: '';
+    position: absolute;
+    left: 0; right: 0; top: 46%;
+    border-top: 2px solid rgba(255, 255, 255, 0.55);
+  }
+  .pitch::after {
+    /* centre circle, sits on the halfway line */
+    content: '';
+    position: absolute;
+    left: 50%; top: 46%;
+    width: 17%; aspect-ratio: 1 / 1;
+    border: 2px solid rgba(255, 255, 255, 0.55);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .pitch-box {
+    position: absolute;
+    top: 0; left: 50%;
+    width: 46%; height: 13%;
+    border: 2px solid rgba(255, 255, 255, 0.55);
+    border-top: none;
+    transform: translateX(-50%);
+  }
+  .pitch-goal {
+    position: absolute;
+    top: 0; left: 50%;
+    width: 18%; height: 5%;
+    border: 2px solid rgba(255, 255, 255, 0.55);
+    border-top: none;
+    transform: translateX(-50%);
+  }
+  .pitch-rows { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: space-around; flex: 1; }
+  .pitch-row { display: flex; justify-content: center; align-items: flex-start; gap: 2%; flex-wrap: nowrap; }
+  .player-card {
+    position: relative;
+    width: 17%;
+    min-width: 50px;
+    max-width: 92px;
+    text-align: center;
+    font-size: 0.68rem;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+  }
+  .player-card .shirt-box { position: relative; width: 70%; margin: 0 auto; aspect-ratio: 1 / 1; }
+  .player-card img.shirt { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .player-card .shirt-fallback {
+    width: 100%; height: 100%; border-radius: 6px 6px 2px 2px;
+    background: var(--team-color, #555);
+    border: 1px solid rgba(255,255,255,0.4);
+  }
+  .player-card .name-strip, .player-card .fixture-strip {
+    background: #fff;
+    color: #0f1419;
+    font-weight: 700;
+    border-radius: 3px;
+    padding: 0.08rem 0.2rem;
+    margin-top: 0.15rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+  }
+  .player-card .fixture-strip { background: #e3e8ee; font-weight: 500; color: #3a4452; font-size: 0.9em; }
+  .player-card.flagged .name-strip { background: var(--bad); color: #fff; }
+  .card-badge {
+    position: absolute;
+    width: 1.15em; height: 1.15em;
+    line-height: 1.15em;
+    border-radius: 50%;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-align: center;
+    color: #06130c;
+    background: var(--accent);
+    top: -0.2em;
+  }
+  .card-badge.cap { left: -0.2em; }
+  .card-badge.vice { left: -0.2em; background: #9fb8ff; }
+  .card-badge.cap ~ .card-badge.vice { left: 1.1em; }
+  .card-warn {
+    position: absolute;
+    top: -0.2em; right: -0.2em;
+    width: 1.15em; height: 1.15em;
+    line-height: 1.15em;
+    border-radius: 50%;
+    background: var(--warn);
+    color: #2a1d00;
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-align: center;
+    cursor: help;
+  }
+  .card-in {
+    position: absolute;
+    bottom: 1.55em; right: -0.1em;
+    background: var(--accent);
+    color: #06130c;
+    font-size: 0.6rem;
+    font-weight: 800;
+    border-radius: 3px;
+    padding: 0.03rem 0.25rem;
+  }
+  .subs-strip {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--panel-border);
+  }
+  .subs-strip .subs-title { color: var(--muted); font-size: 0.8rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .subs-row { display: flex; justify-content: center; gap: 3%; flex-wrap: wrap; }
+  .subs-row .player-card { width: 20%; }
+  .subs-row .bench-label { color: var(--muted); font-size: 0.68rem; margin-top: 0.1rem; }
+
   /* ---- mobile: tables become stacked cards instead of scrolling sideways ---- */
   @media (max-width: 640px) {
     table.responsive-cards thead { display: none; }
@@ -231,6 +377,15 @@
     table.responsive-cards td:empty { display: none; }
     .tab-panel.active { grid-template-columns: 1fr; padding: 0.75rem; }
     nav.tabs button { padding: 0.55rem 0.7rem; font-size: 0.8rem; }
+
+    /* pitch shrinks with the viewport, never wider than the screen --
+       font-size/padding scale down too, so an 11-wide formation row
+       never forces horizontal scrolling. */
+    .pitch-wrap { max-width: 100%; }
+    .player-card { font-size: 0.56rem; min-width: 38px; }
+    .card-badge, .card-warn { width: 1em; height: 1em; line-height: 1em; font-size: 0.65rem; }
+    .card-in { font-size: 0.52rem; }
+    .subs-row .player-card { width: 22%; min-width: 48px; }
   }
 </style>
 </head>
@@ -247,13 +402,15 @@
   <button data-tab="myteam" class="active">1 · My team</button>
   <button data-tab="standing">2 · Standing vs rivals</button>
   <button data-tab="transfers">3 · Transfers</button>
-  <button data-tab="improve">4 · Improve my team</button>
-  <button data-tab="differentials">5 · Differentials</button>
+  <button data-tab="recommended">4 · Recommended Team</button>
+  <button data-tab="improve">5 · Improve my team</button>
+  <button data-tab="differentials">6 · Differentials</button>
 </nav>
 <main id="app">
   <div class="tab-panel active" data-tab="myteam"><section class="panel wide"><p class="unavailable">Loading <code>data/latest.json</code>…</p></section></div>
   <div class="tab-panel" data-tab="standing"></div>
   <div class="tab-panel" data-tab="transfers"></div>
+  <div class="tab-panel" data-tab="recommended"></div>
   <div class="tab-panel" data-tab="improve"></div>
   <div class="tab-panel" data-tab="differentials"></div>
 </main>
@@ -330,7 +487,7 @@ function renderVerdict(v) {
 // Step 12: "My team" is the single at-a-glance answer to "what should my
 // squad look like for the next gameweek" -- the one recommended transfer
 // (respecting however many free transfers you actually have, see
-// config.json's free_transfers_override) plus the full XI/bench/captain
+// config.json's free_transfers) plus the full XI/bench/captain
 // for that same gameweek. It's deliberately just gameweek 0 of the wider
 // 6-week transfer plan and the same xi panel the other tabs already show
 // in more depth -- this tab's only job is to not make you go hunting for
@@ -390,6 +547,117 @@ function renderMyTeam(verdict, xi, transferPlan, status) {
     `available by then (1 per gameweek, banked up to the usual cap if unused).`));
 
   return panel('My team', `GW${gw} · recommended squad`, el('div', {}, parts), true);
+}
+
+// ---------------------------------------------------------------------
+// Step 12: "Recommended Team" -- an FPL-style pitch view of the full
+// 15-man squad *after* the recommended transfer(s), reading from the
+// same `recommended_team` panel fpl.publish writes every pipeline run
+// (so a deadline passing and the pipeline re-running is all it takes
+// for this to move on to the next gameweek's squad, same as "My team").
+// ---------------------------------------------------------------------
+
+// A small deterministic colour per team_code, used only as the shirt
+// fallback when the FPL CDN image fails to load -- not a copy of any
+// club's real kit, just enough so the pitch layout never breaks.
+function teamFallbackColor(teamCode) {
+  const n = Number(teamCode) || 0;
+  const hue = (n * 47) % 360;
+  return `hsl(${hue}, 45%, 38%)`;
+}
+
+function shirtUrl(player) {
+  if (!player.team_code) return null;
+  const suffix = player.position === 'GKP' ? `${player.team_code}_1` : `${player.team_code}`;
+  return `https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_${suffix}-66.webp`;
+}
+
+function fixtureLabel(fixture) {
+  if (!fixture) return '–';
+  return `${esc(fixture.opponent_short || '?')} (${fixture.is_home ? 'H' : 'A'})`;
+}
+
+function playerCard(p, benchLabel) {
+  const card = el('div', { class: 'player-card' + (p.flagged ? ' flagged' : '') });
+
+  const shirtBox = el('div', { class: 'shirt-box' });
+  const url = shirtUrl(p);
+  if (url) {
+    const img = el('img', { class: 'shirt', src: url, alt: '', loading: 'lazy' });
+    img.addEventListener('error', () => {
+      img.replaceWith(el('div', { class: 'shirt-fallback' }));
+      shirtBox.style.setProperty('--team-color', teamFallbackColor(p.team_code));
+    });
+    shirtBox.appendChild(img);
+  } else {
+    shirtBox.style.setProperty('--team-color', teamFallbackColor(p.team_code));
+    shirtBox.appendChild(el('div', { class: 'shirt-fallback' }));
+  }
+
+  if (p.is_captain) shirtBox.appendChild(el('span', { class: 'card-badge cap' }, 'C'));
+  if (p.is_vice_captain) shirtBox.appendChild(el('span', { class: 'card-badge vice' }, 'V'));
+  if (p.flagged) {
+    shirtBox.appendChild(el('span', {
+      class: 'card-warn',
+      title: p.news || `Status: ${p.status || 'flagged'}`,
+    }, '!'));
+  }
+  if (p.transferred_in) shirtBox.appendChild(el('span', { class: 'card-in' }, 'IN'));
+  card.appendChild(shirtBox);
+
+  card.appendChild(el('div', { class: 'name-strip', title: p.web_name || '' }, p.web_name || '?'));
+  card.appendChild(el('div', { class: 'fixture-strip' }, fixtureLabel(p.fixture)));
+  if (benchLabel) card.appendChild(el('div', { class: 'bench-label' }, benchLabel));
+  return card;
+}
+
+function renderRecommendedTeam(rt) {
+  if (!rt.available) {
+    return unavailablePanel('Recommended Team', rt.reason, true);
+  }
+
+  const parts = [];
+  const metaBits = [];
+  if (rt.free_transfers_available !== null && rt.free_transfers_available !== undefined) {
+    metaBits.push(`Free transfers available: ${rt.free_transfers_available}`);
+  }
+  if (rt.hits_taken) metaBits.push(`${rt.hits_taken} hit (-${rt.hits_taken * 4} pts)`);
+  if (rt.captain) metaBits.push(`Captain: ${esc(rt.captain.web_name)}`);
+  parts.push(el('div', { class: 'rt-summary' }, [
+    el('b', {}, rt.summary),
+    metaBits.length ? el('div', { class: 'verdict-meta' }, metaBits.join(' · ')) : null,
+  ]));
+
+  if (rt.hit_reason) {
+    parts.push(el('div', { class: 'rt-hit-warning' }, `⚠ ${rt.hit_reason}`));
+  }
+
+  // Group the starting XI into formation rows (GKP/DEF/MID/FWD), top to
+  // bottom -- whatever shape the optimiser actually picked (3-4-3,
+  // 4-4-2, 3-5-2, ...) just falls out of how many players land in each
+  // position bucket, nothing here is formation-specific.
+  const order = ['GKP', 'DEF', 'MID', 'FWD'];
+  const byPosition = Object.fromEntries(order.map((pos) => [pos, rt.starting_xi.filter((p) => p.position === pos)]));
+
+  const pitchRows = el('div', { class: 'pitch-rows' },
+    order.filter((pos) => byPosition[pos].length).map((pos) =>
+      el('div', { class: 'pitch-row' }, byPosition[pos].map((p) => playerCard(p)))));
+
+  const pitch = el('div', { class: 'pitch' }, [
+    el('div', { class: 'pitch-box' }),
+    el('div', { class: 'pitch-goal' }),
+    pitchRows,
+  ]);
+
+  const subsRow = el('div', { class: 'subs-row' }, rt.bench.map((p) => playerCard(p, p.bench_label)));
+  const subs = el('div', { class: 'subs-strip' }, [
+    el('div', { class: 'subs-title' }, 'Substitutes'),
+    subsRow,
+  ]);
+
+  parts.push(el('div', { class: 'pitch-wrap' }, [pitch, subs]));
+
+  return panel('Recommended Team', `GW${rt.gameweek} · pitch view`, el('div', {}, parts), true);
 }
 
 function renderXi(xi) {
@@ -991,7 +1259,13 @@ async function main() {
     renderNewsFlags(data.news_flags),
   ]);
 
-  // Tab 4: improve my team
+  // Tab 4: recommended team -- the pitch view of the full squad after
+  // the recommended transfer(s) (see renderRecommendedTeam's comment).
+  fillTab('recommended', [
+    renderRecommendedTeam(data.recommended_team),
+  ]);
+
+  // Tab 5: improve my team
   fillTab('improve', [
     renderXi(data.xi),
     renderCaptainBoard(data.captain_board),
@@ -1005,7 +1279,7 @@ async function main() {
     renderTopXp(data.top_xp),
   ]);
 
-  // Tab 5: differential opportunities
+  // Tab 6: differential opportunities
   fillTab('differentials', [
     renderDifferentials(data.differentials),
   ]);

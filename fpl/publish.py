@@ -129,11 +129,15 @@ def build_verdict(
     captain_row = squad0[squad0["role"] == "captain"]
     captain = records(captain_row)[0] if not captain_row.empty else None
 
+    hits_taken = int(wk0_moves["hits_taken"].sum())
+    hit_reason = wk0_moves["hit_reason"].iloc[0] if "hit_reason" in wk0_moves.columns else None
+    hit_reason = hit_reason if isinstance(hit_reason, str) and hit_reason else None
+
     if recommended and not moves.empty:
         pairs = ", ".join(
             f"{r.player_out or '?'} -> {r.player_in or '?'}" for r in moves.itertuples()
         )
-        headline = f"Transfer: {pairs} ({int(wk0_moves['hits_taken'].sum())} hit(s))"
+        headline = f"Transfer: {pairs} ({hits_taken} hit(s))"
     else:
         headline = "Hold -- roll the free transfer."
 
@@ -145,6 +149,8 @@ def build_verdict(
         "horizon_gain_xp": None if wk0_moves["horizon_gain_xp"].isna().all()
         else float(wk0_moves["horizon_gain_xp"].iloc[0]),
         "captain": captain,
+        "hits_taken": hits_taken,
+        "hit_reason": hit_reason,
     }
 
 
@@ -209,6 +215,150 @@ def build_transfer_plan(optimise_transfers: pd.DataFrame, players: pd.DataFrame)
     for row in weeks:
         row.update(_player_urgency(row.get("player_out"), players))
     return {"available": True, "weeks": weeks}
+
+
+# Step 12: any of these statuses (or news text) means the player card on
+# the "Recommended Team" pitch should show the red flagged treatment --
+# deliberately broader than ``TRANSFER_URGENCY_FORCED_STATUSES`` above,
+# since a doubtful ('d') player is worth a visual warning on the pitch
+# even when he isn't "forced out" grounds for a hit.
+PITCH_FLAGGED_STATUSES = {"d", "i", "s", "u"}
+
+POSITION_ORDER = {"GKP": 0, "DEF": 1, "MID": 2, "FWD": 3}
+# Step 12: FPL's own bench labelling convention -- the GK is always
+# unlabelled-by-number, the three outfield subs are numbered in playing-
+# priority order, each tagged with their real position.
+BENCH_LABELS = {0: "GKP", 1: "1. {pos}", 2: "2. {pos}", 3: "3. {pos}"}
+
+
+def _next_fixture_by_player(features: pd.DataFrame, gw0: int) -> dict[int, dict[str, Any]]:
+    if features.empty:
+        return {}
+    upcoming = features[features["event"] >= gw0].sort_values(["player_id", "event", "kickoff_time"])
+    first = upcoming.drop_duplicates(subset="player_id", keep="first")
+    out: dict[int, dict[str, Any]] = {}
+    for row in first.itertuples():
+        out[int(row.player_id)] = {
+            "event": int(row.event),
+            "opponent_short": row.opponent_short,
+            "is_home": bool(row.is_home),
+        }
+    return out
+
+
+def _recommended_team_card(
+    player_id: int, players_by_id: dict[int, dict[str, Any]], fixtures_by_player: dict[int, dict[str, Any]]
+) -> dict[str, Any]:
+    info = players_by_id.get(player_id, {})
+    status = info.get("status")
+    chance = info.get("chance_of_playing_next_round")
+    chance = None if pd.isna(chance) else float(chance) if chance is not None else None
+    news = info.get("news")
+    fixture = fixtures_by_player.get(player_id)
+    return {
+        "player_id": player_id,
+        "web_name": info.get("web_name"),
+        "team_code": None if pd.isna(info.get("team_code")) else int(info.get("team_code")),
+        "status": status,
+        "chance_of_playing_next_round": chance,
+        "flagged": status in PITCH_FLAGGED_STATUSES,
+        "news": news if isinstance(news, str) and news else None,
+        "fixture": fixture,
+    }
+
+
+def build_recommended_team(
+    optimise_squad: pd.DataFrame,
+    optimise_transfers: pd.DataFrame,
+    players: pd.DataFrame,
+    features: pd.DataFrame,
+    league_free_transfers: pd.DataFrame,
+    team_id: int | None,
+) -> dict[str, Any]:
+    """Step 12: the full 15-man squad *after* the recommended transfer(s)
+    (or the current squad unchanged if the recommendation is to roll),
+    shaped for the pitch-view "Recommended Team" tab -- starting XI
+    grouped by position row, bench in real bench order, captain/vice
+    captain, and a one-line transfer summary with any hit warning."""
+    if optimise_squad.empty:
+        return {"available": False, "reason": "optimise_squad.parquet not found -- run fpl.optimise first."}
+    if players.empty:
+        return {"available": False, "reason": "players.parquet not found -- run fpl.fetch first."}
+
+    gw0 = int(optimise_squad["gameweek"].min())
+    squad0 = optimise_squad[optimise_squad["gameweek"] == gw0].copy()
+    players_by_id = players.set_index("id").to_dict("index")
+    fixtures_by_player = _next_fixture_by_player(features, gw0)
+
+    def card(row) -> dict[str, Any]:
+        base = _recommended_team_card(int(row.player_id), players_by_id, fixtures_by_player)
+        base.update(
+            {
+                "position": row.position,
+                "is_captain": row.role == "captain",
+                "is_vice_captain": bool(row.is_vice_captain),
+                "transferred_in": bool(row.transferred_in),
+            }
+        )
+        return base
+
+    xi_rows = squad0[squad0["role"].isin(["xi", "captain"])].copy()
+    xi_rows["position_order"] = xi_rows["position"].map(POSITION_ORDER)
+    xi_rows = xi_rows.sort_values(["position_order", "player_id"])
+    starting_xi = [card(r) for r in xi_rows.itertuples()]
+
+    bench_rows = squad0[squad0["role"] == "bench"].copy()
+    bench_rows["bench_order"] = bench_rows["bench_order"].fillna(0).astype(int)
+    bench_rows = bench_rows.sort_values("bench_order")
+    bench = []
+    for r in bench_rows.itertuples():
+        entry = card(r)
+        order = int(r.bench_order)
+        label = BENCH_LABELS.get(order, "{pos}").format(pos=entry["position"])
+        entry["bench_label"] = label
+        bench.append(entry)
+
+    captain = next((p for p in starting_xi if p["is_captain"]), None)
+    vice_captain = next((p for p in starting_xi if p["is_vice_captain"]), None)
+
+    # Transfer summary + hit warning, from gw0's row in optimise_transfers
+    # (hit_reason/hits_taken are populated by fpl.optimise's hit-policy,
+    # see ``fpl.optimise.justify_hits``).
+    hits_taken = 0
+    hit_reason = None
+    summary = "Rolling the free transfer -- no transfer recommended this week."
+    if not optimise_transfers.empty:
+        wk0 = optimise_transfers[optimise_transfers["gameweek"] == gw0]
+        if not wk0.empty:
+            recommended = bool(wk0["recommended"].iloc[0])
+            hits_taken = int(wk0["hits_taken"].sum())
+            hit_reason = wk0["hit_reason"].iloc[0] if "hit_reason" in wk0.columns else None
+            hit_reason = hit_reason if isinstance(hit_reason, str) and hit_reason else None
+            moves = wk0.dropna(subset=["player_in", "player_out"], how="all")
+            if recommended and not moves.empty:
+                pairs = ", ".join(
+                    f"OUT: {r.player_out or '?'} -> IN: {r.player_in or '?'}" for r in moves.itertuples()
+                )
+                summary = pairs
+
+    free_transfers_available = None
+    if not league_free_transfers.empty and team_id is not None:
+        match = league_free_transfers[league_free_transfers["manager_id"] == team_id]
+        if not match.empty:
+            free_transfers_available = int(match["free_transfers"].iloc[0])
+
+    return {
+        "available": True,
+        "gameweek": gw0,
+        "summary": summary,
+        "free_transfers_available": free_transfers_available,
+        "hits_taken": hits_taken,
+        "hit_reason": hit_reason,
+        "captain": captain,
+        "vice_captain": vice_captain,
+        "starting_xi": starting_xi,
+        "bench": bench,
+    }
 
 
 def build_captain_board(optimise_captain_board: pd.DataFrame) -> dict[str, Any]:
@@ -816,6 +966,9 @@ def main() -> None:
         },
         "verdict": build_verdict(optimise_transfers, optimise_squad),
         "xi": build_xi(optimise_squad),
+        "recommended_team": build_recommended_team(
+            optimise_squad, optimise_transfers, players, features, league_free_transfers, team_id
+        ),
         "captain_board": build_captain_board(optimise_captain_board),
         "captaincy_risk": build_captaincy_risk(optimise_captaincy_risk),
         "transfer_plan": build_transfer_plan(optimise_transfers, players),
