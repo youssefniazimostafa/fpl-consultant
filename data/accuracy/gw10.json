@@ -1,11 +1,11 @@
 {
   "gameweek": 10,
-  "generated_at": "2026-11-13T21:09:16.660548+00:00",
+  "generated_at": "2026-11-13T22:11:12.791123+00:00",
   "predictions": {
     "available": true,
     "gameweek": 10,
-    "snapshot_path": "data/predictions/2026-11-06T101256.parquet",
-    "snapshot_logged_at": "2026-11-06T101256",
+    "snapshot_path": "data/predictions/gw10.parquet",
+    "snapshot_logged_at": "gw10",
     "n_players": 670,
     "missing_actuals": 0,
     "has_component_breakdown": true,
