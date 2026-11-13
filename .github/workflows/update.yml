@@ -52,7 +52,13 @@ jobs:
       # attempts -- a run queued behind another one starts from an outdated
       # checkout, so a plain push was rejected. Exits 0 when there's nothing
       # to commit, so Pages still deploys. See the script for details.
+      # continue-on-error: the freshly built site still deploys if saving the
+      # data fails after its retries; the last step below then marks the run
+      # failed so it doesn't go unnoticed. (If the pipeline step above fails,
+      # every later step -- including the deploy -- is skipped as usual.)
       - name: Save the prediction log, accuracy track record and source fallbacks
+        id: save
+        continue-on-error: true
         run: bash .github/scripts/save_bot_data.sh
 
       - name: Configure Pages
@@ -66,3 +72,9 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Fail the run if the data save failed (site was still deployed)
+        if: steps.save.outcome == 'failure'
+        run: |
+          echo "::error::Saving the data to the repo failed after its retries -- see the save step's log. The site itself was deployed."
+          exit 1
