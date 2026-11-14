@@ -142,6 +142,25 @@ def chip_statuses(grid_row: dict[str, Any] | None, plan_rows: list[dict[str, Any
     return out
 
 
+def next_half_chips(grid_row: dict[str, Any] | None, gameweek: int) -> list[dict[str, Any]]:
+    """The second set of chips, which FPL unlocks after GW19 -- shown so the
+    page lists both halves. Empty once the second half has started (they're
+    then "this half's" chips)."""
+    if gameweek > CHIP_HALF_BOUNDARY:
+        return []
+    first = CHIP_HALF_BOUNDARY + 1
+    out = []
+    for key in CHIP_ORDER:
+        cell = grid_row.get(f"{key}_h2") if grid_row else None
+        used = isinstance(cell, str) and cell.startswith("used")
+        out.append({
+            "chip": key, "label": CHIP_LABELS[key], "available": False,
+            "note": cell.replace("used", "Used", 1) if used else f"Unlocks in GW{first}",
+            "unlocks_gameweek": first,
+        })
+    return out
+
+
 # ---------------------------------------------------------------------------
 # captain
 # ---------------------------------------------------------------------------
@@ -329,6 +348,7 @@ def build_decision(
             "urgent": [CHIP_LABELS[c] for c in advice["urgent"]],
             "use_by_gameweek": CHIP_HALF_BOUNDARY if gw <= CHIP_HALF_BOUNDARY else None,
             "statuses": statuses,
+            "next_half": next_half_chips(chips_grid_row, gw),
         },
         "headline": {
             "projected_points": round(projected, 1),

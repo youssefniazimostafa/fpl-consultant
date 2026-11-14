@@ -1101,21 +1101,35 @@ function renderLiveAccuracy(la) {
 function renderSimulation(sim) {
   if (!sim.available) return unavailablePanel('Win-probability simulation', sim.reason, true);
   if (!sim.plans || !sim.plans.length) return panel('Win-probability simulation', null, el('p', { class: 'unavailable' }, 'No candidate plans simulated.'));
-  const best = sim.best, avg = sim.average_xp;
+  const best = sim.best, avg = sim.average_xp, rec = sim.recommended;
   const samePlan = best && avg && best.scenario === avg.scenario && best.captain === avg.captain;
+  // The highlighted row is the one recommendation (data.decision) -- the same
+  // plan and captain as "My team" -- not merely the highest simulated odds.
+  const isHighlighted = (r) => rec
+    ? !!r.is_recommended
+    : !!best && r.scenario === best.scenario && r.captain === best.captain;
   const parts = [
+    rec
+      ? el('p', { class: 'verdict-meta' },
+          `Recommended plan (same as My team): ${esc(rec.scenario)}, captain ${esc(rec.captain)} -- P(finish 1st) ${pct(rec.p_finish_1st)}.`)
+      : null,
     el('p', { class: 'verdict-meta' },
       samePlan
         ? `Best win-odds plan and the average-xP plan agree this week: ${esc(best.scenario)}, captain ${esc(best.captain)} -- P(finish 1st) ${pct(best.p_finish_1st)}.`
         : `Win-odds plan: ${esc(best?.scenario ?? '?')}, captain ${esc(best?.captain ?? '?')} (P(1st) ${pct(best?.p_finish_1st)}) vs ` +
           `average-xP plan: ${esc(avg?.scenario ?? '?')}, captain ${esc(avg?.captain ?? '?')} (P(1st) ${pct(avg?.p_finish_1st)}).`),
-    table(sim.plans.map((r) => ({ ...r, __rowClass: r === best ? 'captain' : '' })), [
+    table(sim.plans.map((r) => ({ ...r, __rowClass: isHighlighted(r) ? 'captain' : '' })), [
       { key: 'scenario', label: 'Scenario' },
       { key: 'captain', label: 'Captain' },
       { key: 'hits', label: 'Hits', num: true, render: (r) => r.hits ? `-${r.hits * 4}` : '0' },
       { key: 'mean_points', label: 'Mean pts', num: true, render: (r) => fmt(r.mean_points) },
       { key: 'p_finish_1st', label: 'P(1st)', num: true, render: (r) => pct(r.p_finish_1st) },
-      { label: '', render: (r) => r.is_average_xp_captain ? '<span class="pill">avg-xP captain</span>' : '' },
+      {
+        label: '', render: (r) => [
+          r.is_recommended ? '<span class="pill captain">recommended</span>' : '',
+          r.is_average_xp_captain ? '<span class="pill">avg-xP captain</span>' : '',
+        ].join(' ')
+      },
     ]),
     el('p', { class: 'verdict-meta' },
       'Single gameweek only (not a season-long finish), Poisson(xP) per player, rivals carried forward ' +

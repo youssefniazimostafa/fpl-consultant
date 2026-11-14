@@ -65,6 +65,8 @@ import numpy as np
 import pandas as pd
 
 from fpl.check_consistency import check as consistency_errors
+from fpl.consultant import build_section as build_consultant_section
+from fpl.consultant import freeze_recommendation
 from fpl.decision import ROLL, build_decision, choose_plan, rival_captaincy
 from fpl.fetch import load_config
 from fpl.league import resolve_team_id
@@ -426,6 +428,53 @@ def build_recommended_team(
         "starting_xi": starting_xi,
         "bench": bench,
     }
+
+
+def decision_captain_tables(
+    decision: dict[str, Any],
+    xp_by_gameweek: pd.DataFrame,
+    players: pd.DataFrame,
+    league_swings: pd.DataFrame,
+    league_picks: pd.DataFrame,
+    league_history: pd.DataFrame,
+    league_managers: pd.DataFrame,
+    team_id: int | None,
+    mode: str | None,
+) -> tuple[pd.DataFrame, pd.DataFrame] | None:
+    """The site's captain board and captaincy-risk tables, rebuilt for the
+    decision's own XI and captain (same functions fpl.optimise uses), so
+    they always highlight the same captain as the app -- including when the
+    decision switched to the hold plan. ``is_optimiser_captain`` here marks
+    the decision's captain."""
+    from fpl.optimise import build_captain_board as optimise_captain_board
+    from fpl.optimise import build_captaincy_risk as optimise_captaincy_risk
+
+    if not decision.get("available") or not decision.get("captain") or players.empty:
+        return None
+    gw = int(decision["gameweek"])
+    col = f"gw{gw}_xp"
+    if xp_by_gameweek.empty or col not in xp_by_gameweek.columns:
+        return None
+    xi_ids = [int(p["player_id"]) for p in decision["starting_xi"]]
+    xp = xp_by_gameweek.set_index("player_id")[col].to_dict()
+    raw = {(p, gw): float(xp.get(p, 0.0)) for p in xi_ids}
+    pool_info = players.set_index("id")[["web_name", "position"]].to_dict("index")
+    week0 = {"gameweek": gw, "xi_ids": set(xi_ids), "captain_id": int(decision["captain"]["player_id"])}
+    raw_eo: dict[int, float] = {}
+    eo: dict[int, float] = {}
+    if not league_swings.empty:
+        raw_eo = league_swings.set_index("player_id")["league_eo"].to_dict()
+        if "weighted_league_eo" in league_swings.columns:
+            eff = league_swings["weighted_league_eo"].fillna(league_swings["league_eo"])
+            eo = pd.Series(eff.values, index=league_swings["player_id"]).to_dict()
+        else:
+            eo = dict(raw_eo)
+    board = optimise_captain_board(week0, raw, pool_info, mode or "balanced", eo, raw_eo)
+    risk = pd.DataFrame()
+    if team_id is not None and not league_picks.empty and not league_history.empty:
+        _, _, current_gw = resolve_my_squad(league_picks, league_history, team_id)
+        risk = optimise_captaincy_risk(week0, raw, pool_info, league_picks, league_history, league_managers, team_id, current_gw)
+    return board, risk
 
 
 def build_captain_board(optimise_captain_board: pd.DataFrame) -> dict[str, Any]:
@@ -834,7 +883,7 @@ def build_live_accuracy() -> dict[str, Any]:
     }
 
 
-def build_simulation() -> dict[str, Any]:
+def build_simulation(decision: dict[str, Any] | None = None) -> dict[str, Any]:
     """Part B.4 extension 4's Monte Carlo results (``fpl.simulation``,
     ``data/tables/simulation_results.json``): P(finish 1st) this gameweek
     per candidate plan, the win-probability pick and the average-xP pick
@@ -853,7 +902,19 @@ def build_simulation() -> dict[str, Any]:
     best = rows[0]  # already sorted by p_finish_1st desc when written
     avg_candidates = [r for r in rows if r.get("is_average_xp_captain")]
     average_xp = max(avg_candidates, key=lambda r: r["p_finish_1st"]) if avg_candidates else best
-    return {"available": True, "plans": rows, "best": best, "average_xp": average_xp}
+    # The one recommendation (fpl/decision.py): the row with the decision's
+    # plan (transfer or hold) and captain. The site highlights this row,
+    # not the noisiest-best one, so it can't contradict the app.
+    recommended = None
+    if decision and decision.get("available") and decision.get("captain"):
+        from fpl.simulation import HOLD_LABEL, TRANSFER_LABEL
+
+        label = TRANSFER_LABEL if decision["action"] == "transfer" else HOLD_LABEL
+        cap = decision["captain"]["web_name"]
+        recommended = next((r for r in rows if r["scenario"] == label and r["captain"] == cap), None)
+    for r in rows:
+        r["is_recommended"] = r is recommended
+    return {"available": True, "plans": rows, "best": best, "average_xp": average_xp, "recommended": recommended}
 
 
 STRATEGY_EXPLANATIONS = {
@@ -1132,6 +1193,14 @@ def main() -> None:
         chips.get("season_context"),
     )
 
+    captain_board_src, captaincy_risk_src = optimise_captain_board, optimise_captaincy_risk
+    rebuilt = decision_captain_tables(
+        decision, xp_by_gameweek, players, league_swings, league_picks, league_history, league_managers,
+        team_id, strategy_mode,
+    )
+    if rebuilt is not None:
+        captain_board_src, captaincy_risk_src = rebuilt
+
     payload = {
         "generated_at": generated_at,
         "status": build_status(gameweeks, league_free_transfers, team_id, generated_at),
@@ -1144,8 +1213,8 @@ def main() -> None:
         "verdict": build_verdict(transfers_src, squad_src),
         "xi": build_xi(squad_src),
         "recommended_team": recommended_team,
-        "captain_board": build_captain_board(optimise_captain_board),
-        "captaincy_risk": build_captaincy_risk(optimise_captaincy_risk),
+        "captain_board": build_captain_board(captain_board_src),
+        "captaincy_risk": build_captaincy_risk(captaincy_risk_src),
         "transfer_plan": transfer_plan,
         "chips": chips,
         "strategy": strategy,
@@ -1171,9 +1240,10 @@ def main() -> None:
         "source_health": build_source_health(),
         "model_accuracy": build_model_accuracy(backtest_log),
         "live_accuracy": build_live_accuracy(),
-        "simulation": build_simulation(),
+        "simulation": build_simulation(decision),
         "news_flags": build_news_flags(),
         "top_xp": build_top_xp(xp_by_gameweek),
+        "consultant_vs_you": build_consultant_section(),
     }
 
     # Fail loudly *before* writing if the page would contradict itself
@@ -1182,6 +1252,8 @@ def main() -> None:
     if problems:
         raise RuntimeError("decision consistency check failed:\n  " + "\n  ".join(problems))
     path = write_json(payload)
+    frozen = freeze_recommendation(decision, gameweeks)
+    print(f"  {'froze recommendation to ' + str(frozen.relative_to(ROOT)) if frozen else 'recommendation not frozen (deadline passed or no decision)'}")
     available = [k for k, v in payload.items() if isinstance(v, dict) and v.get("available")]
     missing = [k for k, v in payload.items() if isinstance(v, dict) and v.get("available") is False]
     print(f"Checkpoint: wrote {path}")

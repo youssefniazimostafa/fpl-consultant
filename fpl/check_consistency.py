@@ -14,7 +14,12 @@ itself:
    ones, used + left = available, and the same hits on the decision,
    ``recommended_team`` and ``verdict``; holding means no transfers;
 6. the chip shown as "play this week" matches the chip plan (re-derived
-   here independently from ``chips.yours.plan``).
+   here independently from ``chips.yours.plan``);
+7. the site's captain board highlights the decision's captain, over the
+   decision's XI;
+8. the site's captaincy-risk panel does too;
+9. the site's simulation panel highlights the decision's plan (transfer or
+   hold, same captain, same incoming players).
 
 Run with ``uv run python -m fpl.check_consistency [path/to/latest.json]``.
 ``--self-test`` breaks each rule once on a copy of the real data and
@@ -130,6 +135,35 @@ def check(data: dict[str, Any]) -> list[str]:
         shown = ((d.get("chip") or {}).get("play") or {}).get("chip")
         if shown != expected:
             errors.append(f"rule 6: chip shown as 'play this week' ({shown}) differs from the plan ({expected})")
+
+    # 7 + 8: the site's captain board and captaincy-risk panels
+    for rule, name in (("rule 7", "captain_board"), ("rule 8", "captaincy_risk")):
+        panel = data.get(name) or {}
+        if not panel.get("available"):
+            continue
+        rows = panel.get("players") or []
+        marked = [r for r in rows if r.get("is_optimiser_captain")]
+        if len(marked) != 1 or marked[0].get("player_id") != cap.get("player_id"):
+            errors.append(f"{rule}: {name} highlights {[r.get('web_name') for r in marked]} as captain, decision says {cap.get('web_name')}")
+        if {r.get("player_id") for r in rows} != xi_ids:
+            errors.append(f"{rule}: {name} players aren't the decision's starting XI")
+
+    # 9: the site's simulation panel highlights the decision's plan
+    sim = data.get("simulation") or {}
+    if sim.get("available") and sim.get("plans"):
+        rec = sim.get("recommended")
+        flagged = [r for r in sim["plans"] if r.get("is_recommended")]
+        want = "transfer plan" if d["action"] == "transfer" else "hold (roll free transfer)"
+        if rec is None or len(flagged) != 1:
+            errors.append(f"rule 9: simulation doesn't mark exactly one recommended plan ({len(flagged)} marked)")
+        else:
+            if rec.get("scenario") != want:
+                errors.append(f"rule 9: simulation highlights '{rec.get('scenario')}', decision is '{d['action']}'")
+            if rec.get("captain") != cap.get("web_name"):
+                errors.append(f"rule 9: simulation highlights captain {rec.get('captain')}, decision says {cap.get('web_name')}")
+            in_names = sorted(t["player_in"].get("web_name") for t in transfers)
+            if sorted(rec.get("transfers_in") or []) != in_names:
+                errors.append(f"rule 9: simulation plan brings in {rec.get('transfers_in')}, decision brings in {in_names}")
     return errors
 
 
@@ -176,6 +210,24 @@ def _breakers(data: dict[str, Any]) -> list[tuple[str, Any]]:
     def chip_disagree(x):
         x["decision"]["chip"]["play"] = None if x["decision"]["chip"]["play"] else {"chip": "bboost", "label": "Bench Boost", "gain": 1.0}
     tests.append(("rule 6", chip_disagree))
+
+    def board_wrong_captain(x):
+        for r in x["captain_board"]["players"]:
+            r["is_optimiser_captain"] = r["player_id"] == non_cap["player_id"]
+    tests.append(("rule 7", board_wrong_captain))
+
+    def risk_wrong_captain(x):
+        for r in x["captaincy_risk"]["players"]:
+            r["is_optimiser_captain"] = r["player_id"] == non_cap["player_id"]
+    tests.append(("rule 8", risk_wrong_captain))
+
+    def sim_wrong_plan(x):
+        plans = x["simulation"]["plans"]
+        other = next(r for r in plans if not r.get("is_recommended"))
+        for r in plans:
+            r["is_recommended"] = r is other
+        x["simulation"]["recommended"] = other
+    tests.append(("rule 9", sim_wrong_plan))
     return tests
 
 
