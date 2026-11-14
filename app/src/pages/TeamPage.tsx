@@ -172,7 +172,7 @@ export function TeamPage({ data }: { data: Latest }) {
   const d = readDecision(data);
   if (!d) {
     return (
-      <Card title="Your team">
+      <Card title="Recommended team">
         <p className="muted">
           This data was made by an older version of the update and doesn't include this week's recommendation yet.
           Press Refresh to run a fresh update.
@@ -183,7 +183,7 @@ export function TeamPage({ data }: { data: Latest }) {
   return (
     <div className="team-page">
       <div className="team-title page-title">
-        <h1>Your team</h1>
+        <h1>Recommended team</h1>
         <span className="muted">Gameweek {d.gameweek} · copy this team</span>
       </div>
       <div className="team-pitch">

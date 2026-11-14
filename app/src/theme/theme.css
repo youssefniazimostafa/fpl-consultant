@@ -307,6 +307,34 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
 .pcard-extra { margin-top: 5px; font-size: 11px; line-height: 1.3; }
 .news-out { color: var(--pink); font-weight: 600; }
 
+
+/* ---------------------------------------------------------------- last gameweek page */
+/* As in the Last gameweek mock-up: a strip of four stat cards, then the
+   pitch (left) and the player-by-player list with the summary (right).
+   Phone: strip, pitch, bench, list, summary, stacked. */
+.lg-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.lg-stat { background: var(--lilac); border-radius: var(--radius-md); padding: 12px 14px; min-width: 0; }
+.lg-stat.dark { background: var(--purple); color: var(--white); }
+.lg-stat-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.lg-stat.dark .lg-stat-label { color: var(--neon); }
+.lg-stat-value { font-size: 28px; font-weight: 800; line-height: 1.1; margin-top: 2px; }
+.lg-stat-sub { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lg-stat.dark .lg-stat-sub { color: rgba(255,255,255,0.8); }
+.lg-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); gap: 16px; align-items: start; }
+.lg-left .bench { margin-top: 10px; }
+.lg-right { display: flex; flex-direction: column; gap: 12px; }
+.lg-list { display: flex; flex-direction: column; gap: 6px; }
+.lg-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; background: var(--white); border-radius: var(--radius-sm); padding: 7px 10px; }
+.lg-row-name { font-size: 13px; line-height: 1.3; }
+.lg-row-reason { font-size: 12px; color: var(--purple); opacity: 0.85; }
+.lg-diff { border-radius: var(--radius-pill); padding: 4px 10px; font-size: 13px; font-weight: 800; min-width: 52px; text-align: center; }
+.lg-diff.beat { background: var(--neon); color: var(--purple); }
+.lg-diff.missed { background: var(--pink); color: var(--white); }
+.badge-mark { top: -4px; right: -8px; width: 14px; height: 14px; border-width: 2px; }
+.badge-mark.beat { background: var(--neon); }
+.badge-mark.missed { background: var(--pink); }
+.badge-left { right: auto; left: -8px; }
+
 /* ---------------------------------------------------------------- placeholders */
 .placeholder-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 .placeholder-grid code { font-size: 10px; }
@@ -347,6 +375,11 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
   .pcard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .ov-controls { margin-left: 0; width: 100%; }
   .ov-tabs { overflow-x: auto; }
+
+  .lg-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .lg-stat-value { font-size: 22px; }
+  .lg-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .bottom-nav button { font-size: 9px; }
   .tracker-side { display: none; }
   .tracker-bottom { display: block; grid-area: track;
   }

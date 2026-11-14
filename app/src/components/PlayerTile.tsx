@@ -26,8 +26,14 @@ export function PlayerTile({ p, label, size }: { p: PlayerView; label?: string; 
       {label && <div className="tile-label">{label}</div>}
       <div className="tile-shirt">
         <Shirt teamCode={p.teamCode} teamShort={p.teamShort} goalkeeper={p.position === "GKP"} size={size} title={p.name} />
-        {p.isCaptain && <span className="badge badge-c" title="Captain">C</span>}
-        {p.isVice && <span className="badge badge-v" title="Vice-captain">V</span>}
+        {p.isCaptain && <span className={`badge badge-c${p.marker ? " badge-left" : ""}`} title="Captain">C</span>}
+        {p.isVice && <span className={`badge badge-v${p.marker ? " badge-left" : ""}`} title="Vice-captain">V</span>}
+        {p.marker && (
+          <span
+            className={`badge badge-mark ${p.marker}`}
+            title={p.marker === "beat" ? "Beat his expected points" : "Missed his expected points"}
+          />
+        )}
         {p.isNew && <span className="badge badge-new" title="New signing this week" />}
         {p.flagged && <span className="badge badge-flag" title={p.news ?? "Injury or availability doubt"}>!</span>}
       </div>

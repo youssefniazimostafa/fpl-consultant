@@ -1,6 +1,6 @@
 // Reads the ONE recommendation for the upcoming gameweek -- latest.json's
 // `decision` object, built by fpl/decision.py -- into typed views for the
-// "Your team" page. Nothing here decides anything: every panel (pitch,
+// "Recommended team" page. Nothing here decides anything: every panel (pitch,
 // bench, transfers, captain, chips, "Why this team") renders these fields
 // as published, and fpl/check_consistency.py has already verified they
 // agree with each other.
@@ -16,6 +16,7 @@ export interface PlayerView {
   opponent: string | null; // "NEW (A)"
   projected: number | null;
   points?: number | null; // actual points (rival teams on the League page)
+  marker?: "beat" | "missed" | null; // Last gameweek: beat / missed expected points
   price: number | null;
   isCaptain: boolean;
   isVice: boolean;

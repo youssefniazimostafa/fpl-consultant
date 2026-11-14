@@ -113,9 +113,13 @@ other stage works with just the public FPL API.
 `app/` is a macOS desktop app (Tauri v2 + React/TypeScript) for personal use,
 not signed or distributed. Every page has a status bar (next-deadline
 countdown, when the data was generated, data source, Refresh button). The
-home page, **Your team**, is built: the recommended XI on a pitch, the bench,
+home page, **Recommended team**, is built: the recommended XI on a pitch, the bench,
 transfers, captain, chips and a plain-English "Why this team" (screenshots in
-`docs/screenshots/`). **League** is built too: your position and chances, the
+`docs/screenshots/`). **Last gameweek** shows where your points came from in the latest finished
+gameweek: your team as played (auto-subs, captain) with each player's points
+against what was expected and a plain reason from FPL's own breakdown, from
+the `last_gameweek` section (`fpl/last_gameweek.py`); it's only shown when
+the total matches your official FPL points. **League** is built too: your position and chances, the
 standings (tap a team to see its last confirmed team on a pitch), rivals in
 your area, who owns what, popular players you don't own and differentials,
 from `latest.json`'s `league_page` section (`fpl/league_page.py`). **FPL
