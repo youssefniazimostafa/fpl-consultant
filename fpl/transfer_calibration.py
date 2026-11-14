@@ -297,7 +297,8 @@ def replay(strategy: dict[str, Any], season: Season, variant: int) -> dict[str, 
             base = O.solve_horizon(*largs, held_weeks=frozenset(weeks[1:]), no_hit_weeks=no_hits)
             # same gate as today's optimiser, so a benched backup keeper
             # (always "missing" matches) isn't swapped for nothing
-            plan, _, _, _ = O.recommend_transfers(base, *largs, uncertainty_k=None, no_hit_weeks=no_hits)
+            plan, _, _, _ = O.recommend_transfers(base, *largs, uncertainty_k=None, no_hit_weeks=no_hits,
+                                              gate_later_weeks=False)
         else:
             rho = strategy.get("risk", 0.0)
             kw = {"ft_value": strategy.get("ft_value", 0.0), "risk_sd": ctx["risk_sd"] if rho else None,
@@ -305,7 +306,8 @@ def replay(strategy: dict[str, Any], season: Season, variant: int) -> dict[str, 
             O.RESIDUAL_SD = ctx["residual_sd"]  # expanding window: residuals before t only
             base = O.solve_horizon(*args, no_hit_weeks=no_hits, **kw)
             plan, _, _, _ = O.recommend_transfers(
-                base, *args, raw_weekly_xp=raw, uncertainty_k=strategy.get("k"), no_hit_weeks=no_hits, **kw
+                base, *args, raw_weekly_xp=raw, uncertainty_k=strategy.get("k"), no_hit_weeks=no_hits,
+                gate_later_weeks=False, **kw
             )
 
         wk = plan["weeks"][0]

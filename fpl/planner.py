@@ -40,6 +40,19 @@ def _card(pid: int | None, info: dict[int, dict[str, Any]], name: str | None = N
     }
 
 
+def _save_reason(transfers_src: pd.DataFrame, g: int) -> str:
+    """Plain reason for a held week, from the optimiser's own per-week gate
+    (fpl.optimise.gate_planned_weeks): the best move it turned down and
+    how little it gained, or that no move was worth making at all."""
+    rows = transfers_src[transfers_src["gameweek"] == g] if not transfers_src.empty else transfers_src
+    if not rows.empty and "held_best_in" in rows.columns and rows["held_best_in"].notna().any():
+        r = rows[rows["held_best_in"].notna()].iloc[0]
+        gain = r.get("horizon_gain_xp")
+        size = f"only {gain:+.1f} pts" if gain is not None and pd.notna(gain) else "too small"
+        return f"Best move ({r['held_best_out']} → {r['held_best_in']}) is {size}; worth more to save the transfer."
+    return "No move worth making; save the transfer."
+
+
 def build_planner(
     *,
     decision: dict[str, Any],
@@ -94,8 +107,10 @@ def build_planner(
         else:
             moves, hits, reason, planned = [], 0, None, False
         ft = (decision.get("free_transfers") or {}).get("available") if g == gw0 else ft_by_week.get(g)
+        save = planned and not moves
         transfers.append({
-            "gameweek": g, "planned": planned, "moves": moves, "save": planned and not moves,
+            "gameweek": g, "planned": planned, "moves": moves, "save": save,
+            "save_reason": _save_reason(transfers_src, g) if save else None,
             "free_transfers": ft if planned else None, "hits": hits, "hit_cost": 4 * hits, "hit_reason": reason,
         })
 

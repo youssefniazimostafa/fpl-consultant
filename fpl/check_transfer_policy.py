@@ -122,6 +122,20 @@ def run_check() -> bool:
     for r in hit_reasons:
         print(f"  hit reason: {r}")
 
+    # Rule: every later planned week went through the same bar as this
+    # week (gate_planned_weeks) -- a planned move gains at least the bar,
+    # and no later week takes a hit.
+    for wk in final_plan["weeks"][1:]:
+        g8 = wk.get("gate")
+        if wk["transfers_in"]:
+            check(f"GW{wk['gameweek']} planned move clears the bar "
+                  f"({g8['gain']:.2f} >= {g8['required']:.2f})" if g8 else f"GW{wk['gameweek']} planned move was gated",
+                  bool(g8) and g8["passed"] and g8["gain"] >= g8["required"])
+        elif g8:
+            check(f"GW{wk['gameweek']} holds: best move gained {g8['gain']:.2f} < {g8['required']:.2f}",
+                  not g8["passed"])
+        check(f"GW{wk['gameweek']} takes no hit", wk["hits"] == 0)
+
     # Rule: never recommend more transfers than free transfers available,
     # unless the extra ones are paid hits that passed ``justify_hits``.
     check(

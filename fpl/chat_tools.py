@@ -29,6 +29,7 @@ from fpl.optimise import (
     WEEKLY_DISCOUNT,
     build_candidate_pool,
     estimate_selling_prices,
+    gate_planned_weeks,
     load_tables,
     lookup_weekly_xp,
     recommend_transfers,
@@ -205,6 +206,8 @@ def what_if(transfers_in: list[str] | None = None, transfers_out: list[str] | No
     alt = solve_horizon(*args, held_weeks=held, force_in=keep, force_out=outs, force_captain=cap, **c["rules"])
     if alt["status"] != "Optimal":
         raise ToolError("That move isn't possible within FPL's rules (budget, positions or 3 per club).")
+    # later weeks through the same transfer bar as the recommendation's plan
+    alt = gate_planned_weeks(alt, *args, raw_weekly_xp=c["raw"], force_captain=cap, **c["rules"])
     r0, r5 = _plan_points(rec)
     a0, a5 = _plan_points(alt)
     name = lambda ids: sorted(c["info"][p]["web_name"] for p in ids)  # noqa: E731

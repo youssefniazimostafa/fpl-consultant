@@ -406,6 +406,7 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
 .pblock.empty { color: var(--text-muted); font-size: 11px; align-items: center; justify-content: center; flex: 1; }
 .pblock-title { font-weight: 800; }
 .pblock-sub { font-size: 11px; color: var(--purple); opacity: 0.85; }
+.pblock-reason { font-size: 11px; line-height: 1.3; color: var(--purple); }
 .pblock-warn { font-size: 11px; color: var(--pink); font-weight: 600; }
 .pl-move { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .pl-mini { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }

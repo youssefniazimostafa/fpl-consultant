@@ -396,6 +396,7 @@ def solve_horizon(
     ft_value: float = 0.0,
     risk_sd: dict[tuple[int, int], float] | None = None,
     risk_weight: float = 0.0,
+    fixed_moves: dict[int, tuple[frozenset[int], frozenset[int]]] | None = None,
 ) -> dict[str, Any]:
     """One MILP covering every gameweek in ``weeks`` at once. A single
     gameweek is just ``weeks`` of length 1 -- there's no separate
@@ -429,6 +430,9 @@ def solve_horizon(
     by ``risk_weight`` x his points SD that week; the captain's extra
     multiplier is not, so captaincy stays a pure xP choice. Both default
     to off.
+
+    ``fixed_moves`` ({gameweek: (ins, outs)}, ``gate_planned_weeks``): those
+    weeks' transfers are pinned to exactly these players (empty = hold).
     """
     # pulp >=4 ties every LpVariable to the LpProblem that will solve it
     # (created via ``m.add_variable``, not a free-standing constructor), so
@@ -513,6 +517,13 @@ def solve_horizon(
             m += ft[nxt] <= prev_ft - transfers_used + hits[g] + 1
         elif ft_end is not None:
             m += ft_end <= prev_ft - transfers_used + hits[g] + 1
+
+    for g, (ins, outs) in (fixed_moves or {}).items():
+        if g not in weeks:
+            continue
+        for p in pool_ids:
+            m += tin[(p, g)] == (1 if p in ins else 0)
+            m += tout[(p, g)] == (1 if p in outs else 0)
 
     g0 = weeks[0]
     for p in force_in:
@@ -774,8 +785,110 @@ def recommend_transfers(
     risk_weight: float = 0.0,
     uncertainty_k: float | None | object = FROM_CONFIG,
     no_hit_weeks: frozenset[int] = frozenset(),
+    gate_later_weeks: bool = True,
 ) -> tuple[dict[str, Any], float, bool, list[str]]:
-    """Only recommend this week's transfer if it beats holding (while still
+    """This week's move (``_recommend_week0``: the threshold and hit rules
+    below), then -- unless ``gate_later_weeks`` is False (the season
+    replay, which only ever plays week 0) -- every later planned week is
+    put through the same bar by ``gate_planned_weeks``, so the plan never
+    shows a move that would be held once its week arrives. Week 0's
+    recommendation is decided first and is never changed by the gate."""
+    if uncertainty_k is FROM_CONFIG:
+        uncertainty_k = UNCERTAINTY_K if USE_UNCERTAINTY_MARGIN else None
+    rules = {"ft_value": ft_value, "risk_sd": risk_sd, "risk_weight": risk_weight}
+    args = (pool_ids, weekly_value, pool_info, my_squad_ids, sell_price, initial_bank, free_transfers_now, weeks, discount)
+    plan, gain, recommended, hit_reasons = _recommend_week0(
+        baseline, *args, raw_weekly_xp=raw_weekly_xp, uncertainty_k=uncertainty_k, no_hit_weeks=no_hit_weeks, **rules
+    )
+    if gate_later_weeks and len(weeks) > 1:
+        plan = gate_planned_weeks(
+            plan, *args, raw_weekly_xp=raw_weekly_xp, uncertainty_k=uncertainty_k, no_hit_weeks=no_hit_weeks, **rules
+        )
+    return plan, gain, recommended, hit_reasons
+
+
+def gate_planned_weeks(
+    plan: dict[str, Any],
+    pool_ids: list[int],
+    weekly_value: dict[tuple[int, int], float],
+    pool_info: dict[int, dict[str, Any]],
+    my_squad_ids: set[int],
+    sell_price: dict[int, int],
+    initial_bank: int,
+    free_transfers_now: int,
+    weeks: list[int],
+    discount: dict[int, float],
+    raw_weekly_xp: dict[tuple[int, int], float] | None = None,
+    uncertainty_k: float | None = None,
+    no_hit_weeks: frozenset[int] = frozenset(),
+    **solve_kwargs: Any,
+) -> dict[str, Any]:
+    """Put every later week of ``plan`` through week 0's bar, in order.
+
+    Week 0's moves (whatever ``_recommend_week0`` chose) are pinned. Then
+    for each later week g, with every earlier week pinned: solve with g
+    free and with g held (later weeks still free either way, exactly like
+    week 0's test). The move stays only if it gains at least
+    ``transfer_margin`` (the 1.75 xP threshold today); the saved-transfer
+    value counts automatically, because the held solve keeps the free
+    transfer and both objectives include ``ft_value``. A week that fails
+    holds and banks its free transfer, so later weeks' free-transfer
+    counts go up. Later weeks may not take hits: whether a hit is
+    justified (a flagged starter) can only be judged when that week
+    arrives.
+
+    Each week gets ``gate``: {"gain", "required", "passed", "best_in",
+    "best_out"} (None when the solve wanted no move that week)."""
+    args = (pool_ids, weekly_value, pool_info, my_squad_ids, sell_price, initial_bank, free_transfers_now, weeks, discount)
+    w0 = plan["weeks"][0]
+    gates: dict[int, dict[str, Any] | None] = {weeks[0]: plan["weeks"][0].get("gate")}
+    fixed = {weeks[0]: (frozenset(w0["transfers_in"]), frozenset(w0["transfers_out"]))}
+    later_no_hits = frozenset(no_hit_weeks) | frozenset(weeks[1:])
+    raw = raw_weekly_xp or weekly_value
+    for i, g in enumerate(weeks[1:], start=1):
+        free = solve_horizon(*args, fixed_moves=fixed, no_hit_weeks=later_no_hits, **solve_kwargs)
+        wk = free["weeks"][i]
+        if not wk["transfers_in"] and not wk["transfers_out"]:
+            fixed[g] = (frozenset(), frozenset())
+            gates[g] = None
+            continue
+        held = solve_horizon(*args, fixed_moves=fixed, held_weeks=frozenset({g}), no_hit_weeks=later_no_hits,
+                             **solve_kwargs)
+        gain = (free["objective"] or 0.0) - (held["objective"] or 0.0)
+        required = transfer_margin(wk, weeks[i:], discount, raw, pool_info, uncertainty_k)
+        passed = gain >= required
+        gates[g] = {"gain": gain, "required": required, "passed": passed,
+                    "best_in": sorted(wk["transfers_in"]), "best_out": sorted(wk["transfers_out"])}
+        fixed[g] = (frozenset(wk["transfers_in"]), frozenset(wk["transfers_out"])) if passed else (frozenset(), frozenset())
+    gated = solve_horizon(*args, fixed_moves=fixed, no_hit_weeks=later_no_hits, **solve_kwargs)
+    if gated["status"] != "Optimal":  # can't happen (every pinned week was feasible), but never lose the plan
+        return plan
+    for wk in gated["weeks"]:
+        wk["gate"] = gates.get(wk["gameweek"])
+    gated["required_gain"] = plan.get("required_gain")
+    gated["objective_ungated"] = plan.get("objective")
+    return gated
+
+
+def _recommend_week0(
+    baseline: dict[str, Any],
+    pool_ids: list[int],
+    weekly_value: dict[tuple[int, int], float],
+    pool_info: dict[int, dict[str, Any]],
+    my_squad_ids: set[int],
+    sell_price: dict[int, int],
+    initial_bank: int,
+    free_transfers_now: int,
+    weeks: list[int],
+    discount: dict[int, float],
+    raw_weekly_xp: dict[tuple[int, int], float] | None = None,
+    ft_value: float = 0.0,
+    risk_sd: dict[tuple[int, int], float] | None = None,
+    risk_weight: float = 0.0,
+    uncertainty_k: float | None | object = FROM_CONFIG,
+    no_hit_weeks: frozenset[int] = frozenset(),
+) -> tuple[dict[str, Any], float, bool, list[str]]:
+    """(Called by ``recommend_transfers``.) Only recommend this week's transfer if it beats holding (while still
     letting the model move in a *later* week instead) by at least
     ``TRANSFER_THRESHOLD_XP`` over the horizon -- "spot the right week to
     move" means testing whether *this* week is that week, not whether
@@ -831,6 +944,10 @@ def recommend_transfers(
     )
     plan["required_gain"] = required
     held["required_gain"] = required
+    gate = {"gain": gain, "required": required, "passed": gain >= required,
+            "best_in": sorted(plan["weeks"][0]["transfers_in"]), "best_out": sorted(plan["weeks"][0]["transfers_out"])}
+    plan["weeks"][0]["gate"] = gate
+    held["weeks"][0]["gate"] = gate
     if gain < required:
         return held, gain, False, []
     return plan, gain, True, hit_reasons
@@ -1100,19 +1217,28 @@ def build_transfers_table(
     hit_reasons: list[str] | None = None,
 ) -> pd.DataFrame:
     """The full horizon's transfer plan (the "6-week transfer plan" panel),
-    one row per planned move in every week -- not just this week's. Only
-    gameweek 0's move has actually been checked against the threshold (see
-    ``recommend_transfers``); later weeks are the model's *current* plan
-    for that week and can shift as news lands closer to its own deadline,
-    so ``horizon_gain_xp``/``recommended`` are only populated for week 0.
+    one row per planned move in every week -- not just this week's. Every
+    week's move has been checked against the same bar as week 0
+    (``gate_planned_weeks``): ``horizon_gain_xp`` / ``required_gain_xp`` /
+    ``recommended`` per week, and a held week's ``held_best_out`` /
+    ``held_best_in`` name the move it turned down. Later weeks can still
+    shift as news lands closer to their own deadlines.
     ``hit_reason`` (Step 12): the hit-justification explanation for
     gameweek 0's hit(s) -- only ever populated when ``recommend_transfers``
     actually recommends one, since an unjustified hit is re-solved away
     before this table is built (see ``justify_hits``)."""
     hit_reason_text = "; ".join(hit_reasons) if hit_reasons else None
+    names = lambda ids: ", ".join(pool_info[p]["web_name"] for p in ids) or None  # noqa: E731
     rows = []
     for i, wk in enumerate(plan["weeks"]):
         ins, outs = sorted(wk["transfers_in"]), sorted(wk["transfers_out"])
+        # Every week has been through the same bar (gate_planned_weeks):
+        # its gain vs holding and the bar it needed; a held week also
+        # names the best move it turned down, for the Planner's reason.
+        g8 = wk.get("gate")
+        week_gain = round(gain, 2) if i == 0 else (round(g8["gain"], 2) if g8 else None)
+        week_rec = recommended if i == 0 else (bool(g8["passed"]) if g8 else False)
+        rejected = g8 is not None and not g8["passed"]
         for j in range(max(len(ins), len(outs), 1)):
             rows.append(
                 {
@@ -1120,8 +1246,11 @@ def build_transfers_table(
                     "player_out": pool_info[outs[j]]["web_name"] if j < len(outs) else None,
                     "player_in": pool_info[ins[j]]["web_name"] if j < len(ins) else None,
                     "hits_taken": wk["hits"] if j == 0 else 0,
-                    "horizon_gain_xp": round(gain, 2) if i == 0 else None,
-                    "recommended": recommended if i == 0 else None,
+                    "horizon_gain_xp": week_gain,
+                    "required_gain_xp": round(g8["required"], 2) if g8 else None,
+                    "recommended": week_rec,
+                    "held_best_out": names(g8["best_out"]) if rejected and j == 0 else None,
+                    "held_best_in": names(g8["best_in"]) if rejected and j == 0 else None,
                     "hit_reason": hit_reason_text if (i == 0 and j == 0) else None,
                     # free transfers available at the start of this week, per the plan
                     "free_transfers": wk.get("free_transfers"),

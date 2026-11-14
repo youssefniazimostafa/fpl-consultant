@@ -31,7 +31,10 @@ function TransferBlock({ t, now }: { t: Raw; now: boolean }) {
   return (
     <div className={`pblock ${t.save ? "save" : "move"}${now ? " now" : ""}`}>
       {t.save ? (
-        <span className="pblock-title">Save transfer</span>
+        <>
+          <span className="pblock-title">Hold, bank the free transfer</span>
+          {t.save_reason && <span className="pblock-reason">{t.save_reason}</span>}
+        </>
       ) : (
         t.moves.map((m: Raw, i: number) => (
           <div key={i} className="pl-move">

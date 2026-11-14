@@ -22,7 +22,11 @@ itself:
    hold, same captain, same incoming players);
 10. the app's Planner shows exactly the decision in its first week (same
    transfers, hits, free transfers and chip), and every later planned
-   week's free transfers equal the optimiser's plan.
+   week's free transfers equal the optimiser's plan;
+11. every planned move in every week clears the same bar as this week's
+   (gain vs holding >= the required gain, fpl.optimise.gate_planned_weeks),
+   and the Planner's later weeks show exactly those moves (a held week
+   shows a hold).
 
 Run with ``uv run python -m fpl.check_consistency [path/to/latest.json]``.
 ``--self-test`` breaks each rule once on a copy of the real data and
@@ -196,6 +200,29 @@ def check(data: dict[str, Any]) -> list[str]:
         play = ((d.get("chip") or {}).get("play") or {}).get("chip")
         if planned_now != ([play] if play else []):
             errors.append(f"rule 10: planner puts {planned_now or 'no chip'} in GW{d['gameweek']}, the decision says {play or 'no chip'}")
+
+    # rule 11: every planned move clears the same bar as this week's
+    # (fpl.optimise.gate_planned_weeks), and the Planner shows exactly the
+    # plan's moves -- never one that would be held once its week arrives.
+    plan_rows = ((data.get("transfer_plan") or {}).get("weeks") or [])
+    plan_moves: dict[int, list[tuple[Any, Any]]] = {}
+    for row in plan_rows:
+        if not (row.get("player_in") or row.get("player_out")):
+            continue
+        g = row["gameweek"]
+        plan_moves.setdefault(g, []).append((row.get("player_out"), row.get("player_in")))
+        gain, need = row.get("horizon_gain_xp"), row.get("required_gain_xp")
+        if row.get("recommended") is not True or gain is None or need is None or gain < need - 1e-9:
+            errors.append(f"rule 11: GW{g} plans {row.get('player_out')} -> {row.get('player_in')} "
+                          f"but it gains {gain} vs the {need} bar (recommended={row.get('recommended')})")
+    if planner.get("available"):
+        for w in planner.get("transfers") or []:
+            if not w.get("planned") or w["gameweek"] == d["gameweek"]:
+                continue  # this week is rule 10's (planner = decision)
+            shown = sorted((m["out"].get("web_name"), m["in"].get("web_name")) for m in w.get("moves") or [])
+            if shown != sorted(plan_moves.get(w["gameweek"], [])):
+                errors.append(f"rule 11: planner GW{w['gameweek']} shows {shown or 'hold'}, "
+                              f"the gated plan has {sorted(plan_moves.get(w['gameweek'], [])) or 'hold'}")
     return errors
 
 
@@ -280,6 +307,18 @@ def _breakers(data: dict[str, Any]) -> list[tuple[str, Any]]:
         later = [w for w in x["planner"]["transfers"] if w.get("planned") and w["gameweek"] != x["decision"]["gameweek"]]
         later[0]["free_transfers"] = (later[0]["free_transfers"] or 0) + 1
     tests.append(("rule 10", planner_ft_drift))
+
+    def plan_move_below_bar(x):
+        rows = [r for r in x["transfer_plan"]["weeks"] if r.get("player_in")]
+        rows[-1]["horizon_gain_xp"] = (rows[-1].get("required_gain_xp") or 1.75) - 0.5
+    tests.append(("rule 11", plan_move_below_bar))
+
+    def planner_shows_held_move(x):
+        later = [w for w in x["planner"]["transfers"] if w.get("planned") and w["gameweek"] != x["decision"]["gameweek"]]
+        held = next((w for w in later if not w["moves"]), later[0])
+        held["moves"] = [{"out": {"player_id": -1, "web_name": "Calafiori"}, "in": {"player_id": -2, "web_name": "Murillo"}}]
+        held["save"] = False
+    tests.append(("rule 11", planner_shows_held_move))
     return tests
 
 
