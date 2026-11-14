@@ -273,6 +273,9 @@ def replay(strategy: dict[str, Any], season: Season, variant: int) -> dict[str, 
     bank = BUDGET - sum(purchase.values())
     ft = 1
     weekly_points, n_transfers = {}, 0
+    ft_seen: list[int] = []      # free transfers available at each decision
+    multi_weeks = 0              # weeks that used 2+ transfers
+    O.TRANSFER_BAR_MODE = strategy.get("bar", "per_week")  # worker-local; the replay sets it per job
     for t in range(START_GW, LAST_GW + 1):
         ctx = season.context(t)
         info, raw = ctx["info"], ctx["raw"]
@@ -321,11 +324,15 @@ def replay(strategy: dict[str, Any], season: Season, variant: int) -> dict[str, 
         squad = (squad - outs) | ins
         assert len(squad) == 15 and bank >= 0, (t, len(squad), bank)
         if t > START_GW:
+            ft_seen.append(ft)
             n_transfers += len(ins)
+            multi_weeks += len(ins) >= 2
             ft = min(O.MAX_FREE_TRANSFERS, ft - len(ins) + 1)
         weekly_points[t] = score_week(wk, raw, season, t, info)
     scored = {g: v for g, v in weekly_points.items() if g > START_GW}
-    return {"points": sum(scored.values()), "transfers": n_transfers, "weekly": weekly_points}
+    return {"points": sum(scored.values()), "transfers": n_transfers, "weekly": weekly_points,
+            "multi_weeks": multi_weeks, "ft_mean": float(np.mean(ft_seen)) if ft_seen else 0.0,
+            "ft_max": max(ft_seen) if ft_seen else 0}
 
 
 # ---------------------------------------------------------------------------
@@ -350,6 +357,8 @@ def label_of(s: dict[str, Any]) -> str:
     if s["kind"] != "rules":
         return s["kind"]
     k = "legacy1.75" if s.get("k") is None else f"k={s['k']:g}"
+    if "bar" in s:
+        return f"bar={s['bar']} V={s.get('ft_value', 0):g} {k}"
     return f"V={s.get('ft_value', 0):g} {k} rho={s.get('risk', 0):g} d={s.get('discount', 0.9):g}"
 
 
@@ -361,7 +370,8 @@ def run_grid(
     with ProcessPoolExecutor(max_workers=workers, initializer=_init_worker, initargs=(season,)) as ex:
         for label, variant, r in ex.map(_run, jobs):
             rows.append({"strategy": label, "variant": variant, "points": r["points"], "transfers": r["transfers"],
-                         "weekly": r["weekly"]})
+                         "weekly": r["weekly"], "multi_weeks": r.get("multi_weeks"), "ft_mean": r.get("ft_mean"),
+                         "ft_max": r.get("ft_max")})
     df = pd.DataFrame(rows)
     weekly = {(r["strategy"], r["variant"]): r["weekly"] for r in rows}
     WEEKLY_PATH.write_text(json.dumps({f"{k[0]}|{k[1]}": v for k, v in weekly.items()}))
@@ -369,6 +379,9 @@ def run_grid(
     wide.columns = [f"squad{c}" for c in wide.columns]
     wide["mean_points"] = wide.mean(axis=1)
     wide["mean_transfers"] = df.groupby("strategy")["transfers"].mean()
+    wide["mean_multi_weeks"] = df.groupby("strategy")["multi_weeks"].mean()
+    wide["mean_ft_banked"] = df.groupby("strategy")["ft_mean"].mean()
+    wide["max_ft_banked"] = df.groupby("strategy")["ft_max"].max()
     return wide.sort_values("mean_points", ascending=False)
 
 
@@ -411,7 +424,7 @@ def residual_sd_table() -> dict[str, tuple[float, ...]]:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--rebuild", action="store_true", help="rebuild the cached forecasts")
-    ap.add_argument("--stage", choices=["1", "2", "3", "baselines", "residuals", "oos", "sens"], default="1")
+    ap.add_argument("--stage", choices=["1", "2", "3", "baselines", "residuals", "oos", "sens", "bar"], default="1")
     ap.add_argument("--season", default=None, help="replay this season instead (e.g. 2024-25)")
     ap.add_argument("--variants", default="0,1,2", help="starting squads to replay")
     ap.add_argument("--sweep", choices=["k", "V"], default="k", help="stage sens: which rule to sweep")
@@ -425,6 +438,21 @@ def main() -> None:
     load_forecasts(rebuild=args.rebuild, season=args.season)
     variants = tuple(int(v) for v in args.variants.split(","))
     base = [{"kind": "current"}, {"kind": "never"}, {"kind": "flagged"}]
+    if args.stage == "bar":  # TRANSFER_BAR_MODE: per_move vs per_week, all three seasons
+        modes = [{"kind": "rules", "ft_value": 1.5, "k": None, "discount": 0.9, "bar": b} for b in ("per_week", "per_move")]
+        for season in (None, "2024-25", "2023-24"):
+            load_forecasts(season=season)
+            t0 = time.time()
+            table = run_grid(modes, variants, args.workers, season)
+            name = season or "2025-26"
+            pw, pm = label_of(modes[0]), label_of(modes[1])
+            d = np.array([table.loc[pm, c] - table.loc[pw, c] for c in table.columns if c.startswith("squad")])
+            se = d.std(ddof=1) / math.sqrt(len(d))
+            print(f"\n=== {name} ({time.time() - t0:.0f}s)")
+            print(table.round(2).to_string())
+            print(f"per_move - per_week: {d.mean():+.1f} SE {se:.1f} per squad {d.tolist()}")
+            table.round(2).to_csv(TABLES_DIR / f"transfer_calibration_bar_{name}.csv")
+        return
     if args.stage == "residuals":
         print(json.dumps(residual_sd_table()))
         return

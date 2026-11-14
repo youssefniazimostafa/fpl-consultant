@@ -159,6 +159,16 @@ RESIDUAL_SD: dict[str, tuple[float, float, float, float]] = {
     "MID": (1.52, 3.06, 3.76, 3.76),
     "FWD": (1.71, 3.39, 4.57, 4.57),
 }
+# Transfer bar mode: "per_move" -- every move in a week must clear the bar
+# by itself (its own gain over the same week without it); "per_week" -- a
+# week's moves are tested together against holding that week. Both use the
+# 1.75 xP bar and V above. Chosen by fpl/transfer_calibration.py --stage bar
+# (season replay, 3 starting squads, banking up to 5, multi-move weeks),
+# rule fixed before running: keep per_move only if per_move - per_week isn't
+# below -1 SE on either unseen season. Result (season points, mean +- SE):
+# 2025-26 -1.3 +- 5.0, 2024-25 -41.7 +- 2.6 (worse on all 3 squads),
+# 2023-24 +0.0 +- 19.8 -> per_week.
+TRANSFER_BAR_MODE = "per_week"
 # 3. Reliability: in these modes each starter's value is reduced by
 #    RELIABILITY_WEIGHT x the SD of his own points distribution (from the
 #    xP components: rare goals are high-variance, appearances and clean
@@ -800,10 +810,14 @@ def recommend_transfers(
     plan, gain, recommended, hit_reasons = _recommend_week0(
         baseline, *args, raw_weekly_xp=raw_weekly_xp, uncertainty_k=uncertainty_k, no_hit_weeks=no_hit_weeks, **rules
     )
-    if gate_later_weeks and len(weeks) > 1:
+    # the per-move bar can change week 0 only when it has 2+ moves, so the
+    # replay (gate_later_weeks=False) still runs week 0's test in that case
+    multi0 = len(plan["weeks"][0]["transfers_in"]) >= 2 and TRANSFER_BAR_MODE == "per_move"
+    if (gate_later_weeks and len(weeks) > 1) or multi0:
         moved_before = bool(plan["weeks"][0]["transfers_in"])
         plan = gate_planned_weeks(
-            plan, *args, raw_weekly_xp=raw_weekly_xp, uncertainty_k=uncertainty_k, no_hit_weeks=no_hit_weeks, **rules
+            plan, *args, raw_weekly_xp=raw_weekly_xp, uncertainty_k=uncertainty_k, no_hit_weeks=no_hit_weeks,
+            later_weeks=gate_later_weeks, **rules,
         )
         if moved_before and not plan["weeks"][0]["transfers_in"]:  # every week-0 move failed the per-move bar
             recommended, hit_reasons = False, []
@@ -897,9 +911,15 @@ def gate_planned_weeks(
     raw_weekly_xp: dict[tuple[int, int], float] | None = None,
     uncertainty_k: float | None = None,
     no_hit_weeks: frozenset[int] = frozenset(),
+    later_weeks: bool = True,
+    bar_mode: str | None = None,
     **solve_kwargs: Any,
 ) -> dict[str, Any]:
     """Every move of every week of ``plan`` through the same bar, in order.
+    ``bar_mode`` (default TRANSFER_BAR_MODE): "per_move" as below, or
+    "per_week" (a week's moves together vs holding that week).
+    ``later_weeks=False`` (the season replay): only week 0 is tested; later
+    weeks are left free.
 
     Week 0: ``_recommend_week0`` already tested the week as a whole
     (threshold + hit rules); with two or more moves, each must now also
@@ -921,12 +941,30 @@ def gate_planned_weeks(
     args = (pool_ids, weekly_value, pool_info, my_squad_ids, sell_price, initial_bank, free_transfers_now, weeks, discount)
     later_no_hits = frozenset(no_hit_weeks) | frozenset(weeks[1:])
     raw = raw_weekly_xp or weekly_value
+    bar_mode = bar_mode or TRANSFER_BAR_MODE
 
     def solve(fixed: dict[int, tuple[frozenset[int], frozenset[int]]], **kw: Any) -> dict[str, Any]:
         return solve_horizon(*args, fixed_moves=fixed, no_hit_weeks=later_no_hits, **solve_kwargs, **kw)
 
     def week_gate(fixed, g, i, wk, full, base_gate=None):
         moves = pair_moves(set(wk["transfers_in"]), set(wk["transfers_out"]), pool_info)
+        if bar_mode == "per_week":
+            # the week's moves together vs holding that week (week 0's whole-week
+            # test was already done by _recommend_week0)
+            if base_gate is not None:
+                gain, required, passed = base_gate["gain"], base_gate["required"], base_gate["passed"]
+            else:
+                held = solve({**fixed, g: (frozenset(), frozenset())})
+                gain = (full["objective"] or 0.0) - (held["objective"] or 0.0)
+                required = transfer_margin(wk, weeks[i:], discount, raw, pool_info, uncertainty_k)
+                passed = gain >= required
+            kept = moves if passed else []
+            records = [{"out": o, "in": n, "gain": gain, "required": required, "passed": passed, "bundled": False,
+                        "week_level": True} for o, n in moves]
+            best = records[0] if records and not passed else None
+            gate = {"gain": gain, "required": required, "passed": passed, "moves": records, "mode": bar_mode,
+                    "best_in": [m[1] for m in moves] if best else [], "best_out": [m[0] for m in moves] if best else []}
+            return kept, gate
         if len(moves) == 1 and base_gate is not None:  # week 0, one move: its own gain is the week's gain
             kept = moves if base_gate["passed"] else []
             records = [{"out": moves[0][0], "in": moves[0][1], "gain": base_gate["gain"],
@@ -947,7 +985,7 @@ def gate_planned_weeks(
             week_gain = best["gain"]
         gate = {
             "gain": week_gain, "required": records[0]["required"] if records else None,
-            "passed": bool(kept), "moves": records,
+            "passed": bool(kept), "moves": records, "mode": bar_mode,
             "best_in": [best["in"]] if best else [], "best_out": [best["out"]] if best else [],
         }
         return kept, gate
@@ -963,7 +1001,7 @@ def gate_planned_weeks(
         gates[g0] = gate
     else:
         gates[g0] = base_gate
-    for i, g in enumerate(weeks[1:], start=1):
+    for i, g in enumerate(weeks[1:] if later_weeks else [], start=1):
         free = solve(fixed)
         wk = free["weeks"][i]
         if not wk["transfers_in"] and not wk["transfers_out"]:
@@ -1365,6 +1403,7 @@ def build_transfers_table(
                     # this move's own gain over the same week without it (the per-move bar)
                     "move_gain_xp": round(mv["gain"], 2) if mv else (round(g8["gain"], 2) if rejected and j == 0 else None),
                     "required_gain_xp": round(g8["required"], 2) if g8 and g8.get("required") is not None else None,
+                    "bar_mode": (g8 or {}).get("mode", TRANSFER_BAR_MODE),
                     "recommended": week_rec,
                     "held_best_out": names(g8["best_out"]) if rejected and j == 0 else None,
                     "held_best_in": names(g8["best_in"]) if rejected and j == 0 else None,
@@ -1560,7 +1599,7 @@ def main() -> None:
         print(f"  no transfer recommended this week -- roll the free transfer{held_gain}.")
     captain_name = pool_info[wk0["captain_id"]]["web_name"] if wk0["captain_id"] else "none"
     print(f"  captain: {captain_name}")
-    print("\nPer-move bar, every planned week (own gain vs the bar):")
+    print(f"\nTransfer bar ({TRANSFER_BAR_MODE}), every planned week (gain vs the bar):")
     for wk in final_plan["weeks"]:
         g8 = wk.get("gate") or {}
         recs = g8.get("moves") or []

@@ -132,7 +132,8 @@ def run_check() -> bool:
         for r in g8.get("moves") or []:
             label = f"{pool_info[r['out']]['web_name']} -> {pool_info[r['in']]['web_name']}"
             if r["passed"]:
-                check(f"GW{wk['gameweek']} {label} clears the bar by itself ({r['gain']:.2f} >= {r['required']:.2f})",
+                how = "with its week" if r.get("week_level") else "by itself"
+                check(f"GW{wk['gameweek']} {label} clears the bar {how} ({r['gain']:.2f} >= {r['required']:.2f})",
                       r["gain"] >= r["required"] - 1e-9 and (r["out"], r["in"]) in planned)
             else:
                 check(f"GW{wk['gameweek']} {label} dropped ({r['gain']:.2f} < {r['required']:.2f})",

@@ -27,8 +27,8 @@ itself:
    (gain vs holding >= the required gain, fpl.optimise.gate_planned_weeks),
    and the Planner's later weeks show exactly those moves (a held week
    shows a hold);
-12. the bar is per move: every planned move's own gain (over the same
-   week without it) clears the bar by itself.
+12. when TRANSFER_BAR_MODE is per_move (the row's bar_mode): every planned
+   move's own gain (over the same week without it) clears the bar by itself.
 
 Run with ``uv run python -m fpl.check_consistency [path/to/latest.json]``.
 ``--self-test`` breaks each rule once on a copy of the real data and
@@ -221,8 +221,8 @@ def check(data: dict[str, Any]) -> list[str]:
     # the same week without it) clears the bar by itself, so a strong move
     # never carries a weak one.
     for row in plan_rows:
-        if not (row.get("player_in") and row.get("player_out")):
-            continue
+        if not (row.get("player_in") and row.get("player_out")) or row.get("bar_mode", "per_move") != "per_move":
+            continue  # per_week mode: rule 11 (the week's gain vs the bar) is the whole rule
         own, need = row.get("move_gain_xp"), row.get("required_gain_xp")
         if own is None or need is None or own < need - 1e-9:
             errors.append(f"rule 12: GW{row['gameweek']} move {row['player_out']} -> {row['player_in']} "
@@ -337,7 +337,7 @@ def _breakers(data: dict[str, Any]) -> list[tuple[str, Any]]:
         # while the week as a whole still clears it
         rows = x["transfer_plan"]["weeks"]
         mover = next(r for r in rows if r.get("player_in"))
-        weak = dict(mover, player_out="Hughes", player_in="Barnes",
+        weak = dict(mover, player_out="Hughes", player_in="Barnes", bar_mode="per_move",
                     move_gain_xp=(mover.get("required_gain_xp") or 1.75) - 0.3)
         rows.insert(rows.index(mover) + 1, weak)
     tests.append(("rule 12", weak_move_carried))
