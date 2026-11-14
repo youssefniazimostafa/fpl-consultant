@@ -11,7 +11,7 @@ import type { PlayerView } from "../model/team";
 
 type Raw = Record<string, any>;
 
-const ordinal = (n: number) =>
+export const ordinal = (n: number) =>
   `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th"}`;
 
 // Green if the player scored at least what was expected, pink if not; none
@@ -21,7 +21,7 @@ function markerOf(c: Raw, bench: boolean): "beat" | "missed" | null {
   return c.points >= c.expected ? "beat" : "missed";
 }
 
-function toView(c: Raw, bench = false): PlayerView {
+export function toView(c: Raw, bench = false): PlayerView {
   return {
     id: c.player_id,
     name: c.web_name,
@@ -42,7 +42,7 @@ function toView(c: Raw, bench = false): PlayerView {
   };
 }
 
-function Stat({ label, value, sub, dark }: { label: string; value: string; sub?: string; dark?: boolean }) {
+export function Stat({ label, value, sub, dark }: { label: string; value: string; sub?: string; dark?: boolean }) {
   return (
     <div className={`lg-stat${dark ? " dark" : ""}`}>
       <div className="lg-stat-label">{label}</div>
@@ -110,7 +110,7 @@ function PlayerCell({ c }: { c: Raw }) {
 const Total = ({ c }: { c: Raw }) => <span className="bt-total" title="Points that counted">{c.counted_points}</span>;
 
 /** Laptop: one row per player (one per match in a double gameweek). */
-function BreakdownTable({ players }: { players: Raw[] }) {
+export function BreakdownTable({ players }: { players: Raw[] }) {
   return (
     <div className="bt" role="table">
       <div className="bt-row bt-head" role="row">
@@ -147,7 +147,7 @@ function BreakdownTable({ players }: { players: Raw[] }) {
 }
 
 /** Phone: name line with the total on the right, bubbles wrapping below. */
-function BreakdownCards({ players }: { players: Raw[] }) {
+export function BreakdownCards({ players }: { players: Raw[] }) {
   return (
     <div className="bc">
       {players.map((c) => (
@@ -166,6 +166,84 @@ function BreakdownCards({ players }: { players: Raw[] }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// "Best you could have done": hindsight, but only with the moves you had
+// that week (fpl/hindsight.py): your squad and bank at the deadline, your
+// free transfers, no hits, no chips. The gap is split in a fixed order.
+function Mini({ p, out }: { p: Raw; out?: boolean }) {
+  return (
+    <span className={`pl-mini${out ? " out" : ""}`}>
+      <Shirt teamCode={p.team_code} teamShort={p.team_short} goalkeeper={p.position === "GKP"} size={26} dimmed={out} title={p.web_name} />
+      <span className="pl-mini-name">{p.web_name}</span>
+      <small className="muted"> {p.points}</small>
+    </span>
+  );
+}
+
+function BestPossibleCard({ b }: { b: Raw | undefined }) {
+  if (!b) return null;
+  if (!b.available) {
+    return (
+      <Card title="Best you could have done" className="best-card">
+        <p className="muted">{b.reason}</p>
+      </Card>
+    );
+  }
+  const p = b.parts;
+  const sign = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v)}`;
+  const split = [
+    p.chip_hit ? `${sign(p.chip_hit)} from ${b.chip ? `not playing your ${b.chip}` : "not taking your points hit"}` : null,
+    `${sign(p.lineup)} from your lineup`,
+    `${sign(p.captain)} from the captain`,
+    `${sign(p.transfer)} from the transfer${b.transfers.length === 1 ? "" : "s"}`,
+  ].filter(Boolean);
+  return (
+    <Card title="Best you could have done" aside={`${b.free_transfers} free transfer${b.free_transfers === 1 ? "" : "s"} · no hits · no chips`} className="best-card">
+      {(b.chip || b.hits > 0) && (
+        <p className="note warn">
+          You {b.chip ? `played ${b.chip}` : ""}{b.chip && b.hits ? " and " : ""}{b.hits ? `took a ${4 * b.hits}-point hit` : ""} that week; this is the best with free transfers only.
+        </p>
+      )}
+      <div className="best-rows">
+        <div className="best-row">
+          <span className="best-label">Transfer</span>
+          {b.transfers.length ? (
+            b.transfers.map((t: Raw, i: number) => (
+              <span key={i} className="pl-move">
+                <Mini p={t.out} out /> <span className="pl-arrow">→</span> <Mini p={t.in} />
+              </span>
+            ))
+          ) : (
+            <span>Best was to keep your squad</span>
+          )}
+        </div>
+        <div className="best-row">
+          <span className="best-label">Captain</span>
+          {b.captain && <Mini p={b.captain} />}
+          {b.your_captain && b.captain && b.your_captain.player_id !== b.captain.player_id && (
+            <small className="muted">(you had {b.your_captain.web_name})</small>
+          )}
+        </div>
+        <div className="best-row">
+          <span className="best-label">Lineup</span>
+          {b.lineup_in.length ? (
+            <span className="small">
+              Start {b.lineup_in.map((x: Raw) => x.web_name).join(", ")} instead of {b.lineup_out.map((x: Raw) => x.web_name).join(", ")}
+            </span>
+          ) : (
+            <span className="small">Same starters as you fielded</span>
+          )}
+        </div>
+      </div>
+      <div className="best-nums">
+        <div><small>You scored</small><b>{b.you}</b></div>
+        <div><small>The consultant's team</small><b>{b.consultant ?? "–"}</b>{b.consultant == null && <small>not tracked yet</small>}</div>
+        <div className="hl"><small>Best possible</small><b>{b.best}</b></div>
+      </div>
+      <p className="best-split">{split.join(", ")} = {sign(b.best - b.you)}</p>
+    </Card>
   );
 }
 
@@ -229,6 +307,7 @@ export function LastGameweekPage({ data }: { data: Latest }) {
           <Card title="In short" className="lg-summary">
             <p className="why">{l.summary.join(" ")}</p>
           </Card>
+          <BestPossibleCard b={l.best_possible} />
         </div>
       </div>
 

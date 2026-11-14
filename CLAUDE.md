@@ -14,3 +14,16 @@ When you have finished all the work, immediately write this report as the last p
 6. State: output of `git status` and `git log --oneline -5`, and whether everything is pushed.
 
 Be factual: don't claim something was tested or evaluated unless you actually ran it.
+
+## Scheduled runs (cron backup)
+
+Two cron-job.org jobs trigger the workflow through `workflow_dispatch`:
+
+- **"FPL pre-deadline check"**: hourly at :45, with input `pre_deadline_check` = true
+  (goes through the deadline gate, so only one run freezes each recommendation);
+- **"FPL full refresh"**: at 06:00 and 18:00, with no inputs (a normal full run).
+
+Both use a fine-grained GitHub token limited to this repo's Actions
+(read and write). **It expires on 15 June 2027 and must be renewed then**
+(create a new one with the same settings and paste it into both jobs).
+Never put the token in the repo.

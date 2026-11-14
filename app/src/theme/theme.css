@@ -479,6 +479,19 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
 .miss-act.down { background: var(--pink); }
 .miss-num { text-align: right; font-variant-numeric: tabular-nums; }
 
+
+/* ---------------------------------------------------------------- best you could have done */
+.best-card .best-rows { display: flex; flex-direction: column; gap: 6px; background: var(--white); border-radius: var(--radius-sm); padding: 8px 10px; }
+.best-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.best-label { width: 64px; font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); }
+.best-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.best-nums div { background: var(--white); border-radius: var(--radius-sm); padding: 8px; display: flex; flex-direction: column; align-items: center; }
+.best-nums small { font-size: 10px; color: var(--text-muted); text-align: center; }
+.best-nums b { font-size: 26px; font-weight: 800; }
+.best-nums .hl { background: var(--purple); color: var(--white); }
+.best-nums .hl small { color: var(--neon); }
+.best-split { font-size: 13px; font-weight: 700; }
+
 /* ---------------------------------------------------------------- placeholders */
 .placeholder-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 .placeholder-grid code { font-size: 10px; }
@@ -537,6 +550,9 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
   .seg { display: flex; }
   .seg button { flex: 1; padding: 6px 4px; }
   .miss-row { grid-template-columns: 96px minmax(0, 1fr) 62px; }
+
+  .bottom-nav button { font-size: 8.5px; }
+  .bottom-nav { padding: 10px 2px 8px; }
   .tracker-side { display: none; }
   .tracker-bottom { display: block; grid-area: track;
   }

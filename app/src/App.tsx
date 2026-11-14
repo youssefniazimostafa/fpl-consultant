@@ -11,6 +11,7 @@ import { OverviewPage } from "./pages/OverviewPage";
 import { LastGameweekPage } from "./pages/LastGameweekPage";
 import { PlannerPage } from "./pages/PlannerPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
+import { TeamOfTheWeekPage } from "./pages/TeamOfTheWeekPage";
 
 interface Progress {
   stage: string;
@@ -203,6 +204,8 @@ export default function App() {
             <LeaguePage key={startRival ?? "league"} data={data} startRival={startRival} />
           ) : current.id === "lastgw" ? (
             <LastGameweekPage data={data} />
+          ) : current.id === "totw" ? (
+            <TeamOfTheWeekPage data={data} />
           ) : current.id === "planner" ? (
             <PlannerPage data={data} />
           ) : current.id === "analytics" ? (

@@ -132,7 +132,10 @@ you still have, and your players' fixtures coloured by FPL's own difficulty
 (`planner` section, `fpl/planner.py`); its first week is the decision itself.
 **Analytics** is the page for technical detail, in three tabs (what happened,
 what's expected, what to do), with charts bundled locally (Chart.js) and the
-`analytics` section (`fpl/analytics.py`).
+`analytics` section (`fpl/analytics.py`). **Team of the week** shows the best
+squad anyone could legally have picked for the latest finished gameweek, and
+Last gameweek has a "Best you could have done" card (`fpl/hindsight.py`,
+validated with `uv run python -m fpl.check_hindsight`).
 
 The shared design system lives in `app/src/theme/` (colours, radii and font
 in `theme.ts`, styles in `theme.css`, club colours in `clubColours.ts`) and
@@ -217,6 +220,19 @@ deadline and skips (in seconds, green) otherwise.
    - Save, then "Test run": it should return HTTP 204, and a
      `workflow_dispatch` run appears in the Actions tab with the `update`
      job skipped (unless a deadline is 1-2 hours away).
+
+### Cron backup in use
+
+Two cron-job.org jobs trigger the workflow through `workflow_dispatch`:
+
+- **"FPL pre-deadline check"**: hourly at :45, with input `pre_deadline_check` = true
+  (goes through the deadline gate, so only one run freezes each recommendation);
+- **"FPL full refresh"**: at 06:00 and 18:00, with no inputs (a normal full run).
+
+Both use a fine-grained GitHub token limited to this repo's Actions
+(read and write). **It expires on 15 June 2027 and must be renewed then**
+(create a new one with the same settings and paste it into both jobs).
+Never put the token in the repo.
 
 ## `config.json` fields
 
