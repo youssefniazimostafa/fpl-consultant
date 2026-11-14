@@ -1,0 +1,104 @@
+{
+  "gameweek": 11,
+  "frozen_at": "2026-11-14T05:44:35.237467+00:00",
+  "action": "transfer",
+  "starting_xi": [
+    {
+      "player_id": 57,
+      "web_name": "Petrović",
+      "position": "GKP"
+    },
+    {
+      "player_id": 4,
+      "web_name": "Gabriel",
+      "position": "DEF"
+    },
+    {
+      "player_id": 8,
+      "web_name": "Calafiori",
+      "position": "DEF"
+    },
+    {
+      "player_id": 112,
+      "web_name": "Van Hecke",
+      "position": "DEF"
+    },
+    {
+      "player_id": 115,
+      "web_name": "De Cuyper",
+      "position": "DEF"
+    },
+    {
+      "player_id": 15,
+      "web_name": "Ødegaard",
+      "position": "MID"
+    },
+    {
+      "player_id": 40,
+      "web_name": "Rogers",
+      "position": "MID"
+    },
+    {
+      "player_id": 124,
+      "web_name": "Groß",
+      "position": "MID"
+    },
+    {
+      "player_id": 154,
+      "web_name": "Palmer",
+      "position": "MID"
+    },
+    {
+      "player_id": 166,
+      "web_name": "N.Jackson",
+      "position": "FWD"
+    },
+    {
+      "player_id": 411,
+      "web_name": "Haaland",
+      "position": "FWD"
+    }
+  ],
+  "bench": [
+    {
+      "player_id": 58,
+      "web_name": "Forster",
+      "position": "GKP"
+    },
+    {
+      "player_id": 346,
+      "web_name": "Calvert-Lewin",
+      "position": "FWD"
+    },
+    {
+      "player_id": 259,
+      "web_name": "Diop",
+      "position": "DEF"
+    },
+    {
+      "player_id": 212,
+      "web_name": "Hughes",
+      "position": "MID"
+    }
+  ],
+  "captain_id": 4,
+  "captain_name": "Gabriel",
+  "vice_captain_id": 411,
+  "vice_captain_name": "Haaland",
+  "transfers_in": [
+    {
+      "player_id": 112,
+      "web_name": "Van Hecke",
+      "position": "DEF"
+    }
+  ],
+  "transfers_out": [
+    {
+      "player_id": 511,
+      "web_name": "Souza",
+      "position": "DEF"
+    }
+  ],
+  "hits": 0,
+  "chip": null
+}
