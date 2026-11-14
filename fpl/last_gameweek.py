@@ -53,6 +53,29 @@ ITEM_LABELS = {
 }
 
 
+# Table columns on the Last gameweek page, and the short count shown
+# under each points bubble. Anything not listed goes in "Other".
+ITEM_COLUMNS = {
+    "minutes": "minutes", "goals_scored": "goals", "assists": "assists", "clean_sheets": "clean_sheet",
+    "bonus": "bonus", "defensive_contribution": "defensive", "saves": "saves",
+}
+ITEM_SHORT = {
+    "minutes": lambda v: f"{v} min",
+    "goals_scored": lambda v: _plural(v, "goal", "goals"),
+    "assists": lambda v: _plural(v, "assist", "assists"),
+    "clean_sheets": lambda v: "clean sheet",
+    "bonus": lambda v: f"{v} bonus",
+    "defensive_contribution": lambda v: _plural(v, "action", "actions"),
+    "saves": lambda v: _plural(v, "save", "saves"),
+    "goals_conceded": lambda v: f"{v} conceded",
+    "yellow_cards": lambda v: "yellow card",
+    "red_cards": lambda v: "red card",
+    "own_goals": lambda v: "own goal",
+    "penalties_missed": lambda v: "pen. missed",
+    "penalties_saved": lambda v: "pen. saved",
+}
+
+
 def _match_items(fixture_stats: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """One match's scoring items in FPL's order, repeated items combined,
     zero-point items dropped (they don't change the total)."""
@@ -66,7 +89,9 @@ def _match_items(fixture_stats: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if c["points"] == 0:
             continue
         label = ITEM_LABELS.get(ident, lambda v, i=ident: f"{v} {i.replace('_', ' ')}")(c["value"])
-        items.append({"label": label, "points": c["points"]})
+        short = ITEM_SHORT.get(ident, lambda v, i=ident: i.replace("_", " "))(c["value"])
+        items.append({"label": label, "short": short, "column": ITEM_COLUMNS.get(ident, "other"),
+                      "identifier": ident, "value": c["value"], "points": c["points"]})
     return items
 
 
@@ -117,6 +142,7 @@ def build_last_gameweek(
     league_history: pd.DataFrame,
     league_managers: pd.DataFrame,
     predictions_dir: Path,
+    fixtures: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
     if team_id is None:
         return {"available": False, "reason": "No team ID set, so there's no gameweek to show."}
@@ -140,6 +166,20 @@ def build_last_gameweek(
     teams = {int(t["id"]): t for t in bootstrap["teams"]}
     breakdown: dict[int, dict[str, dict[str, int]]] = {}
     starts = {int(el["id"]): int(el["stats"].get("starts") or 0) > 0 for el in live_json["elements"]}
+    fixture_teams: dict[int, tuple[int, int]] = {}
+    if fixtures is not None and not fixtures.empty:
+        fixture_teams = {int(r.id): (int(r.team_h), int(r.team_a)) for r in fixtures.itertuples()}
+    team_of_player = {int(e["id"]): int(e["team"]) for e in bootstrap["elements"]}
+
+    def _opponent(pid: int, fixture_id: int | None) -> str | None:
+        ha = fixture_teams.get(int(fixture_id)) if fixture_id is not None else None
+        if not ha:
+            return None
+        mine_t = team_of_player.get(pid)
+        opp = ha[1] if ha[0] == mine_t else ha[0]
+        home = ha[0] == mine_t
+        return f"{teams.get(opp, {}).get('short_name', '?')} ({'H' if home else 'A'})"
+
     matches_by_player: dict[int, list[dict[str, Any]]] = {}
     for el in live_json["elements"]:
         agg: dict[str, dict[str, int]] = {}
@@ -150,7 +190,8 @@ def build_last_gameweek(
                 a["points"] += st["points"]
                 a["value"] += st["value"]
             items = _match_items(fx["stats"])
-            matches.append({"items": items, "total": sum(i["points"] for i in items)})
+            matches.append({"items": items, "total": sum(i["points"] for i in items),
+                            "opponent": _opponent(int(el["id"]), fx.get("fixture"))})
         breakdown[int(el["id"])] = agg
         matches_by_player[int(el["id"])] = [m for m in matches if m["items"]]
 

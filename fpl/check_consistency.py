@@ -19,7 +19,9 @@ itself:
    decision's XI;
 8. the site's captaincy-risk panel does too;
 9. the site's simulation panel highlights the decision's plan (transfer or
-   hold, same captain, same incoming players).
+   hold, same captain, same incoming players);
+10. the app's Planner shows exactly the decision in its first week (same
+   transfers, hits, free transfers and chip).
 
 Run with ``uv run python -m fpl.check_consistency [path/to/latest.json]``.
 ``--self-test`` breaks each rule once on a copy of the real data and
@@ -164,6 +166,26 @@ def check(data: dict[str, Any]) -> list[str]:
             in_names = sorted(t["player_in"].get("web_name") for t in transfers)
             if sorted(rec.get("transfers_in") or []) != in_names:
                 errors.append(f"rule 9: simulation plan brings in {rec.get('transfers_in')}, decision brings in {in_names}")
+
+    # 10: the Planner's first week is the decision, exactly
+    planner = data.get("planner") or {}
+    if planner.get("available"):
+        wk = next((w for w in planner.get("transfers") or [] if w.get("gameweek") == d["gameweek"]), None)
+        if wk is None:
+            errors.append(f"rule 10: the planner has no GW{d['gameweek']} column")
+        else:
+            p_moves = sorted((m["out"].get("player_id"), m["in"].get("player_id")) for m in wk["moves"])
+            d_moves = sorted((t["player_out"].get("player_id"), t["player_in"].get("player_id")) for t in transfers)
+            if p_moves != d_moves:
+                errors.append(f"rule 10: planner GW{d['gameweek']} transfers {p_moves} differ from the decision {d_moves}")
+            if wk.get("hits") != d["hits"]:
+                errors.append(f"rule 10: planner GW{d['gameweek']} hits {wk.get('hits')} differ from the decision {d['hits']}")
+            if wk.get("free_transfers") != ft.get("available"):
+                errors.append(f"rule 10: planner free transfers {wk.get('free_transfers')} differ from the decision {ft.get('available')}")
+        planned_now = [c["chip"] for c in planner.get("chips") or [] if c.get("gameweek") == d["gameweek"]]
+        play = ((d.get("chip") or {}).get("play") or {}).get("chip")
+        if planned_now != ([play] if play else []):
+            errors.append(f"rule 10: planner puts {planned_now or 'no chip'} in GW{d['gameweek']}, the decision says {play or 'no chip'}")
     return errors
 
 
@@ -228,6 +250,21 @@ def _breakers(data: dict[str, Any]) -> list[tuple[str, Any]]:
             r["is_recommended"] = r is other
         x["simulation"]["recommended"] = other
     tests.append(("rule 9", sim_wrong_plan))
+
+    def planner_wrong_week(x):
+        wk = x["planner"]["transfers"][0]
+        if wk["moves"]:
+            wk["moves"] = []
+        else:
+            wk["moves"] = [{"out": {"player_id": -1}, "in": {"player_id": -2}}]
+    tests.append(("rule 10", planner_wrong_week))
+
+    def planner_chip_now(x):
+        for c in x["planner"]["chips"]:
+            if c["status"] != "used":
+                c["gameweek"] = x["decision"]["gameweek"] if not x["decision"]["chip"]["play"] else None
+                break
+    tests.append(("rule 10", planner_chip_now))
     return tests
 
 
