@@ -737,6 +737,8 @@ def build_ownership_heatmap(
         }
         for m in manager_ids:
             entry[f"m_{m}"] = int(pivot.loc[row.player_id, m]) if row.player_id in pivot.index and m in pivot.columns else 0
+        # m_* is 0 both for "benched" and "doesn't own"; owned_by tells them apart
+        entry["owned_by"] = sorted(int(m) for m in gw_picks[gw_picks["player_id"] == row.player_id]["manager_id"].unique())
         rows.append(entry)
     return {
         "available": True,

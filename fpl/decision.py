@@ -176,10 +176,16 @@ def rival_captaincy(league_picks: pd.DataFrame, team_id: int | None) -> dict[str
     rivals = latest[latest["manager_id"] != team_id]
     owners = rivals.groupby("player_id")["manager_id"].nunique().to_dict()
     caps = rivals[rivals["is_captain"]].groupby("player_id")["manager_id"].nunique().to_dict()
+    teams = {
+        int(m): {"captain": (int(g[g["is_captain"]]["player_id"].iloc[0]) if g["is_captain"].any() else None),
+                 "owned": [int(x) for x in g["player_id"]]}
+        for m, g in rivals.groupby("manager_id")
+    }
     return {
         "rivals": int(rivals["manager_id"].nunique()),
         "owners": {int(k): int(v) for k, v in owners.items()},
         "captains": {int(k): int(v) for k, v in caps.items()},
+        "teams": teams,  # each rival's last confirmed captain and squad
     }
 
 
@@ -241,9 +247,16 @@ def captain_section(
         fav_name = web_names.get(fav_id, "?")
         fav_xp = float(xp_next.get(fav_id, 0.0))
         owned = fav_id in xi_ids
-        # vs a rival who captains him: you get his points once (if you own
-        # him) plus your captain doubled; they get him doubled
-        loss = (fav_xp - cap_xp) if owned else 2 * (fav_xp - cap_xp)
+        # Against each rival who captains him (their last confirmed team):
+        # they get him x2 plus your captain x1 if they own him; you get your
+        # captain x2 plus him x1 if he's in your XI. Average over those rivals.
+        losses = []
+        for t in (rc.get("teams") or {}).values():
+            if t.get("captain") != fav_id:
+                continue
+            they_own_cap = cap["player_id"] in t.get("owned", [])
+            losses.append(2 * fav_xp + (cap_xp if they_own_cap else 0) - 2 * cap_xp - (fav_xp if owned else 0))
+        loss = sum(losses) / len(losses) if losses else ((fav_xp - cap_xp) if owned else 2 * (fav_xp - cap_xp))
         risk["rivals_favourite"] = {"player_id": fav_id, "web_name": fav_name, "rivals_captaining": fav_count, "projected_points": round(fav_xp, 2)}
         if loss >= CAPTAIN_RISK_MIN_POINTS:
             risk.update(show_loss=True, possible_loss=round(loss, 1))

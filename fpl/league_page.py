@@ -171,6 +171,10 @@ def build_league_page(
     rivals = [m for m in owned_by if m != team_id]
     count: dict[int, int] = {}
     caps: dict[int, int] = {}
+    benched: dict[int, int] = {}
+    for r in picks[(picks["manager_id"] != team_id) & (picks["multiplier"] == 0)].itertuples():
+        benched[int(r.player_id)] = benched.get(int(r.player_id), 0) + 1
+    my_bench = {int(r.player_id) for r in picks[(picks["manager_id"] == team_id) & (picks["multiplier"] == 0)].itertuples()}
     for m in rivals:
         for p in owned_by[m]:
             count[p] = count.get(p, 0) + 1
@@ -182,7 +186,8 @@ def build_league_page(
             "player_id": p, "web_name": name.get(p, "?"), "team_code": team_code.get(p),
             "team_short": team_short.get(p), "position": position.get(p),
             "rivals_owning": count.get(p, 0), "rivals_captaining": caps.get(p, 0),
-            "you_own": p in mine, "projected_points": round(float(next_xp[p]), 1) if p in next_xp else None,
+            "rivals_benching": benched.get(p, 0),
+            "you_own": p in mine, "you_benched": p in my_bench, "projected_points": round(float(next_xp[p]), 1) if p in next_xp else None,
         }
 
     top_owned = [owned_card(p) for p in sorted(count, key=lambda p: (-count[p], name.get(p, "")))[:TOP_OWNED]]

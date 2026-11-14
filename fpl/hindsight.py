@@ -159,6 +159,12 @@ def best_possible(
         "transfer": z - captain_pts,
     }
     fielded = set(x_rules["scoring_ids"])
+    # Lineup changes, read cleanly: leave out players explained by a
+    # transfer (the best plan's incoming players, and your own incoming
+    # players who aren't in the best squad) -- those show as transfers.
+    best_in = set(z_squad) - set(before)
+    your_in = set(actual_squad) - set(before)
+    your_out = set(before) - set(actual_squad)
     return {
         "available": True,
         "status": plan["status"],
@@ -170,8 +176,10 @@ def best_possible(
         "xi": z_xi,
         "captain": z_cap,
         "your_captain": armband,
-        "lineup_in": sorted(set(z_xi) - fielded),
-        "lineup_out": sorted(fielded - set(z_xi)),
+        "lineup_in": sorted(set(z_xi) - fielded - best_in),
+        "lineup_out": sorted(fielded - set(z_xi) - your_in),
+        "your_transfers_in": sorted(your_in),
+        "your_transfers_out": sorted(your_out),
         "best": z,
         "you": net_points,
         "your_rules_score": x_rules["points"],

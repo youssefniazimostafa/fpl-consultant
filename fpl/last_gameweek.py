@@ -354,6 +354,7 @@ def build_last_gameweek(
                 "captain": mini(b["captain"]) if b["captain"] else None,
                 "your_captain": mini(b["your_captain"]) if b["your_captain"] else None,
                 "lineup_in": [mini(p) for p in b["lineup_in"]], "lineup_out": [mini(p) for p in b["lineup_out"]],
+                "your_transfers": [{"out": mini(o), "in": mini(i)} for o, i in zip(b["your_transfers_out"], b["your_transfers_in"])],
             }
         else:
             best_section = b
