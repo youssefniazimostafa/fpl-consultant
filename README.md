@@ -126,8 +126,11 @@ from `latest.json`'s `league_page` section (`fpl/league_page.py`). **FPL
 overview** covers FPL as a whole: top projected points by position, best
 captain options, slept-on players (with a streak badge), players in form,
 cheap high scorers and injury news, from the `overview` section
-(`fpl/overview.py`). The other two tabs are still placeholders showing raw
-`latest.json` fields.
+(`fpl/overview.py`). **Planner** shows the next six gameweeks at a glance:
+planned transfers with free transfers and any hit, the best week for each chip
+you still have, and your players' fixtures coloured by FPL's own difficulty
+(`planner` section, `fpl/planner.py`); its first week is the decision itself.
+**Analytics** is still a placeholder showing raw `latest.json` fields.
 
 The shared design system lives in `app/src/theme/` (colours, radii and font
 in `theme.ts`, styles in `theme.css`, club colours in `clubColours.ts`) and

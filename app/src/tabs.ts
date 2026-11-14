@@ -1,6 +1,7 @@
-// The app's six pages. "Recommended team", "Last gameweek", "League" and
-// "FPL overview" are real pages (pages/TeamPage.tsx, LastGameweekPage.tsx,
-// LeaguePage.tsx, OverviewPage.tsx); the other two are still placeholders that show a few raw latest.json
+// The app's six pages. "Recommended team", "Last gameweek", "League",
+// "FPL overview" and "Planner" are real pages (pages/TeamPage.tsx,
+// LastGameweekPage.tsx, LeaguePage.tsx, OverviewPage.tsx, PlannerPage.tsx);
+// "Analytics" is still a placeholder that show a few raw latest.json
 // fields to prove the data flows. The real pages replace these one by one.
 
 export interface TabDef {
@@ -15,15 +16,7 @@ export const TABS: TabDef[] = [
   { id: "lastgw", name: "Last gameweek", short: "Last GW", fields: [] },
   { id: "league", name: "League", fields: [] },
   { id: "overview", name: "FPL overview", short: "Overview", fields: [] },
-  {
-    id: "planner",
-    name: "Planner",
-    fields: [
-      { label: "Next planned transfer", path: "transfer_plan.weeks.0" },
-      { label: "Best simulated plan", path: "simulation.best" },
-      { label: "Season projection (leader)", path: "season_simulation.standings.0" },
-    ],
-  },
+  { id: "planner", name: "Planner", fields: [] },
   {
     id: "analytics",
     name: "Analytics",

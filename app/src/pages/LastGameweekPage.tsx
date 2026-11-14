@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import type { Latest } from "../data";
 import { Card } from "../components/Card";
 import { Bench, Pitch } from "../components/Pitch";
@@ -53,79 +52,119 @@ function Stat({ label, value, sub, dark }: { label: string; value: string; sub?:
   );
 }
 
-// FPL's own scoring items for one player, e.g.
-// "85 min +2 · 1 goal +4 · 1 assist +3 · 2 bonus +2 = 11", one line per
-// match (double gameweeks), then the captain step if he had the armband.
-function Breakdown({ c }: { c: Raw }) {
-  const matches: Raw[] = c.matches ?? [];
-  const captainStep =
-    c.multiplier > 1 ? (
-      <>
-        , ×{c.multiplier} as captain = <b>{c.counted_points}</b>
-      </>
-    ) : null;
-  if (!matches.length) {
-    return (
-      <div className="lg-break">
-        <span className="lg-item">Didn't play</span> <b>= 0</b>
-        {captainStep}
-      </div>
-    );
-  }
-  const many = matches.length > 1;
+// The points breakdown: FPL's own per-item points (fpl/last_gameweek.py,
+// already reconciled with FPL's official totals) shown as "bubbles":
+// points in large bold text, the count underneath. Laptop: a table with a
+// column per kind of points. Phone: the same bubbles in a wrapping row.
+
+const COLUMNS: [string, string][] = [
+  ["minutes", "Minutes"],
+  ["goals", "Goals"],
+  ["assists", "Assists"],
+  ["clean_sheet", "Clean sheet"],
+  ["bonus", "Bonus"],
+  ["defensive", "Defensive"],
+  ["saves", "Saves"],
+  ["other", "Other"],
+];
+
+function Bubble({ it }: { it: Raw }) {
   return (
-    <div className="lg-break">
-      {matches.map((m, i) => (
-        <div key={i} className="lg-match">
-          {many && <span className="lg-match-no">Match {i + 1}: </span>}
-          {m.items.map((it: Raw, j: number) => (
-            // the separator sits outside the no-wrap item, so a long line
-            // wraps between items, never inside one
-            <Fragment key={j}>
-              {j > 0 && <span className="lg-sep"> · </span>}
-              <span className={`lg-item${it.points < 0 ? " neg" : ""}`}>
-                {it.label} {it.points > 0 ? "+" : "−"}
-                {Math.abs(it.points)}
-              </span>
-            </Fragment>
-          ))}{" "}
-          <b>= {m.total}</b>
-          {!many && i === matches.length - 1 && captainStep}
-        </div>
-      ))}
-      {many && (
-        <div className="lg-match">
-          Total <b>= {c.points}</b>
-          {captainStep}
-        </div>
-      )}
+    <span className={`bub ${it.points < 0 ? "neg" : "pos"}`} title={it.label}>
+      <b>
+        {it.points > 0 ? "+" : "−"}
+        {Math.abs(it.points)}
+      </b>
+      <small>{it.short}</small>
+    </span>
+  );
+}
+
+function CaptainBubble({ c }: { c: Raw }) {
+  return c.multiplier > 1 ? (
+    <span className="bub cap" title={`Captain: points ×${c.multiplier}`}>
+      <b>×{c.multiplier}</b>
+      <small>captain</small>
+    </span>
+  ) : null;
+}
+
+function PlayerCell({ c }: { c: Raw }) {
+  const s = c.surprise;
+  return (
+    <div className="bt-player">
+      <Shirt teamCode={c.team_code} teamShort={c.team_short} goalkeeper={c.position === "GKP"} size={32} title={c.web_name} />
+      <div className="bt-name">
+        <b>{c.web_name}</b>
+        <small>
+          {c.expected != null ? `expected ${c.expected.toFixed(1)}` : "no expectation saved"}
+          {s != null && <span className={s >= 0 ? "beat" : "missed"}> ({s >= 0 ? "+" : "−"}{Math.abs(s).toFixed(1)})</span>}
+          {c.subbed_on ? " · came off the bench" : ""}
+          {c.subbed_off ? " · replaced" : ""}
+        </small>
+      </div>
     </div>
   );
 }
 
-function Row({ c }: { c: Raw }) {
-  const surprise = c.surprise;
+const Total = ({ c }: { c: Raw }) => <span className="bt-total" title="Points that counted">{c.counted_points}</span>;
+
+/** Laptop: one row per player (one per match in a double gameweek). */
+function BreakdownTable({ players }: { players: Raw[] }) {
   return (
-    <div className="lg-row">
-      <Shirt teamCode={c.team_code} teamShort={c.team_short} goalkeeper={c.position === "GKP"} size={34} title={c.web_name} />
-      <div className="lg-row-text">
-        <div className="lg-row-name">
-          <b>{c.web_name}</b>
-          <span className="muted small">
-            {" "}
-            {c.expected != null ? `expected ${c.expected.toFixed(1)}` : ""}
-            {c.subbed_on ? " · came in from the bench" : ""}
-            {c.subbed_off ? " · replaced from the bench" : ""}
-          </span>
-        </div>
-        <Breakdown c={c} />
+    <div className="bt" role="table">
+      <div className="bt-row bt-head" role="row">
+        <span>Player</span>
+        {COLUMNS.map(([, h]) => (
+          <span key={h}>{h}</span>
+        ))}
+        <span>Captain</span>
+        <span>Total</span>
       </div>
-      {surprise != null && (
-        <span className={`lg-diff ${surprise >= 0 ? "beat" : "missed"}`}>
-          {surprise >= 0 ? "+" : "−"}
-          {Math.abs(surprise).toFixed(1)}
-        </span>
-      )}
+      {players.map((c) => {
+        const matches: Raw[] = c.matches?.length ? c.matches : [{ items: [], opponent: null }];
+        return matches.map((m, i) => (
+          <div key={`${c.player_id}-${i}`} className={`bt-row${i > 0 ? " bt-cont" : ""}`} role="row">
+            {i === 0 ? <PlayerCell c={c} /> : <span />}
+            {COLUMNS.map(([key]) => (
+              <span key={key} className="bt-cell">
+                {key === "minutes" && !m.items.length ? <span className="bt-dnp">Didn't play</span> : null}
+                {m.items.filter((it: Raw) => it.column === key).map((it: Raw, j: number) => (
+                  <Bubble key={j} it={it} />
+                ))}
+              </span>
+            ))}
+            <span className="bt-cell">{i === 0 && <CaptainBubble c={c} />}</span>
+            <span className="bt-cell">
+              {matches.length > 1 && <span className="bt-vs">vs {m.opponent}</span>}
+              {i === 0 && <Total c={c} />}
+            </span>
+          </div>
+        ));
+      })}
+    </div>
+  );
+}
+
+/** Phone: name line with the total on the right, bubbles wrapping below. */
+function BreakdownCards({ players }: { players: Raw[] }) {
+  return (
+    <div className="bc">
+      {players.map((c) => (
+        <div key={c.player_id} className="bc-card">
+          <div className="bc-top">
+            <PlayerCell c={c} />
+            <Total c={c} />
+          </div>
+          {(c.matches?.length ? c.matches : [{ items: [] }]).map((m: Raw, i: number, all: Raw[]) => (
+            <div key={i} className="bc-bubbles">
+              {all.length > 1 && <span className="bt-vs">vs {m.opponent}</span>}
+              {m.items.length ? m.items.map((it: Raw, j: number) => <Bubble key={j} it={it} />) : <span className="bt-dnp">Didn't play</span>}
+              {i === all.length - 1 && <CaptainBubble c={c} />}
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -187,21 +226,23 @@ export function LastGameweekPage({ data }: { data: Latest }) {
           )}
         </div>
         <div className="lg-right">
-          <Card title="Player by player" aside="biggest surprise first">
-            {!l.has_expected && (
-              <p className="note muted">No saved pre-deadline expectations for this gameweek, so only actual points are shown.</p>
-            )}
-            <div className="lg-list">
-              {l.players.map((c: Raw) => (
-                <Row key={c.player_id} c={c} />
-              ))}
-            </div>
-          </Card>
           <Card title="In short" className="lg-summary">
             <p className="why">{l.summary.join(" ")}</p>
           </Card>
         </div>
       </div>
+
+      <Card title="Where every point came from" aside="biggest surprise first · FPL's own points" className="lg-breakdown">
+        {!l.has_expected && (
+          <p className="note muted">No saved pre-deadline expectations for this gameweek, so only actual points are shown.</p>
+        )}
+        <div className="show-laptop">
+          <BreakdownTable players={l.players} />
+        </div>
+        <div className="show-phone">
+          <BreakdownCards players={l.players} />
+        </div>
+      </Card>
     </div>
   );
 }
