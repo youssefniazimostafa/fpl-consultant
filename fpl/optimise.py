@@ -329,6 +329,9 @@ def solve_horizon(
     no_hit_weeks: frozenset[int] = frozenset(),
     bench_weight: float = BENCH_VALUE_WEIGHT,
     cost_tiebreak: float = 0.0,
+    force_in: frozenset[int] = frozenset(),
+    force_out: frozenset[int] = frozenset(),
+    force_captain: int | None = None,
 ) -> dict[str, Any]:
     """One MILP covering every gameweek in ``weeks`` at once. A single
     gameweek is just ``weeks`` of length 1 -- there's no separate
@@ -350,6 +353,11 @@ def solve_horizon(
     solves pass ``bench_weight=0`` and a tiny ``cost_tiebreak`` per 0.1m of
     squad cost, which picks the cheapest bench among equally good teams.
     Defaults leave the forward-looking plan unchanged.
+
+    ``force_in`` / ``force_out`` / ``force_captain`` (the app chat's
+    "what if" tool, fpl/chat_tools.py): pin those players into / out of the
+    first week's squad and the first week's captain; everything else is
+    solved as usual. Empty by default.
     """
     # pulp >=4 ties every LpVariable to the LpProblem that will solve it
     # (created via ``m.add_variable``, not a free-standing constructor), so
@@ -424,6 +432,14 @@ def solve_horizon(
         if i < len(weeks) - 1:
             nxt = weeks[i + 1]
             m += ft[nxt] <= prev_ft - transfers_used + hits[g] + 1
+
+    g0 = weeks[0]
+    for p in force_in:
+        m += squad[(p, g0)] == 1
+    for p in force_out:
+        m += squad[(p, g0)] == 0
+    if force_captain is not None:
+        m += cap[(force_captain, g0)] == 1
 
     stats = m.solve(pulp.HiGHS(msg=False))
 
