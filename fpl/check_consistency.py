@@ -21,7 +21,8 @@ itself:
 9. the site's simulation panel highlights the decision's plan (transfer or
    hold, same captain, same incoming players);
 10. the app's Planner shows exactly the decision in its first week (same
-   transfers, hits, free transfers and chip).
+   transfers, hits, free transfers and chip), and every later planned
+   week's free transfers equal the optimiser's plan.
 
 Run with ``uv run python -m fpl.check_consistency [path/to/latest.json]``.
 ``--self-test`` breaks each rule once on a copy of the real data and
@@ -182,6 +183,15 @@ def check(data: dict[str, Any]) -> list[str]:
                 errors.append(f"rule 10: planner GW{d['gameweek']} hits {wk.get('hits')} differ from the decision {d['hits']}")
             if wk.get("free_transfers") != ft.get("available"):
                 errors.append(f"rule 10: planner free transfers {wk.get('free_transfers')} differ from the decision {ft.get('available')}")
+        # every planned week's free transfers = the optimiser's plan
+        plan_ft = {}
+        for row in ((data.get("transfer_plan") or {}).get("weeks") or []):
+            if row.get("free_transfers") is not None:
+                plan_ft.setdefault(row["gameweek"], row["free_transfers"])
+        for w in planner.get("transfers") or []:
+            if w.get("planned") and w["gameweek"] in plan_ft and w.get("free_transfers") != plan_ft[w["gameweek"]]:
+                errors.append(f"rule 10: planner GW{w['gameweek']} free transfers {w.get('free_transfers')} "
+                              f"differ from the optimiser's plan {plan_ft[w['gameweek']]}")
         planned_now = [c["chip"] for c in planner.get("chips") or [] if c.get("gameweek") == d["gameweek"]]
         play = ((d.get("chip") or {}).get("play") or {}).get("chip")
         if planned_now != ([play] if play else []):
@@ -265,6 +275,11 @@ def _breakers(data: dict[str, Any]) -> list[tuple[str, Any]]:
                 c["gameweek"] = x["decision"]["gameweek"] if not x["decision"]["chip"]["play"] else None
                 break
     tests.append(("rule 10", planner_chip_now))
+
+    def planner_ft_drift(x):
+        later = [w for w in x["planner"]["transfers"] if w.get("planned") and w["gameweek"] != x["decision"]["gameweek"]]
+        later[0]["free_transfers"] = (later[0]["free_transfers"] or 0) + 1
+    tests.append(("rule 10", planner_ft_drift))
     return tests
 
 

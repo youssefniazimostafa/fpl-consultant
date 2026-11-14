@@ -7,8 +7,8 @@ Built by ``fpl.publish`` from the same plan the rest of the app uses:
   ``recommended_team``/``transfer_plan`` are built from), with the incoming
   players' cards from the chosen squad table; week 1 is copied straight
   from the ONE ``decision`` (fpl/decision.py), so it can't disagree with it;
-* free transfers per week: rolled forward from the decision's free
-  transfers with FPL's rules (+1 a week, max 5, a hit spends them all);
+* free transfers per week: the optimiser's own per-week values (saved in
+  its transfer table), week 1 from the decision -- never recalculated;
 * chips: each chip you still have, placed in its best week from the chip
   plan (``chips.yours.plan``), with used chips shown as used;
 * fixtures: your squad's clubs against each gameweek, with FPL's own
@@ -25,7 +25,6 @@ import pandas as pd
 from fpl.decision import CHIP_LABELS, CHIP_ORDER
 
 WEEKS_SHOWN = 6
-MAX_FREE_TRANSFERS = 5
 NOTE = ("This plan updates every time the data refreshes. Only this week's moves are final advice; "
         "later weeks will change as news comes in.")
 
@@ -65,8 +64,13 @@ def build_planner(
     planned_weeks = sorted(int(g) for g in transfers_src["gameweek"].unique()) if not transfers_src.empty else []
 
     # --- transfers per week (week 1 = the decision, exactly) ---
+    # Free transfers come from the optimiser's own plan (its per-week
+    # free_transfers column), never recalculated here.
     transfers: list[dict[str, Any]] = []
-    ft = (decision.get("free_transfers") or {}).get("available")
+    ft_by_week: dict[int, int] = {}
+    if not transfers_src.empty and "free_transfers" in transfers_src.columns:
+        for r in transfers_src.dropna(subset=["free_transfers"]).itertuples():
+            ft_by_week.setdefault(int(r.gameweek), int(r.free_transfers))
     for w in weeks:
         g = w["gameweek"]
         if g == gw0:
@@ -89,13 +93,11 @@ def build_planner(
             planned = True
         else:
             moves, hits, reason, planned = [], 0, None, False
+        ft = (decision.get("free_transfers") or {}).get("available") if g == gw0 else ft_by_week.get(g)
         transfers.append({
             "gameweek": g, "planned": planned, "moves": moves, "save": planned and not moves,
             "free_transfers": ft if planned else None, "hits": hits, "hit_cost": 4 * hits, "hit_reason": reason,
         })
-        if ft is not None and planned:
-            # FPL: unused free transfers roll over (max 5); a hit uses them all
-            ft = 1 if hits else min(MAX_FREE_TRANSFERS, max(ft - len(moves), 0) + 1)
 
     # --- chips: best week for each chip you still have; used ones as used ---
     statuses = {c["chip"]: c for c in ((decision.get("chip") or {}).get("statuses") or [])}

@@ -418,6 +418,14 @@ def solve_horizon(
     stats = m.solve(pulp.HiGHS(msg=False))
 
     weekly_results = []
+    # Free transfers available at the start of each week, from the plan's
+    # own free-transfer constraint (ft[next] <= prev - used + hits + 1,
+    # capped at MAX_FREE_TRANSFERS) taken at its tight value with the
+    # solved transfers and hits. ft[g] itself is only an upper bound in the
+    # MILP, so its solved value can sit lower when it doesn't bind; this is
+    # what the plan actually has. Saved per week so the app's Planner reads
+    # it instead of recalculating.
+    available_ft = free_transfers_now
     for g in weeks:
         squad_ids = {p for p in pool_ids if squad[(p, g)].varValue and squad[(p, g)].varValue > 0.5}
         xi_ids = {p for p in pool_ids if xi[(p, g)].varValue and xi[(p, g)].varValue > 0.5}
@@ -439,8 +447,11 @@ def solve_horizon(
                 "hits": int(round(hits[g].varValue or 0)),
                 "bank_after": float(bank[g].varValue or 0),
                 "xi_value": xi_value,
+                "free_transfers": available_ft,
             }
         )
+        week_hits = int(round(hits[g].varValue or 0))
+        available_ft = min(MAX_FREE_TRANSFERS, max(available_ft - len(transfers_in) + week_hits + 1, 1))
 
     return {
         "status": stats.status.name,
@@ -884,6 +895,8 @@ def build_transfers_table(
                     "horizon_gain_xp": round(gain, 2) if i == 0 else None,
                     "recommended": recommended if i == 0 else None,
                     "hit_reason": hit_reason_text if (i == 0 and j == 0) else None,
+                    # free transfers available at the start of this week, per the plan
+                    "free_transfers": wk.get("free_transfers"),
                 }
             )
     return pd.DataFrame(rows)
