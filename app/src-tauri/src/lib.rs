@@ -108,8 +108,13 @@ fn start_view() -> (Option<String>, Option<i64>, bool) {
 }
 
 #[tauri::command]
-fn autorefresh_requested() -> bool {
-    std::env::var("FPL_CONSULTANT_AUTOREFRESH").as_deref() == Ok("1")
+fn autorefresh_requested() -> u8 {
+    // "1": one refresh; "2": two at once (test aid for the double-refresh guard)
+    match std::env::var("FPL_CONSULTANT_AUTOREFRESH").as_deref() {
+        Ok("1") => 1,
+        Ok("2") => 2,
+        _ => 0,
+    }
 }
 
 #[tauri::command]
@@ -220,6 +225,50 @@ fn shirt_image_blocking(team_code: u32, goalkeeper: bool) -> Result<String, Stri
     Ok(format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
 }
 
+// ---------------------------------------------------------------------------
+// betting-odds key (Settings): stored ONLY in the macOS Keychain
+// ---------------------------------------------------------------------------
+
+const KEYCHAIN_SERVICE: &str = "FPL Consultant";
+const KEYCHAIN_ODDS_ACCOUNT: &str = "odds-api-key";
+
+fn odds_entry() -> Result<keyring::Entry, String> {
+    keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ODDS_ACCOUNT).map_err(|e| format!("Keychain: {e}"))
+}
+
+fn keychain_odds_key() -> Option<String> {
+    odds_entry().ok()?.get_password().ok().filter(|k| !k.trim().is_empty())
+}
+
+/// Saves the key in the Keychain. The key is never logged or returned.
+#[tauri::command]
+fn set_odds_key(key: String) -> Result<(), String> {
+    let key = key.trim();
+    if key.is_empty() {
+        return Err("The key is empty.".into());
+    }
+    odds_entry()?.set_password(key).map_err(|e| format!("Couldn't save to the Keychain: {e}"))?;
+    app_log("settings: odds key saved to the Keychain");
+    Ok(())
+}
+
+#[tauri::command]
+fn clear_odds_key() -> Result<(), String> {
+    match odds_entry()?.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => {
+            app_log("settings: odds key removed from the Keychain");
+            Ok(())
+        }
+        Err(e) => Err(format!("Couldn't remove it from the Keychain: {e}")),
+    }
+}
+
+/// Only whether a key is saved -- never the key itself.
+#[tauri::command]
+fn odds_key_saved() -> bool {
+    keychain_odds_key().is_some()
+}
+
 #[tauri::command]
 fn is_refreshing(lock: State<'_, RefreshLock>) -> bool {
     lock.0.load(Ordering::SeqCst)
@@ -242,7 +291,7 @@ fn acquire_engine_lock() -> Result<std::fs::File, String> {
     match file.try_lock() {
         Ok(()) => Ok(file),
         Err(std::fs::TryLockError::WouldBlock) => {
-            Err("A refresh is already running in another FPL Consultant window or build.".into())
+            Err("Another FPL Consultant window is already refreshing. Wait for it to finish, then try again.".into())
         }
         Err(std::fs::TryLockError::Error(e)) => Err(format!("locking {}: {e}", path.display())),
     }
@@ -330,9 +379,11 @@ fn shell_env() -> ShellEnv {
     let mut seen = std::collections::HashSet::new();
     dirs.retain(|d| seen.insert(d.clone()));
 
-    let odds_api_key = std::env::var("ODDS_API_KEY")
-        .ok()
-        .filter(|v| !v.is_empty())
+    // Order: the app's own setting (macOS Keychain), then the process
+    // environment (e.g. `npm run tauri dev` from a terminal), then the
+    // login shell. Never logged or written anywhere.
+    let odds_api_key = keychain_odds_key()
+        .or_else(|| std::env::var("ODDS_API_KEY").ok().filter(|v| !v.is_empty()))
         .or_else(|| Some(login_odds).filter(|v| !v.is_empty()));
     ShellEnv { path: dirs.join(":"), odds_api_key }
 }
@@ -390,7 +441,14 @@ fn run_refresh(app: &AppHandle) -> Result<(), String> {
 
     emit_stage(app, "starting pipeline");
     let mut cmd = Command::new(&uv_bin);
-    cmd.args(["run", "python", "-m", "fpl.pipeline"])
+    // Test aid: FPL_CONSULTANT_TEST_FAIL=1 runs a stand-in pipeline that
+    // fails after its first stage, to exercise the error path end to end.
+    if std::env::var("FPL_CONSULTANT_TEST_FAIL").as_deref() == Ok("1") {
+        cmd.args(["run", "python", "-c", "import sys; print('=== fetch ==='); print('test failure (FPL_CONSULTANT_TEST_FAIL)'); sys.exit(3)"]);
+    } else {
+        cmd.args(["run", "python", "-m", "fpl.pipeline"]);
+    }
+    cmd
         .current_dir(&engine)
         .env("PATH", &env.path)
         .env("PYTHONUNBUFFERED", "1")
@@ -478,6 +536,9 @@ pub fn run() {
             save_published_cache,
             load_published_cache,
             shirt_image,
+            set_odds_key,
+            clear_odds_key,
+            odds_key_saved,
             offline_simulated,
             start_refresh,
             is_refreshing,
@@ -487,4 +548,23 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Save, read back, remove -- against the real macOS Keychain.
+    #[test]
+    fn odds_key_roundtrip_in_keychain() {
+        let fake = "FPLTEST-keychain-roundtrip-not-a-real-key-7731";
+        let had_key = odds_key_saved();
+        assert!(!had_key, "a real key is saved; refusing to overwrite it in a test");
+        set_odds_key(format!("  {fake}  ")).unwrap();
+        assert!(odds_key_saved());
+        assert_eq!(keychain_odds_key().as_deref(), Some(fake));
+        clear_odds_key().unwrap();
+        assert!(!odds_key_saved());
+        assert!(set_odds_key("   ".into()).is_err());
+    }
 }

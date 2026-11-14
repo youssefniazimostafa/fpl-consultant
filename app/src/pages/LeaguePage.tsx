@@ -199,9 +199,12 @@ function PlayerList({ players, rivals, mode }: { players: OwnedPlayer[]; rivals:
           <span className="pl-own">
             {p.rivalsOwning === 0 ? "No rivals own him" : `${p.rivalsOwning} of ${rivals} rivals own him`}
             {mode !== "diff" && p.rivalsCaptaining > 0 ? `, ${p.rivalsCaptaining} captained` : ""}
+            {mode !== "diff" && p.rivalsBenching > 0 ? `, ${p.rivalsBenching} benched him` : ""}
           </span>
           {mode === "owned" ? (
-            <Pill tone={p.youOwn ? "neon" : "grey"}>{p.youOwn ? "You own" : "You don't"}</Pill>
+            <Pill tone={p.youOwn ? (p.youBenched ? "cyan" : "neon") : "grey"}>
+              {p.youOwn ? (p.youBenched ? "You own, benched" : "You own") : "You don't"}
+            </Pill>
           ) : (
             <span className="pl-pts">
               <b>{p.projected != null ? p.projected.toFixed(1) : "–"}</b>

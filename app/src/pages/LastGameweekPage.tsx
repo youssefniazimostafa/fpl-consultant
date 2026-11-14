@@ -182,6 +182,8 @@ function Mini({ p, out }: { p: Raw; out?: boolean }) {
   );
 }
 
+export const HINDSIGHT_NOTE = "Hindsight only: the best moves for this one week, not necessarily good long-term picks.";
+
 function BestPossibleCard({ b }: { b: Raw | undefined }) {
   if (!b) return null;
   if (!b.available) {
@@ -208,7 +210,19 @@ function BestPossibleCard({ b }: { b: Raw | undefined }) {
       )}
       <div className="best-rows">
         <div className="best-row">
-          <span className="best-label">Transfer</span>
+          <span className="best-label">You did</span>
+          {b.your_transfers?.length ? (
+            b.your_transfers.map((t: Raw, i: number) => (
+              <span key={i} className="pl-move">
+                <Mini p={t.out} out /> <span className="pl-arrow">→</span> <Mini p={t.in} />
+              </span>
+            ))
+          ) : (
+            <span className="small">No transfers</span>
+          )}
+        </div>
+        <div className="best-row">
+          <span className="best-label">Best was</span>
           {b.transfers.length ? (
             b.transfers.map((t: Raw, i: number) => (
               <span key={i} className="pl-move">
@@ -228,12 +242,15 @@ function BestPossibleCard({ b }: { b: Raw | undefined }) {
         </div>
         <div className="best-row">
           <span className="best-label">Lineup</span>
-          {b.lineup_in.length ? (
+          {b.lineup_in.length || b.lineup_out.length ? (
             <span className="small">
-              Start {b.lineup_in.map((x: Raw) => x.web_name).join(", ")} instead of {b.lineup_out.map((x: Raw) => x.web_name).join(", ")}
+              {b.lineup_in.length ? `Also start ${b.lineup_in.map((x: Raw) => x.web_name).join(", ")}` : ""}
+              {b.lineup_in.length && b.lineup_out.length ? ", " : ""}
+              {b.lineup_out.length ? `bench ${b.lineup_out.map((x: Raw) => x.web_name).join(", ")}` : ""}
+              <span className="muted"> (besides the transfers)</span>
             </span>
           ) : (
-            <span className="small">Same starters as you fielded</span>
+            <span className="small">No other changes to your starters</span>
           )}
         </div>
       </div>
@@ -243,6 +260,7 @@ function BestPossibleCard({ b }: { b: Raw | undefined }) {
         <div className="hl"><small>Best possible</small><b>{b.best}</b></div>
       </div>
       <p className="best-split">{split.join(", ")} = {sign(b.best - b.you)}</p>
+      <p className="note muted">{HINDSIGHT_NOTE}</p>
     </Card>
   );
 }

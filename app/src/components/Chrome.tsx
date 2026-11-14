@@ -26,6 +26,7 @@ export function StatusBar({
   sourceTitle,
   refreshing,
   onRefresh,
+  onSettings,
 }: {
   deadlineLabel: string;
   countdown: string;
@@ -34,6 +35,7 @@ export function StatusBar({
   sourceTitle?: string;
   refreshing: boolean;
   onRefresh: () => void;
+  onSettings?: () => void;
 }) {
   return (
     <div className="statusbar">
@@ -51,6 +53,11 @@ export function StatusBar({
           {source}
         </span>
       </div>
+      {onSettings && (
+        <button className="settings-btn" onClick={onSettings} aria-label="Settings" title="Settings">
+          ⚙
+        </button>
+      )}
       <button className="refresh" onClick={onRefresh} disabled={refreshing}>
         {refreshing ? "Refreshing…" : "Refresh"}
       </button>

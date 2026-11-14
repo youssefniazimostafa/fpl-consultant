@@ -90,7 +90,7 @@ function Descriptive({ d }: { d: Latest }) {
       </ChartCard>
       <ChartCard
         title="Who owns what in your league"
-        explain="The most-owned players in your league and how each manager used them last gameweek: starting, captain, or not in their starting XI."
+        explain="The most-owned players in your league and how each manager used them last gameweek: starting, captain, benched, or not owned."
         empty={!heat.available && "No league ownership data yet."}
       >
         <div className="heat-scroll">
@@ -111,14 +111,16 @@ function Descriptive({ d }: { d: Latest }) {
                   <th>{p.web_name}</th>
                   {(heat.managers ?? []).map((m: Raw) => {
                     const v = p[`m_${m.manager_id}`];
-                    return <td key={m.manager_id} className={`h${v ?? "x"}`}>{v === 2 ? "C" : v === 3 ? "TC" : v === 1 ? "✓" : ""}</td>;
+                    const owns = (p.owned_by ?? []).includes(m.manager_id);
+                    const cls = !owns ? "hn" : `h${v}`;
+                    return <td key={m.manager_id} className={cls}>{v === 2 ? "C" : v === 3 ? "TC" : v === 1 ? "✓" : owns ? "B" : ""}</td>;
                   })}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <div className="heat-legend"><span className="h1">✓</span> starting <span className="h2">C</span> captain <span className="h0" /> not starting or not owned</div>
+        <div className="heat-legend"><span className="h1">✓</span> starting <span className="h2">C</span> captain <span className="h0">B</span> owns him, benched <span className="hn" /> doesn't own him</div>
       </ChartCard>
     </div>
   );

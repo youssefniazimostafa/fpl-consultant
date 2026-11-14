@@ -170,6 +170,10 @@ Drag it into Applications.
   only if it's set in your shell; without it the pipeline skips the odds feed.
   The first Refresh is slower because it clones the repo and installs the
   Python environment.
+- **Betting odds in app refreshes:** the ⚙ button in the status bar opens
+  Settings, where you paste your The Odds API key once. It's stored only in
+  the macOS Keychain (service "FPL Consultant") and passed to the pipeline at
+  each Refresh; it's never written to a file, the logs or `latest.json`.
 - **Diagnostics:** `~/Library/Application Support/FPL Consultant/app.log`
   (restarted on each launch) records what was loaded and each refresh's
   stages and result. Launching with `FPL_CONSULTANT_AUTOREFRESH=1` (e.g.
@@ -180,6 +184,9 @@ Drag it into Applications.
   if there were no network, using only its saved data and cached shirts. `FPL_CONSULTANT_TAB=league`,
   `FPL_CONSULTANT_RIVAL=<manager id>` and `FPL_CONSULTANT_SCROLL=1` open a tab,
   a rival's team and scroll to the bottom, also for screenshots.
+  `FPL_CONSULTANT_TEST_FAIL=1` makes Refresh run a stand-in pipeline that
+  fails (to test the error banner); `FPL_CONSULTANT_AUTOREFRESH=2` starts two
+  refreshes at once (to test the guard).
 
 ## Pre-deadline snapshot run
 

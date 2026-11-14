@@ -13,10 +13,10 @@ export interface TabDef {
 
 export const TABS: TabDef[] = [
   { id: "team", name: "Recommended team", short: "Team", fields: [] },
-  { id: "lastgw", name: "Last gameweek", short: "Last GW", fields: [] },
+  { id: "lastgw", name: "Last gameweek", short: "Last", fields: [] },
   { id: "totw", name: "Team of the week", short: "TOTW", fields: [] },
   { id: "league", name: "League", fields: [] },
-  { id: "overview", name: "FPL overview", short: "Overview", fields: [] },
-  { id: "planner", name: "Planner", fields: [] },
-  { id: "analytics", name: "Analytics", fields: [] },
+  { id: "overview", name: "FPL overview", short: "FPL", fields: [] },
+  { id: "planner", name: "Planner", short: "Plan", fields: [] },
+  { id: "analytics", name: "Analytics", short: "Stats", fields: [] },
 ];

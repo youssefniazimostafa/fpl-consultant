@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getPath, loadInitial, loadLocal, sourceLabel, type LoadedData } from "./data";
 import { TABS } from "./tabs";
 import { AppHeader, Banner, BottomNav, StatusBar } from "./components/Chrome";
+import { Settings } from "./components/Settings";
 import { TeamPage } from "./pages/TeamPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { LeaguePage } from "./pages/LeaguePage";
@@ -37,7 +38,7 @@ function fmtTime(iso: string | null): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? iso
-    : d.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    : d.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 function countdown(deadlineIso: string | undefined, now: number): string {
@@ -58,6 +59,7 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState(TABS[0].id);
   const [startRival, setStartRival] = useState<number | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
   const [now, setNow] = useState(Date.now());
 
   const [refreshing, setRefreshing] = useState(false);
@@ -77,10 +79,15 @@ export default function App() {
       .then(async (d) => {
         setLoaded(d);
         log(`loaded ${d.source} data, generated_at=${d.generatedAt} from ${d.location}`);
-        if (!autorefreshStarted && (await invoke<boolean>("autorefresh_requested"))) {
+        const auto = await invoke<number>("autorefresh_requested");
+        if (!autorefreshStarted && auto > 0) {
           autorefreshStarted = true;
-          log("autorefresh requested (FPL_CONSULTANT_AUTOREFRESH=1): starting refresh");
+          log(`autorefresh requested (FPL_CONSULTANT_AUTOREFRESH=${auto}): starting refresh`);
           refreshRef.current();
+          if (auto === 2) {
+            log("autorefresh: starting a second refresh while the first runs (guard test)");
+            refreshRef.current();
+          }
         }
       })
       .catch((e) => {
@@ -147,7 +154,8 @@ export default function App() {
     try {
       await invoke("start_refresh");
     } catch (e) {
-      if (String(e).includes("already running")) {
+      log(`refresh not started: ${e}`);
+      if (String(e).includes("A refresh is already running.")) {
         // the backend's lock: one is genuinely running, so stay in that state
         // and let its refresh-done event finish things off
         return;
@@ -178,7 +186,9 @@ export default function App() {
         sourceTitle={loaded?.location}
         refreshing={refreshing}
         onRefresh={onRefresh}
+        onSettings={() => setShowSettings(true)}
       />
+      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
 
       {refreshing && (
         <Banner tone="info">

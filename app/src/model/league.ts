@@ -51,7 +51,9 @@ export interface OwnedPlayer {
   position: string;
   rivalsOwning: number;
   rivalsCaptaining: number;
+  rivalsBenching: number;
   youOwn: boolean;
+  youBenched: boolean;
   projected: number | null;
 }
 
@@ -101,7 +103,9 @@ const owned = (p: Raw): OwnedPlayer => ({
   position: p.position ?? "",
   rivalsOwning: p.rivals_owning ?? 0,
   rivalsCaptaining: p.rivals_captaining ?? 0,
+  rivalsBenching: p.rivals_benching ?? 0,
   youOwn: !!p.you_own,
+  youBenched: !!p.you_benched,
   projected: p.projected_points ?? null,
 });
 

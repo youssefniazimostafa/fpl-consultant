@@ -2,7 +2,7 @@ import type { Latest } from "../data";
 import { Card } from "../components/Card";
 import { Bench, Pitch } from "../components/Pitch";
 import type { PlayerView } from "../model/team";
-import { BreakdownCards, BreakdownTable, Stat, toView } from "./LastGameweekPage";
+import { BreakdownCards, BreakdownTable, HINDSIGHT_NOTE, Stat, toView } from "./LastGameweekPage";
 
 // Team of the week: the best squad anyone could legally have picked for
 // the latest finished gameweek (fpl/hindsight.py, the same MILP as the
@@ -31,7 +31,9 @@ export function TeamOfTheWeekPage({ data }: { data: Latest }) {
           GW{t.gameweek} · {t.formation} · £{t.cost.toFixed(1)}m
         </span>
       </div>
-      <p className="planner-note">{t.note}</p>
+      <p className="planner-note">
+        {t.note} {HINDSIGHT_NOTE}
+      </p>
 
       <div className="lg-strip">
         <Stat dark label="Team of the week" value={String(t.total)} sub={t.captain_name ? `captain ${t.captain_name}` : undefined} />
