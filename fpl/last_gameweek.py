@@ -31,6 +31,45 @@ import pandas as pd
 
 from fpl.consultant import ELEMENT_TYPE_POSITION, actual_from_api, live_points, positions_from_bootstrap, score_team
 
+def _plural(n: int, one: str, many: str) -> str:
+    return f"{n} {one if n == 1 else many}"
+
+
+# FPL's explain identifiers -> plain words (the points always come from FPL)
+ITEM_LABELS = {
+    "minutes": lambda v: f"{v} min",
+    "goals_scored": lambda v: _plural(v, "goal", "goals"),
+    "assists": lambda v: _plural(v, "assist", "assists"),
+    "clean_sheets": lambda v: "clean sheet",
+    "goals_conceded": lambda v: _plural(v, "goal conceded", "goals conceded"),
+    "saves": lambda v: _plural(v, "save", "saves"),
+    "bonus": lambda v: f"{v} bonus",
+    "defensive_contribution": lambda v: _plural(v, "defensive contribution", "defensive contributions"),
+    "yellow_cards": lambda v: "yellow card" if v == 1 else f"{v} yellow cards",
+    "red_cards": lambda v: "red card",
+    "own_goals": lambda v: "own goal" if v == 1 else f"{v} own goals",
+    "penalties_saved": lambda v: "penalty saved" if v == 1 else f"{v} penalties saved",
+    "penalties_missed": lambda v: "penalty missed" if v == 1 else f"{v} penalties missed",
+}
+
+
+def _match_items(fixture_stats: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One match's scoring items in FPL's order, repeated items combined,
+    zero-point items dropped (they don't change the total)."""
+    combined: dict[str, dict[str, int]] = {}
+    for st in fixture_stats:
+        c = combined.setdefault(st["identifier"], {"value": 0, "points": 0})
+        c["value"] += int(st["value"])
+        c["points"] += int(st["points"])
+    items = []
+    for ident, c in combined.items():
+        if c["points"] == 0:
+            continue
+        label = ITEM_LABELS.get(ident, lambda v, i=ident: f"{v} {i.replace('_', ' ')}")(c["value"])
+        items.append({"label": label, "points": c["points"]})
+    return items
+
+
 CHIP_LABELS = {"wildcard": "Wildcard", "freehit": "Free Hit", "bboost": "Bench Boost", "3xc": "Triple Captain"}
 
 
@@ -101,14 +140,19 @@ def build_last_gameweek(
     teams = {int(t["id"]): t for t in bootstrap["teams"]}
     breakdown: dict[int, dict[str, dict[str, int]]] = {}
     starts = {int(el["id"]): int(el["stats"].get("starts") or 0) > 0 for el in live_json["elements"]}
+    matches_by_player: dict[int, list[dict[str, Any]]] = {}
     for el in live_json["elements"]:
         agg: dict[str, dict[str, int]] = {}
+        matches = []
         for fx in el.get("explain", []):
             for st in fx["stats"]:
                 a = agg.setdefault(st["identifier"], {"points": 0, "value": 0})
                 a["points"] += st["points"]
                 a["value"] += st["value"]
+            items = _match_items(fx["stats"])
+            matches.append({"items": items, "total": sum(i["points"] for i in items)})
         breakdown[int(el["id"])] = agg
+        matches_by_player[int(el["id"])] = [m for m in matches if m["items"]]
 
     expected: dict[int, float] = {}
     pred_path = predictions_dir / f"gw{gw}.parquet"
@@ -140,6 +184,8 @@ def build_last_gameweek(
             "surprise": None if exp is None else round(pts - float(exp), 1),
             "reason": _reason(mins, starts.get(pid, True), stats),
             "breakdown_points": sum(v["points"] for v in stats.values()),
+            # FPL's own items per match ("85 min +2 · 1 goal +4 ... = 11")
+            "matches": matches_by_player.get(pid, []),
             "is_captain": pid == mine["captain"],
             "is_vice_captain": pid == mine["vice"],
             "had_armband": pid == s["armband"],
@@ -163,6 +209,13 @@ def build_last_gameweek(
     for c in xi + bench:
         if c["breakdown_points"] != c["points"]:
             problems.append(f"{c['web_name']}: breakdown adds to {c['breakdown_points']}, not {c['points']}")
+        for m in c["matches"]:
+            if sum(i["points"] for i in m["items"]) != m["total"]:
+                problems.append(f"{c['web_name']}: a match's items don't add up to {m['total']}")
+        if sum(m["total"] for m in c["matches"]) != c["points"]:
+            problems.append(f"{c['web_name']}: shown items add to {sum(m['total'] for m in c['matches'])}, not {c['points']}")
+        if c["counted_points"] != c["points"] * c["multiplier"] and c in xi:
+            problems.append(f"{c['web_name']}: captain step doesn't match")
     if problems:
         return {"available": False, "gameweek": gw, "reason": "Last gameweek's numbers didn't add up, so they aren't shown: " + "; ".join(problems)}
 
