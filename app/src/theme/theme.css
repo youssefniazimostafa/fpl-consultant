@@ -248,13 +248,15 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
 .st-name { display: flex; flex-direction: column; min-width: 0; }
 .st-name b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .st-name small { font-size: 11px; color: var(--text-muted); }
-.area-tag { margin-left: 6px; color: var(--pink); font-weight: 700; }
+.area-tag { margin-left: 6px; color: var(--pink); font-weight: 700; white-space: nowrap; }
+.tag-short { display: none; }
 .st-row .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 .st-row .total { font-weight: 800; }
 
 .rival-team .pitch { min-height: 360px; }
 .rival-team .facts { margin: 6px 0 10px; }
 .rival-team .card-head h2 { display: flex; align-items: center; gap: 8px; }
+.back-row { display: inline-block; margin: 0 0 10px; }
 .back { border: 0; background: var(--purple); color: var(--white); border-radius: var(--radius-pill); padding: 4px 12px; font-weight: 700; cursor: pointer; text-transform: none; letter-spacing: 0; }
 
 .rival-area { padding: 10px 0; border-top: 1px solid var(--lilac-deep); }
@@ -276,7 +278,34 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
 .pl-pts { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; }
 .pl-pts b { font-size: 15px; }
 .pl-pts small { font-size: 10px; color: var(--text-muted); }
-.league-overlay { position: relative; }
+.league-overlay { position: relative; padding-bottom: 24px; }
+.stat-line { white-space: nowrap; }
+
+
+/* ---------------------------------------------------------------- overview page */
+/* As in the overview mock-ups: section headers, then grids of player cards
+   (purple header strip, shirt, name, key number). 4-6 per row on laptop,
+   2 per row on phone. */
+.ov-section { margin-bottom: 26px; }
+.ov-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ov-head h2 { font-size: 17px; font-weight: 800; }
+.ov-head h2::before { content: ""; display: inline-block; width: 18px; height: 6px; border-radius: 3px; background: var(--purple); margin-right: 8px; vertical-align: middle; }
+.ov-controls { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.ov-explain { margin: 4px 0 12px; font-size: 13px; color: var(--text-muted); }
+.ov-tabs { display: flex; gap: 4px; background: var(--lilac); border-radius: var(--radius-pill); padding: 3px; }
+.ov-tabs button { border: 0; background: transparent; border-radius: var(--radius-pill); padding: 5px 12px; font: inherit; font-size: 12px; font-weight: 700; color: var(--purple); cursor: pointer; }
+.ov-tabs button.active { background: var(--purple); color: var(--white); }
+
+.pcard-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.pcard { background: var(--lilac); border-radius: var(--radius-md); overflow: hidden; display: flex; flex-direction: column; }
+.pcard-head { background: var(--purple); color: var(--white); font-size: 11px; font-weight: 700; padding: 6px 10px; display: flex; align-items: center; gap: 6px; min-height: 26px; }
+.pcard-own { margin-left: auto; background: var(--neon); color: var(--purple); border-radius: var(--radius-pill); padding: 1px 7px; font-size: 10px; font-weight: 800; }
+.pcard-body { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 10px 10px 12px; gap: 3px; flex: 1; }
+.pcard-name { font-weight: 800; white-space: nowrap; max-width: 100%; overflow: hidden; margin-top: 2px; }
+.pcard-sub { font-size: 11px; color: var(--text-muted); }
+.pcard-key { margin-top: 5px; background: var(--neon); color: var(--purple); border-radius: var(--radius-pill); padding: 3px 10px; font-size: 12px; font-weight: 800; }
+.pcard-extra { margin-top: 5px; font-size: 11px; line-height: 1.3; }
+.news-out { color: var(--pink); font-weight: 600; }
 
 /* ---------------------------------------------------------------- placeholders */
 .placeholder-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
@@ -309,6 +338,15 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
   .league-select label { display: none; }
   .ra-facts { grid-template-columns: 1fr; }
   .ra-facts dt { margin-top: 4px; }
+
+  .tag-long { display: none; }
+  .tag-short { display: inline; }
+  .st-name small { display: flex; flex-wrap: nowrap; align-items: baseline; min-width: 0; white-space: nowrap; overflow: hidden; }
+  .stat-line span { font-size: 11px; }
+  .stat-card { padding: 12px; }
+  .pcard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .ov-controls { margin-left: 0; width: 100%; }
+  .ov-tabs { overflow-x: auto; }
   .tracker-side { display: none; }
   .tracker-bottom { display: block; grid-area: track;
   }

@@ -7,6 +7,7 @@ import { AppHeader, Banner, BottomNav, StatusBar } from "./components/Chrome";
 import { TeamPage } from "./pages/TeamPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { LeaguePage } from "./pages/LeaguePage";
+import { OverviewPage } from "./pages/OverviewPage";
 
 interface Progress {
   stage: string;
@@ -197,6 +198,8 @@ export default function App() {
             <TeamPage data={data} />
           ) : current.id === "league" ? (
             <LeaguePage key={startRival ?? "league"} data={data} startRival={startRival} />
+          ) : current.id === "overview" ? (
+            <OverviewPage data={data} />
           ) : (
             <PlaceholderPage tab={current} data={data} />
           ))}

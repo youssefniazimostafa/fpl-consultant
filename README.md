@@ -118,8 +118,12 @@ transfers, captain, chips and a plain-English "Why this team" (screenshots in
 `docs/screenshots/`). **League** is built too: your position and chances, the
 standings (tap a team to see its last confirmed team on a pitch), rivals in
 your area, who owns what, popular players you don't own and differentials,
-from `latest.json`'s `league_page` section (`fpl/league_page.py`). The other
-three tabs are still placeholders showing raw `latest.json` fields.
+from `latest.json`'s `league_page` section (`fpl/league_page.py`). **FPL
+overview** covers FPL as a whole: top projected points by position, best
+captain options, slept-on players (with a streak badge), players in form,
+cheap high scorers and injury news, from the `overview` section
+(`fpl/overview.py`). The other two tabs are still placeholders showing raw
+`latest.json` fields.
 
 The shared design system lives in `app/src/theme/` (colours, radii and font
 in `theme.ts`, styles in `theme.css`, club colours in `clubColours.ts`) and

@@ -44,10 +44,10 @@ function HeadlineCards({ l }: { l: LeaguePageData }) {
       <div className="stat-card bright">
         <div className="stat-label">Your chances</div>
         <div className="stat-line">
-          <b>{pct(l.chances.thisGameweek)}</b> to win GW{l.chances.gameweek}
+          <b>{pct(l.chances.thisGameweek)}</b> <span>to win GW{l.chances.gameweek}</span>
         </div>
         <div className="stat-line">
-          <b>{pct(l.chances.topBy)}</b> to be top by GW{l.chances.topByGameweek}
+          <b>{pct(l.chances.topBy)}</b> <span>to be top by GW{l.chances.topByGameweek}</span>
         </div>
       </div>
     </div>
@@ -78,7 +78,12 @@ function Standings({ l, selected, onPick }: { l: LeaguePageData; selected: numbe
                 <small>
                   {s.manager}
                   {s.isYou ? " · you" : ""}
-                  {s.inYourArea && <span className="area-tag">in your area</span>}
+                  {s.inYourArea && (
+                    <span className="area-tag">
+                      <span className="tag-long">in your area</span>
+                      <span className="tag-short">near you</span>
+                    </span>
+                  )}
                 </small>
               </span>
             </span>
@@ -102,17 +107,14 @@ function RivalTeamView({ l, managerId, onBack }: { l: LeaguePageData; managerId:
     t.freeTransfers != null ? plural(t.freeTransfers, "free transfer") : null,
   ].filter(Boolean);
   return (
+    <>
+    {onBack && (
+      <button className="back back-row" onClick={onBack} aria-label="Back to standings">
+        ‹ Back to standings
+      </button>
+    )}
     <Card
-      title={
-        <>
-          {onBack && (
-            <button className="back" onClick={onBack} aria-label="Back to standings">
-              ‹ Back
-            </button>
-          )}
-          {s.isYou ? "Your team" : s.team}
-        </>
-      }
+      title={s.isYou ? "Your team" : s.team}
       aside={`${s.rank}${s.rank === 1 ? "st" : s.rank === 2 ? "nd" : s.rank === 3 ? "rd" : "th"} · ${s.total} pts`}
       className="rival-team"
     >
@@ -134,6 +136,7 @@ function RivalTeamView({ l, managerId, onBack }: { l: LeaguePageData; managerId:
         </p>
       )}
     </Card>
+    </>
   );
 }
 
