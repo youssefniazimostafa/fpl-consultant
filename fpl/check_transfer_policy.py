@@ -35,10 +35,10 @@ from fpl.optimise import (
     load_tables,
     lookup_weekly_xp,
     recommend_transfers,
+    rule_inputs,
     resolve_free_transfers,
     resolve_my_squad,
     solve_horizon,
-    strategy_adjusted,
 )
 
 
@@ -87,18 +87,18 @@ def run_check() -> bool:
     discount = {g: WEEKLY_DISCOUNT**i for i, g in enumerate(weeks)}
 
     raw_weekly_xp = lookup_weekly_xp(xp_by_gw, weeks, pool_ids)
-    adj_weekly_value = strategy_adjusted(raw_weekly_xp, league_eo, mode)
+    adj_weekly_value, rules = rule_inputs(raw_weekly_xp, league_eo, mode, weeks)
     effective_free = resolve_free_transfers(tables["league_free_transfers"], team_id)
 
     print(f"Gameweek {weeks[0]}. Free transfers available: {effective_free}")
 
     baseline = solve_horizon(
         pool_ids, adj_weekly_value, pool_info, my_squad_ids, sell_price,
-        bank, effective_free, weeks, discount,
+        bank, effective_free, weeks, discount, **rules,
     )
     final_plan, gain, recommended, hit_reasons = recommend_transfers(
         baseline, pool_ids, adj_weekly_value, pool_info, my_squad_ids, sell_price,
-        bank, effective_free, weeks, discount, raw_weekly_xp=raw_weekly_xp,
+        bank, effective_free, weeks, discount, raw_weekly_xp=raw_weekly_xp, **rules,
     )
     wk0 = final_plan["weeks"][0]
     hits = wk0["hits"]

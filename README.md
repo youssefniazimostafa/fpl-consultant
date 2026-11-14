@@ -100,6 +100,13 @@ uv run python -m fpl.check_consultant_scoring
 # Check the optimiser uses FPL's formation rules, not a fixed 4-4-2:
 uv run python -m fpl.check_formation
 
+# Re-calibrate the free-transfer rules (constants at the top of fpl/optimise.py)
+# by replaying a whole season of transfer decisions (a few minutes per stage):
+uv run python -m fpl.transfer_calibration --stage 1            # saved-FT value x margin
+uv run python -m fpl.transfer_calibration --stage 2 --V 1.5 --k 0.3   # discount x reliability
+uv run python -m fpl.transfer_calibration --stage oos --season 2024-25 --V 1.5 --k 0.3
+uv run python -m fpl.transfer_calibration --stage sens --sweep V --season 2024-25
+
 # Serve the site locally to view the result in a browser:
 cd site && python3 -m http.server 8000
 # then open http://localhost:8000

@@ -80,6 +80,7 @@ from fpl.optimise import (
     build_squad_plan_table,
     build_transfers_table,
     recommend_transfers,
+    rule_inputs,
     build_candidate_pool,
     estimate_selling_prices,
     load_tables,
@@ -87,7 +88,6 @@ from fpl.optimise import (
     resolve_free_transfers,
     resolve_my_squad,
     solve_horizon,
-    strategy_adjusted,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -169,6 +169,7 @@ def _my_candidate_plans(
     effective_free: int,
     weeks: list[int],
     discount: dict[int, float],
+    rules: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], dict[str, Any]]:
     """The squad scenarios crossed with every plausible captain, as plain
     dicts ready for the simulator, plus the full plans themselves.
@@ -185,17 +186,18 @@ def _my_candidate_plans(
     Returns (scenarios, plans by label, meta) where meta carries the
     optimiser's own horizon gain / recommended flag / hit reasons."""
     week0 = weeks[0]
+    rules = rules or {}
     baseline = solve_horizon(
         pool_ids, adj_weekly_value, pool_info, my_squad_ids, sell_price,
-        bank, effective_free, weeks, discount,
+        bank, effective_free, weeks, discount, **rules,
     )
     recommended_plan, gain, transfer_recommended, hit_reasons = recommend_transfers(
         baseline, pool_ids, adj_weekly_value, pool_info, my_squad_ids, sell_price,
-        bank, effective_free, weeks, discount, raw_weekly_xp=raw_weekly_xp,
+        bank, effective_free, weeks, discount, raw_weekly_xp=raw_weekly_xp, **rules,
     )
     held = solve_horizon(
         pool_ids, adj_weekly_value, pool_info, my_squad_ids, sell_price,
-        bank, effective_free, weeks, discount, held_weeks=frozenset({week0}),
+        bank, effective_free, weeks, discount, held_weeks=frozenset({week0}), **rules,
     )
     plans: dict[str, dict[str, Any]] = {HOLD_LABEL: held}
     if transfer_recommended and recommended_plan["weeks"][0]["transfers_in"]:
@@ -431,13 +433,13 @@ def main() -> None:
     discount = {g: WEEKLY_DISCOUNT**i for i, g in enumerate(weeks)}
 
     raw_weekly_xp = lookup_weekly_xp(xp_by_gw, weeks, pool_ids)
-    adj_weekly_value = strategy_adjusted(raw_weekly_xp, league_eo, mode)
+    adj_weekly_value, rules = rule_inputs(raw_weekly_xp, league_eo, mode, weeks)
     effective_free = resolve_free_transfers(tables["league_free_transfers"], team_id)
 
     print(f"Simulating gameweek {next_gw} ({n_draws:,} draws)...")
     my_plans, full_plans, meta = _my_candidate_plans(
         pool_ids, adj_weekly_value, raw_weekly_xp, pool_info, my_squad_ids, sell_price,
-        bank, effective_free, weeks, discount,
+        bank, effective_free, weeks, discount, rules,
     )
     xp_map = xp_by_gw.set_index("player_id")[f"gw{next_gw}_xp"].to_dict()
     rival_plans = load_rival_plans(league_picks, league_managers, team_id, xp_map)

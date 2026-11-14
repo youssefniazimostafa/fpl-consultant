@@ -72,7 +72,7 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 from fpl.features import HALF_LIFE_MATCHES, SHRINKAGE_MATCHES, add_recency_weight, build_minutes_factor, build_player_rates
-from fpl.xp import POSITION_MAP, build_prior_season_rates, build_xp, find_prior_season_dir
+from fpl.xp import EXTERNAL_DIR, POSITION_MAP, build_prior_season_rates, build_xp, find_prior_season_dir
 
 ROOT = Path(__file__).resolve().parent.parent
 TABLES_DIR = ROOT / "data" / "tables"
@@ -90,12 +90,16 @@ BASELINE_COLUMNS = {"xp": "our model", "fpl_xp": "FPL's ep_next", "ppg": "season
 # ---------------------------------------------------------------------------
 
 
-def load_backtest_season() -> tuple[Path, pd.DataFrame]:
+def load_backtest_season(season: str | None = None) -> tuple[Path, pd.DataFrame]:
     """The most recent *complete* season in the cloned vaastav repo -- the
     same one ``fpl.xp`` blends toward as "last season" live, so backtesting
-    it tells you how that exact blend logic would have performed."""
-    season_dir = find_prior_season_dir()
-    if season_dir is None:
+    it tells you how that exact blend logic would have performed.
+    ``season`` ("2024-25", ...): a specific older season instead
+    (fpl.transfer_calibration's out-of-sample replay). Seasons before
+    defensive contributions existed get that column as 0, which is also
+    what they scored for it."""
+    season_dir = find_prior_season_dir() if season is None else EXTERNAL_DIR / season
+    if season_dir is None or not (season_dir / "gws" / "merged_gw.csv").exists():
         raise RuntimeError("no complete prior season found under data/external/fantasy-premier-league/data")
 
     gw = pd.read_csv(season_dir / "gws" / "merged_gw.csv")
@@ -112,6 +116,9 @@ def load_backtest_season() -> tuple[Path, pd.DataFrame]:
     gw["kickoff_time"] = pd.to_datetime(gw["kickoff_time"])
     for col in ["expected_goals", "expected_assists"]:
         gw[col] = pd.to_numeric(gw[col], errors="coerce").fillna(0.0)
+    for col in ["defensive_contribution", "clearances_blocks_interceptions", "recoveries", "tackles"]:
+        if col not in gw.columns:
+            gw[col] = 0
     gw = gw.rename(columns={"element": "player_id", "team": "team_name", "xP": "fpl_xp"})
     gw["opponent_name"] = gw["opponent_team"].map(opponent_name)
     return season_dir, gw
@@ -218,11 +225,18 @@ def build_p_start_asof(pm_hist: pd.DataFrame, players_like: pd.DataFrame) -> pd.
     return p_start.fillna(0.5).clip(0, 1).rename_axis("player_id")
 
 
-def build_features_asof(gw: pd.DataFrame, players_like: pd.DataFrame, pairs: pd.DataFrame, target_gw: int) -> pd.DataFrame | None:
+def build_features_asof(
+    gw: pd.DataFrame, players_like: pd.DataFrame, pairs: pd.DataFrame, target_gw: int,
+    history_before: int | None = None,
+) -> pd.DataFrame | None:
     """Everything ``fpl.xp.build_xp`` needs for ``target_gw``, built from
     only ``GW < target_gw`` history plus ``target_gw``'s own (publicly
-    known in advance) fixture list -- never its results."""
-    hist = gw[gw["GW"] < target_gw]
+    known in advance) fixture list -- never its results.
+    ``history_before`` (fpl.transfer_calibration's multi-week forecasts):
+    use only ``GW < history_before`` instead, i.e. forecast ``target_gw``
+    from the deadline of an earlier gameweek."""
+    cutoff = target_gw if history_before is None else history_before
+    hist = gw[gw["GW"] < cutoff]
     actual = gw[gw["GW"] == target_gw]
     if actual.empty:
         return None
@@ -232,7 +246,7 @@ def build_features_asof(gw: pd.DataFrame, players_like: pd.DataFrame, pairs: pd.
     minutes_factor = build_minutes_factor(pm_hist, players_like).rename("minutes_factor").rename_axis("player_id")
     p_start = build_p_start_asof(pm_hist, players_like).rename("p_start")
 
-    strength = team_strength_asof(pairs, target_gw)
+    strength = team_strength_asof(pairs, cutoff)
 
     # one row per fixture, not per player -- a double gameweek keeps both of
     # a player's matches here (each with its own opponent/lambda), and they

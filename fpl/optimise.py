@@ -104,7 +104,10 @@ MAX_FREE_TRANSFERS = 5
 UNLIMITED_FREE_TRANSFERS = 20
 
 # Later weeks' predictions are less certain -- shrink their weight in the
-# objective by this factor per week out, compounding.
+# objective by this factor per week out, compounding. Step 13 rule 4
+# calibration (fpl.transfer_calibration stage 2, 2025-26 replay, 3
+# starting squads): 0.9 scored best (1873 mean season points; 0.7-0.85
+# 1833-1855; 0.95-1.0 1782-1790), so it stays at 0.9.
 WEEKLY_DISCOUNT = 0.9
 # A bench player's value still matters a little (bench boost, autosubs on
 # a blank), just far less than a starter's -- same 0.1 weighting the spec's
@@ -114,6 +117,64 @@ BENCH_VALUE_WEIGHT = 0.1
 # later week instead) by at least this much xP over the whole horizon --
 # the midpoint of the spec's "about 1.5-2 xP" band.
 TRANSFER_THRESHOLD_XP = 1.75
+
+# ---------------------------------------------------------------------------
+# Free-transfer rules (Step 13). Each one is switchable and calibrated by
+# fpl/transfer_calibration.py: a replay of the whole 2025-26 backtest
+# season (forecasts built only from data before each deadline), 1 free
+# transfer a week banking up to 5, no hits, no chips, the optimiser's own
+# captain, from 3 starting squads; then re-run unchanged on 2024-25 and
+# 2023-24, which the grid never saw. A rule is on only if it beat today's
+# optimiser on the unseen seasons too. Figures: mean season-points
+# difference vs the old optimiser, +- paired SE over the 3 squads.
+# ---------------------------------------------------------------------------
+# 1. Value of a saved free transfer: every free transfer carried out of the
+#    horizon (capped at MAX_FREE_TRANSFERS, so a roll that would be wasted
+#    at the cap is worth nothing) adds this many points to the objective,
+#    so a move must beat holding by more than it. ON: V=1.5 (the stage-1
+#    pick) on its own, keeping the 1.75 threshold: +5 +-39 on 2025-26,
+#    +31 +-17 on 2024-25, +75 +-7 on 2023-24; neighbours V=0.5-2 are
+#    positive on 5 of 6 unseen-season runs, so 1.5 isn't a lucky spike.
+USE_FT_VALUE = True
+FT_VALUE_XP = 1.5
+# 2. Uncertainty margin: a move must gain more than k x the standard error
+#    of (incoming - outgoing) over the horizon, from the per-player-week
+#    residual SDs below (by position and projected-points band). With it
+#    off, the legacy TRANSFER_THRESHOLD_XP applies instead. OFF: alone,
+#    k=0.3 gave +12 / +40 / +41 on the three seasons, but k=0.2 and 0.5
+#    flip sign on the unseen seasons (+41/-7, 0/-51), and combined with
+#    rule 1 (the stage-1 best, 1873 vs 1820 in-sample) it fell to +1 +-28
+#    and -18 +-28 out of sample -- tuned noise, not a real effect.
+USE_UNCERTAINTY_MARGIN = False
+UNCERTAINTY_K = 0.3
+# Upper edges of the projected-points bands for RESIDUAL_SD (last is open).
+XP_BANDS = (2.0, 4.0, 6.0)
+# SD of (actual - projected) points for one player-week, by position and
+# band: the 2025-26 backtest's one-week-ahead residuals pooled with this
+# season's live accuracy residuals (fpl.transfer_calibration.residual_sd_table).
+# Bands: <2, 2-4, 4-6, 6+ xP (6+ has <20 rows per position, so it reuses 4-6).
+RESIDUAL_SD: dict[str, tuple[float, float, float, float]] = {
+    "GKP": (0.76, 2.70, 3.37, 3.37),
+    "DEF": (1.63, 3.18, 3.86, 3.86),
+    "MID": (1.52, 3.06, 3.76, 3.76),
+    "FWD": (1.71, 3.39, 4.57, 4.57),
+}
+# 3. Reliability: in these modes each starter's value is reduced by
+#    RELIABILITY_WEIGHT x the SD of his own points distribution (from the
+#    xP components: rare goals are high-variance, appearances and clean
+#    sheets less so). Captaincy and the shown xP are untouched; chasing
+#    mode takes no penalty. OFF: weights 0.05 / 0.1 / 0.2 never beat 0 in
+#    the 2025-26 replay at any discount (best 1858 vs 1873 without it).
+USE_RELIABILITY = False
+RELIABILITY_WEIGHT = 0.0
+RELIABILITY_MODES = {"balanced", "protecting"}
+# 4. Horizon discount: each later week is weighted WEEKLY_DISCOUNT^i (see
+#    above), and a player-week whose fixture has no betting-odds coverage
+#    (Elo + xG only) is weighted by NO_ODDS_DISCOUNT on top. OFF: can't be
+#    calibrated -- the backtest seasons have no historical odds at all, and
+#    the live prediction logs don't record which fixtures had odds.
+USE_NO_ODDS_DISCOUNT = False
+NO_ODDS_DISCOUNT = 1.0
 
 # Keeps the MILP tractable: the candidate pool is your 15 plus the top-N
 # per position by horizon xP, not the full ~668-player universe.
@@ -332,6 +393,9 @@ def solve_horizon(
     force_in: frozenset[int] = frozenset(),
     force_out: frozenset[int] = frozenset(),
     force_captain: int | None = None,
+    ft_value: float = 0.0,
+    risk_sd: dict[tuple[int, int], float] | None = None,
+    risk_weight: float = 0.0,
 ) -> dict[str, Any]:
     """One MILP covering every gameweek in ``weeks`` at once. A single
     gameweek is just ``weeks`` of length 1 -- there's no separate
@@ -358,6 +422,13 @@ def solve_horizon(
     "what if" tool, fpl/chat_tools.py): pin those players into / out of the
     first week's squad and the first week's captain; everything else is
     solved as usual. Empty by default.
+
+    ``ft_value`` (Step 13 rule 1): points credited per free transfer
+    carried out of the horizon (``ft_end``, capped at MAX_FREE_TRANSFERS).
+    ``risk_sd`` / ``risk_weight`` (rule 3): each starter's value is reduced
+    by ``risk_weight`` x his points SD that week; the captain's extra
+    multiplier is not, so captaincy stays a pure xP choice. Both default
+    to off.
     """
     # pulp >=4 ties every LpVariable to the LpProblem that will solve it
     # (created via ``m.add_variable``, not a free-standing constructor), so
@@ -387,6 +458,14 @@ def solve_horizon(
         value_terms.append(discount[g] * (week_value + bench_value))
         if cost_tiebreak:
             value_terms.append(-cost_tiebreak * pulp.lpSum(pool_info[p]["now_cost"] * squad[(p, g)] for p in pool_ids))
+        if risk_weight and risk_sd:
+            value_terms.append(
+                -discount[g] * risk_weight * pulp.lpSum(risk_sd.get((p, g), 0.0) * xi[(p, g)] for p in pool_ids)
+            )
+    ft_end = None
+    if ft_value:
+        ft_end = m.add_variable("ft_end", lowBound=0, upBound=MAX_FREE_TRANSFERS, cat="Integer")
+        value_terms.append(ft_value * ft_end)
     m += pulp.lpSum(value_terms) - HIT_COST * pulp.lpSum(hits[g] for g in weeks)
 
     clubs = {pool_info[p]["team"] for p in pool_ids}
@@ -432,6 +511,8 @@ def solve_horizon(
         if i < len(weeks) - 1:
             nxt = weeks[i + 1]
             m += ft[nxt] <= prev_ft - transfers_used + hits[g] + 1
+        elif ft_end is not None:
+            m += ft_end <= prev_ft - transfers_used + hits[g] + 1
 
     g0 = weeks[0]
     for p in force_in:
@@ -578,6 +659,104 @@ def justify_hits(
     return True, reasons
 
 
+# Default for recommend_transfers' ``uncertainty_k``: "use the switch above".
+FROM_CONFIG = object()
+
+
+def residual_sd(position: str, xp: float) -> float:
+    """Typical error of one player-week's projection (RESIDUAL_SD) for his
+    position and projected-points band."""
+    band = sum(1 for edge in XP_BANDS if xp >= edge)
+    return RESIDUAL_SD.get(position, RESIDUAL_SD["MID"])[band]
+
+
+def transfer_margin(
+    week0: dict[str, Any],
+    weeks: list[int],
+    discount: dict[int, float],
+    raw_weekly_xp: dict[tuple[int, int], float],
+    pool_info: dict[int, dict[str, Any]],
+    uncertainty_k: float | None,
+) -> float:
+    """Step 13 rule 2: how much a week-0 move must gain over holding.
+    ``uncertainty_k`` None -> the legacy flat TRANSFER_THRESHOLD_XP;
+    otherwise k x the standard error of (players in - players out) over
+    the horizon, treating each player-week's error as independent with
+    the RESIDUAL_SD of his position and band, weighted like the objective
+    (``discount``)."""
+    if uncertainty_k is None:
+        return TRANSFER_THRESHOLD_XP
+    var = 0.0
+    for p in week0["transfers_in"] | week0["transfers_out"]:
+        pos = pool_info[p]["position"]
+        for g in weeks:
+            var += (discount[g] * residual_sd(pos, raw_weekly_xp.get((p, g), 0.0))) ** 2
+    return uncertainty_k * var**0.5
+
+
+def outcome_sd_by_week(xp_rows: pd.DataFrame, scoring: pd.DataFrame) -> dict[tuple[int, int], float]:
+    """Step 13 rule 3: SD of each player's points in each gameweek, from
+    ``fpl.xp``'s per-fixture components treated as independent counts --
+    appearance (0/1/2), clean sheet (Bernoulli), goals and assists
+    (Poisson x points each), defensive contribution (Bernoulli, 2 pts),
+    bonus (~1-3 pts), saves, cards and goals conceded (small counts). A
+    defender relying on rare goals has a wide spread; one whose xP is
+    appearances, clean sheets and defensive contributions has a narrow
+    one. Double gameweeks add the variances."""
+    if xp_rows.empty:
+        return {}
+    rules = scoring.set_index("position")
+    df = xp_rows
+    pos = df["position"]
+    pts_goal = pos.map(rules["points_per_goal"]).astype(float)
+    pts_assist = pos.map(rules["points_per_assist"]).astype(float)
+    pts_cs = pos.map(rules["points_per_clean_sheet"]).astype(float)
+    app = df["appearance_pts"]
+    var = (
+        (df["p_play"] - df["p_60"]) * 1.0 + df["p_60"] * 4.0 - app**2  # appearance: 1 pt or 2 pts
+        + df["expected_goal_pts"] * pts_goal                            # Poisson goals
+        + df["expected_assist_pts"] * pts_assist                        # Poisson assists
+        + (df["clean_sheet_pts"] * pts_cs - df["clean_sheet_pts"] ** 2).clip(lower=0)
+        + (df["defcon_pts"] * 2.0 - df["defcon_pts"] ** 2).clip(lower=0)
+        + (df["bonus_pts"] * 2.0 - df["bonus_pts"] ** 2).clip(lower=0)
+        + df["saves_pts"] + df["conceded_pts"].abs() + df["card_pts"].abs()
+    ).clip(lower=0)
+    total = var.groupby([df["player_id"], df["event"]]).sum()
+    return {(int(p), int(g)): float(v**0.5) for (p, g), v in total.items()}
+
+
+def no_odds_weeks(xp_rows: pd.DataFrame) -> set[tuple[int, int]]:
+    """Player-weeks with at least one fixture whose lambdas came from Elo +
+    xG only (``source != "odds"`` in xp.parquet)."""
+    if xp_rows.empty or "source" not in xp_rows.columns:
+        return set()
+    flagged = xp_rows[xp_rows["source"] != "odds"]
+    return {(int(p), int(g)) for p, g in zip(flagged["player_id"], flagged["event"])}
+
+
+def apply_no_odds_discount(
+    weekly_value: dict[tuple[int, int], float], uncovered: set[tuple[int, int]], factor: float
+) -> dict[tuple[int, int], float]:
+    """Step 13 rule 4b: weight a player-week without odds coverage by
+    ``factor`` in the objective (shown xP is unchanged)."""
+    if factor == 1.0 or not uncovered:
+        return weekly_value
+    return {k: v * factor if k in uncovered else v for k, v in weekly_value.items()}
+
+
+def rule_solve_kwargs(mode: str, risk_sd: dict[tuple[int, int], float] | None = None) -> dict[str, Any]:
+    """The Step 13 switches as solve_horizon / recommend_transfers keyword
+    arguments, so every caller that reproduces the recommendation (main,
+    chat what-ifs, the season simulation, check_transfer_policy) applies
+    exactly the same rules."""
+    use_risk = USE_RELIABILITY and mode in RELIABILITY_MODES and bool(risk_sd)
+    return {
+        "ft_value": FT_VALUE_XP if USE_FT_VALUE else 0.0,
+        "risk_sd": risk_sd if use_risk else None,
+        "risk_weight": RELIABILITY_WEIGHT if use_risk else 0.0,
+    }
+
+
 def recommend_transfers(
     baseline: dict[str, Any],
     pool_ids: list[int],
@@ -590,6 +769,11 @@ def recommend_transfers(
     weeks: list[int],
     discount: dict[int, float],
     raw_weekly_xp: dict[tuple[int, int], float] | None = None,
+    ft_value: float = 0.0,
+    risk_sd: dict[tuple[int, int], float] | None = None,
+    risk_weight: float = 0.0,
+    uncertainty_k: float | None | object = FROM_CONFIG,
+    no_hit_weeks: frozenset[int] = frozenset(),
 ) -> tuple[dict[str, Any], float, bool, list[str]]:
     """Only recommend this week's transfer if it beats holding (while still
     letting the model move in a *later* week instead) by at least
@@ -604,7 +788,18 @@ def recommend_transfers(
     way past the necessity bar -- so "at most your free transfers, unless
     a flagged nailed starter justifies more" holds regardless of what the
     unconstrained solve would have picked.
+
+    Step 13: ``ft_value`` / ``risk_sd`` / ``risk_weight`` are passed to
+    every re-solve (give the baseline the same ones, see
+    ``rule_solve_kwargs``), and the bar the gain must clear is
+    ``transfer_margin`` -- the uncertainty margin when rule 2 is on, the
+    legacy threshold otherwise. ``uncertainty_k`` defaults to the
+    configured switch; the season replay passes its own. ``no_hit_weeks``
+    applies to every re-solve too (the replay forbids hits everywhere).
     """
+    if uncertainty_k is FROM_CONFIG:
+        uncertainty_k = UNCERTAINTY_K if USE_UNCERTAINTY_MARGIN else None
+    rules = {"ft_value": ft_value, "risk_sd": risk_sd, "risk_weight": risk_weight}
     week0 = weeks[0]
     if not baseline["weeks"][0]["transfers_in"]:
         return baseline, 0.0, False, []
@@ -612,6 +807,7 @@ def recommend_transfers(
     held = solve_horizon(
         pool_ids, weekly_value, pool_info, my_squad_ids, sell_price,
         initial_bank, free_transfers_now, weeks, discount, held_weeks=frozenset({week0}),
+        no_hit_weeks=no_hit_weeks, **rules,
     )
 
     plan = baseline
@@ -621,7 +817,8 @@ def recommend_transfers(
         if not justified:
             plan = solve_horizon(
                 pool_ids, weekly_value, pool_info, my_squad_ids, sell_price,
-                initial_bank, free_transfers_now, weeks, discount, no_hit_weeks=frozenset({week0}),
+                initial_bank, free_transfers_now, weeks, discount, no_hit_weeks=no_hit_weeks | {week0},
+                **rules,
             )
             hit_reasons = []
 
@@ -629,7 +826,12 @@ def recommend_transfers(
         return plan, 0.0, False, hit_reasons
 
     gain = (plan["objective"] or 0.0) - (held["objective"] or 0.0)
-    if gain < TRANSFER_THRESHOLD_XP:
+    required = transfer_margin(
+        plan["weeks"][0], weeks, discount, raw_weekly_xp or weekly_value, pool_info, uncertainty_k
+    )
+    plan["required_gain"] = required
+    held["required_gain"] = required
+    if gain < required:
         return held, gain, False, []
     return plan, gain, True, hit_reasons
 
@@ -928,6 +1130,50 @@ def build_transfers_table(
     return pd.DataFrame(rows)
 
 
+def load_xp_rows(weeks: list[int]) -> pd.DataFrame:
+    """Per-fixture xP components (xp.parquet) for the horizon -- the
+    reliability SDs and the odds-coverage flags (Step 13) need them."""
+    path = TABLES_DIR / "xp.parquet"
+    if not path.exists():
+        return pd.DataFrame()
+    rows = pd.read_parquet(path)
+    return rows[rows["event"].isin(weeks)]
+
+
+def risk_sd_for(xp_rows: pd.DataFrame) -> dict[tuple[int, int], float]:
+    path = TABLES_DIR / "scoring_rules.parquet"
+    if xp_rows.empty or not path.exists():
+        return {}
+    return outcome_sd_by_week(xp_rows, pd.read_parquet(path))
+
+
+def rule_inputs(
+    raw_weekly_xp: dict[tuple[int, int], float], league_eo: dict[int, float], mode: str, weeks: list[int]
+) -> tuple[dict[tuple[int, int], float], dict[str, Any]]:
+    """The objective values and Step 13 solver arguments every caller that
+    reproduces the recommendation uses: strategy-adjusted xP with rule 4's
+    no-odds weighting, plus ``rule_solve_kwargs`` (rules 1 and 3)."""
+    xp_rows = load_xp_rows(weeks)
+    value = apply_no_odds_discount(
+        strategy_adjusted(raw_weekly_xp, league_eo, mode),
+        no_odds_weeks(xp_rows), NO_ODDS_DISCOUNT if USE_NO_ODDS_DISCOUNT else 1.0,
+    )
+    return value, rule_solve_kwargs(mode, risk_sd_for(xp_rows) if USE_RELIABILITY else None)
+
+
+def describe_rules(mode: str) -> str:
+    parts = [
+        f"saved-FT value {FT_VALUE_XP:g}" if USE_FT_VALUE else "saved-FT value off",
+        f"uncertainty margin k={UNCERTAINTY_K:g}" if USE_UNCERTAINTY_MARGIN
+        else f"uncertainty margin off (flat {TRANSFER_THRESHOLD_XP:g} xP threshold)",
+        (f"reliability {RELIABILITY_WEIGHT:g} x SD" if mode in RELIABILITY_MODES else "reliability n/a in chasing")
+        if USE_RELIABILITY else "reliability off",
+        f"weekly discount {WEEKLY_DISCOUNT:g}"
+        + (f", no-odds weeks x{NO_ODDS_DISCOUNT:g}" if USE_NO_ODDS_DISCOUNT else ", no-odds discount off"),
+    ]
+    return "; ".join(parts)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -1003,18 +1249,19 @@ def main() -> None:
     discount = {g: WEEKLY_DISCOUNT**i for i, g in enumerate(weeks)}
 
     raw_weekly_xp = lookup_weekly_xp(xp_by_gw, weeks, pool_ids)
-    adj_weekly_value = strategy_adjusted(raw_weekly_xp, league_eo, mode)
+    adj_weekly_value, rules = rule_inputs(raw_weekly_xp, league_eo, mode, weeks)
 
     effective_free = resolve_free_transfers(tables["league_free_transfers"], team_id)
 
     print(f"Strategy mode: {mode.upper()}. Solving a {len(weeks)}-week horizon over a {len(pool_ids)}-player pool...")
+    print(f"  free-transfer rules: {describe_rules(mode)}")
     baseline = solve_horizon(
         pool_ids, adj_weekly_value, pool_info, my_squad_ids, sell_price,
-        bank, effective_free, weeks, discount,
+        bank, effective_free, weeks, discount, **rules,
     )
     final_plan, gain, transfer_recommended, hit_reasons = recommend_transfers(
         baseline, pool_ids, adj_weekly_value, pool_info, my_squad_ids, sell_price,
-        bank, effective_free, weeks, discount, raw_weekly_xp=raw_weekly_xp,
+        bank, effective_free, weeks, discount, raw_weekly_xp=raw_weekly_xp, **rules,
     )
 
     team_chips_row = None
@@ -1058,11 +1305,13 @@ def main() -> None:
         out_names = ", ".join(pool_info[p]["web_name"] for p in sorted(wk0["transfers_out"]))
         in_names = ", ".join(pool_info[p]["web_name"] for p in sorted(wk0["transfers_in"]))
         print(f"  transfer: OUT {out_names} -> IN {in_names} ({wk0['hits']} hit(s)), "
-              f"horizon gain {gain:.2f}xP vs holding -> {'recommended' if transfer_recommended else 'below threshold, holding instead'}")
+              f"horizon gain {gain:.2f}xP vs holding (needs {final_plan.get('required_gain', TRANSFER_THRESHOLD_XP):.2f}) "
+              f"-> {'recommended' if transfer_recommended else 'below threshold, holding instead'}")
         for reason in hit_reasons:
             print(f"  ! hit justified: {reason}")
     else:
-        print("  no transfer recommended this week -- roll the free transfer.")
+        held_gain = f" (best move gained {gain:.2f}xP, needed {final_plan.get('required_gain', 0):.2f})" if gain else ""
+        print(f"  no transfer recommended this week -- roll the free transfer{held_gain}.")
     captain_name = pool_info[wk0["captain_id"]]["web_name"] if wk0["captain_id"] else "none"
     print(f"  captain: {captain_name}")
     if not captain_board.empty:

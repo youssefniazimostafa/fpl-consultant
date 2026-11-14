@@ -32,10 +32,10 @@ from fpl.optimise import (
     load_tables,
     lookup_weekly_xp,
     recommend_transfers,
+    rule_inputs,
     resolve_free_transfers,
     resolve_my_squad,
     solve_horizon,
-    strategy_adjusted,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -83,11 +83,12 @@ def _ctx() -> dict[str, Any]:
     weeks = sorted(int(c[2:-3]) for c in xp_by_gw.columns if c.startswith("gw") and c.endswith("_xp"))
     weeks = weeks[: max(min(int(config.get("horizon", 5)), len(weeks)), 1)]
     raw = lookup_weekly_xp(xp_by_gw, weeks, pool)
+    adj, rules = rule_inputs(raw, eo, mode, weeks)
     return {
         "t": t, "players": players, "xp_by_gw": xp_by_gw, "team_id": team_id, "my_squad": set(my_squad), "bank": bank,
         "mode": mode, "eo": eo, "sell": {p: sell_owned.get(p, info[p]["now_cost"]) for p in pool}, "pool": pool,
         "info": info, "weeks": weeks, "discount": {g: WEEKLY_DISCOUNT ** i for i, g in enumerate(weeks)},
-        "raw": raw, "adj": strategy_adjusted(raw, eo, mode),
+        "raw": raw, "adj": adj, "rules": rules,
         "free": resolve_free_transfers(t["league_free_transfers"], team_id),
     }
 
@@ -189,8 +190,8 @@ def what_if(transfers_in: list[str] | None = None, transfers_out: list[str] | No
     """Empty transfers = keep your squad this week (no transfer)."""
     c = _ctx()
     args = (c["pool"], c["adj"], c["info"], c["my_squad"], c["sell"], c["bank"], c["free"], c["weeks"], c["discount"])
-    base = solve_horizon(*args)  # the recommendation, exactly as fpl.optimise.main
-    rec, _, _, _ = recommend_transfers(base, *args, raw_weekly_xp=c["raw"])
+    base = solve_horizon(*args, **c["rules"])  # the recommendation, exactly as fpl.optimise.main
+    rec, _, _, _ = recommend_transfers(base, *args, raw_weekly_xp=c["raw"], **c["rules"])
     ins = frozenset(_find(n) for n in (transfers_in or []))
     outs = frozenset(_find(n) for n in (transfers_out or []))
     cap = _find(captain) if captain else None
@@ -201,7 +202,7 @@ def what_if(transfers_in: list[str] | None = None, transfers_out: list[str] | No
     held = frozenset({g0}) if not ins and not outs else frozenset()
     # exactly the asked-for moves this week: everyone else in your squad stays
     keep = frozenset(c["my_squad"] - outs) | ins
-    alt = solve_horizon(*args, held_weeks=held, force_in=keep, force_out=outs, force_captain=cap)
+    alt = solve_horizon(*args, held_weeks=held, force_in=keep, force_out=outs, force_captain=cap, **c["rules"])
     if alt["status"] != "Optimal":
         raise ToolError("That move isn't possible within FPL's rules (budget, positions or 3 per club).")
     r0, r5 = _plan_points(rec)
