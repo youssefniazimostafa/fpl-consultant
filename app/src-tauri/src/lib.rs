@@ -99,11 +99,13 @@ fn ui_log(message: String) {
 /// FPL_CONSULTANT_RIVAL=<manager id> opens that manager's team on the
 /// League page; FPL_CONSULTANT_SCROLL=1 scrolls the page to the bottom.
 #[tauri::command]
-fn start_view() -> (Option<String>, Option<i64>, bool) {
+fn start_view() -> (Option<String>, Option<i64>, bool, Option<String>) {
     (
         std::env::var("FPL_CONSULTANT_TAB").ok(),
         std::env::var("FPL_CONSULTANT_RIVAL").ok().and_then(|v| v.parse().ok()),
         std::env::var("FPL_CONSULTANT_SCROLL").as_deref() == Ok("1"),
+        // test aid: open the Live consultant and ask this question at launch
+        std::env::var("FPL_CONSULTANT_CHAT").ok().filter(|q| !q.trim().is_empty()),
     )
 }
 
@@ -267,6 +269,132 @@ fn clear_odds_key() -> Result<(), String> {
 #[tauri::command]
 fn odds_key_saved() -> bool {
     keychain_odds_key().is_some()
+}
+
+// ---------------------------------------------------------------------------
+// Live consultant chat: Anthropic key in the Keychain; the chat runs in the
+// engine copy (fpl/chat.py) with the key only in that process's environment
+// ---------------------------------------------------------------------------
+
+const KEYCHAIN_ANTHROPIC_ACCOUNT: &str = "anthropic-api-key";
+const DEFAULT_CHAT_MODEL: &str = "claude-opus-5-5";
+const CHAT_MODELS: [&str; 3] = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
+
+fn anthropic_entry() -> Result<keyring::Entry, String> {
+    keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ANTHROPIC_ACCOUNT).map_err(|e| format!("Keychain: {e}"))
+}
+
+fn keychain_anthropic_key() -> Option<String> {
+    anthropic_entry().ok()?.get_password().ok().filter(|k| !k.trim().is_empty())
+}
+
+#[tauri::command]
+fn set_anthropic_key(key: String) -> Result<(), String> {
+    let key = key.trim();
+    if key.is_empty() {
+        return Err("The key is empty.".into());
+    }
+    anthropic_entry()?.set_password(key).map_err(|e| format!("Couldn't save to the Keychain: {e}"))?;
+    app_log("settings: Anthropic key saved to the Keychain");
+    Ok(())
+}
+
+#[tauri::command]
+fn clear_anthropic_key() -> Result<(), String> {
+    match anthropic_entry()?.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => {
+            app_log("settings: Anthropic key removed from the Keychain");
+            Ok(())
+        }
+        Err(e) => Err(format!("Couldn't remove it from the Keychain: {e}")),
+    }
+}
+
+#[tauri::command]
+fn anthropic_key_saved() -> bool {
+    keychain_anthropic_key().is_some()
+}
+
+/// The chat model is not secret: kept in a small settings file.
+fn settings_path() -> Result<PathBuf, String> {
+    Ok(support_dir()?.join("settings.json"))
+}
+
+#[tauri::command]
+fn get_chat_model() -> String {
+    settings_path()
+        .ok()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .and_then(|v| v.get("chat_model").and_then(|m| m.as_str()).map(String::from))
+        .filter(|m| CHAT_MODELS.contains(&m.as_str()))
+        .unwrap_or_else(|| DEFAULT_CHAT_MODEL.to_string())
+}
+
+#[tauri::command]
+fn set_chat_model(model: String) -> Result<(), String> {
+    if !CHAT_MODELS.contains(&model.as_str()) {
+        return Err(format!("Unknown model {model}"));
+    }
+    let path = settings_path()?;
+    std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
+    std::fs::write(&path, serde_json::json!({ "chat_model": model }).to_string()).map_err(|e| e.to_string())
+}
+
+#[derive(serde::Deserialize, Serialize)]
+struct ChatMessage {
+    role: String,
+    content: String,
+}
+
+/// One chat turn. The conversation (text only) lives in the page's memory
+/// and is sent each time; nothing about it is written to disk or logged.
+#[tauri::command]
+async fn chat_send(messages: Vec<ChatMessage>) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || chat_send_blocking(messages))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn chat_send_blocking(messages: Vec<ChatMessage>) -> Result<serde_json::Value, String> {
+    let key = keychain_anthropic_key()
+        .ok_or("Add your Anthropic API key in Settings (the gear in the status bar) to use the Live consultant.")?;
+    let engine = engine_dir()?;
+    if !engine.join("fpl/chat.py").exists() {
+        return Err("The app's engine copy isn't set up yet (or is out of date). Press Refresh once, then try again.".into());
+    }
+    let env = shell_env();
+    let uv_bin = find_program("uv", &env.path)?;
+    let mut child = Command::new(&uv_bin)
+        .args(["run", "python", "-m", "fpl.chat"])
+        .current_dir(&engine)
+        .env("PATH", &env.path)
+        .env("ANTHROPIC_API_KEY", key)
+        .env_remove("ANTHROPIC_BASE_URL")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("couldn't start the chat: {e}"))?;
+    let body = serde_json::json!({ "messages": messages, "model": get_chat_model() }).to_string();
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(body.as_bytes()).map_err(|e| e.to_string())?;
+    }
+    let out = child.wait_with_output().map_err(|e| e.to_string())?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let line = stdout
+        .lines()
+        .rev()
+        .find_map(|l| l.strip_prefix("CHAT_RESULT "))
+        .ok_or("The chat stopped unexpectedly. Try again, or press Refresh to update the engine.")?;
+    let v: serde_json::Value = serde_json::from_str(line).map_err(|e| e.to_string())?;
+    app_log(&format!(
+        "chat: answered ok={} tools={} cost=${:.4}",
+        v.get("ok").and_then(|b| b.as_bool()).unwrap_or(false),
+        v.get("tools").and_then(|t| t.as_array()).map(|a| a.len()).unwrap_or(0),
+        v.get("cost_usd").and_then(|c| c.as_f64()).unwrap_or(0.0)
+    ));
+    Ok(v)
 }
 
 #[tauri::command]
@@ -539,6 +667,12 @@ pub fn run() {
             set_odds_key,
             clear_odds_key,
             odds_key_saved,
+            set_anthropic_key,
+            clear_anthropic_key,
+            anthropic_key_saved,
+            get_chat_model,
+            set_chat_model,
+            chat_send,
             offline_simulated,
             start_refresh,
             is_refreshing,
@@ -558,13 +692,30 @@ mod tests {
     #[test]
     fn odds_key_roundtrip_in_keychain() {
         let fake = "FPLTEST-keychain-roundtrip-not-a-real-key-7731";
-        let had_key = odds_key_saved();
-        assert!(!had_key, "a real key is saved; refusing to overwrite it in a test");
+        if odds_key_saved() {
+            eprintln!("skipped: a real odds key is saved, and this test never touches it");
+            return;
+        }
         set_odds_key(format!("  {fake}  ")).unwrap();
         assert!(odds_key_saved());
         assert_eq!(keychain_odds_key().as_deref(), Some(fake));
         clear_odds_key().unwrap();
         assert!(!odds_key_saved());
         assert!(set_odds_key("   ".into()).is_err());
+    }
+
+    #[test]
+    fn anthropic_key_roundtrip_and_no_key_message() {
+        if anthropic_key_saved() {
+            eprintln!("skipped: a real Anthropic key is saved, and this test never touches it");
+            return;
+        }
+        let err = chat_send_blocking(vec![ChatMessage { role: "user".into(), content: "hi".into() }]).unwrap_err();
+        assert!(err.contains("Add your Anthropic API key in Settings"), "{err}");
+        let fake = "FPLTEST-anthropic-roundtrip-not-a-real-key-9031";
+        set_anthropic_key(fake.into()).unwrap();
+        assert_eq!(keychain_anthropic_key().as_deref(), Some(fake));
+        clear_anthropic_key().unwrap();
+        assert!(!anthropic_key_saved());
     }
 }

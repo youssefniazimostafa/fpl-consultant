@@ -27,6 +27,7 @@ export function StatusBar({
   refreshing,
   onRefresh,
   onSettings,
+  onChat,
 }: {
   deadlineLabel: string;
   countdown: string;
@@ -36,6 +37,7 @@ export function StatusBar({
   refreshing: boolean;
   onRefresh: () => void;
   onSettings?: () => void;
+  onChat?: () => void;
 }) {
   return (
     <div className="statusbar">
@@ -53,6 +55,12 @@ export function StatusBar({
           {source}
         </span>
       </div>
+      {onChat && (
+        <button className="chat-btn" onClick={onChat} title="Live consultant">
+          <span className="chat-btn-long">Live consultant</span>
+          <span className="chat-btn-short">Ask</span>
+        </button>
+      )}
       {onSettings && (
         <button className="settings-btn" onClick={onSettings} aria-label="Settings" title="Settings">
           ⚙

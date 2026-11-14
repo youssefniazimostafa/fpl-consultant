@@ -5,6 +5,7 @@ import { getPath, loadInitial, loadLocal, sourceLabel, type LoadedData } from ".
 import { TABS } from "./tabs";
 import { AppHeader, Banner, BottomNav, StatusBar } from "./components/Chrome";
 import { Settings } from "./components/Settings";
+import { ChatPanel } from "./components/ChatPanel";
 import { TeamPage } from "./pages/TeamPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { LeaguePage } from "./pages/LeaguePage";
@@ -60,6 +61,8 @@ export default function App() {
   const [tab, setTab] = useState(TABS[0].id);
   const [startRival, setStartRival] = useState<number | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [chatQuestion, setChatQuestion] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
   const [refreshing, setRefreshing] = useState(false);
@@ -94,8 +97,12 @@ export default function App() {
         setLoadError(String(e));
         log(`initial load failed: ${e}`);
       });
-    invoke<[string | null, number | null, boolean]>("start_view")
-      .then(([t, r, scroll]) => {
+    invoke<[string | null, number | null, boolean, string | null]>("start_view")
+      .then(([t, r, scroll, chatQ]) => {
+        if (chatQ) {
+          setChatQuestion(chatQ);
+          setShowChat(true);
+        }
         if (t && TABS.some((x) => x.id === t)) setTab(t);
         if (r != null) setStartRival(r);
         if (scroll) {
@@ -187,7 +194,17 @@ export default function App() {
         refreshing={refreshing}
         onRefresh={onRefresh}
         onSettings={() => setShowSettings(true)}
+        onChat={() => setShowChat(true)}
       />
+      {showChat && (
+        <ChatPanel
+          initialQuestion={chatQuestion}
+          onClose={() => {
+            setShowChat(false);
+            setChatQuestion(null);
+          }}
+        />
+      )}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
 
       {refreshing && (

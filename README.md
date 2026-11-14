@@ -174,6 +174,16 @@ Drag it into Applications.
   Settings, where you paste your The Odds API key once. It's stored only in
   the macOS Keychain (service "FPL Consultant") and passed to the pipeline at
   each Refresh; it's never written to a file, the logs or `latest.json`.
+- **Live consultant:** the "Live consultant" button in the status bar opens a
+  chat for quick questions about the recommendation. Answers come from Claude
+  (default Claude Opus 5.5 at low effort; Sonnet 5.5 or Haiku 5.5 can be
+  picked in Settings) using only the app's own data: the decision, "Why this
+  team", the strategy mode, and four tools in `fpl/chat_tools.py`
+  (`get_player`, `compare_players`, `what_if` -- a re-solve with the
+  optimiser -- and `get_league_context`). The app's backend runs `fpl/chat.py`
+  in the engine copy with your Anthropic key, which is stored only in the
+  macOS Keychain (add it in Settings). The conversation lives only in memory:
+  Clear, closing the panel or quitting wipes it. Each answer shows a rough cost.
 - **Diagnostics:** `~/Library/Application Support/FPL Consultant/app.log`
   (restarted on each launch) records what was loaded and each refresh's
   stages and result. Launching with `FPL_CONSULTANT_AUTOREFRESH=1` (e.g.
