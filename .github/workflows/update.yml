@@ -17,7 +17,18 @@ on:
     # (2026-11-14: no scheduled run had started since 04:14 UTC; this
     # comment-only change re-registers the schedule.)
   # Settings -> Actions -> "Run workflow" button, for a manual run.
-  workflow_dispatch: {}
+  # Also the backup for the hourly pre-deadline cron: an external scheduler
+  # calls this with pre_deadline_check=true at :45 every hour (GitHub's own
+  # cron is often late or skipped), and that call goes through the same
+  # gate as the "45 * * * *" schedule. A manual run without the input is a
+  # full run, as before.
+  workflow_dispatch:
+    inputs:
+      pre_deadline_check:
+        description: "Only run if a pre-deadline snapshot is due (used by the external hourly trigger)"
+        type: boolean
+        required: false
+        default: false
   # Catch breakage immediately when fpl/ changes, before the next scheduled run.
   push:
     branches: [main]
@@ -48,7 +59,10 @@ jobs:
       - name: Decide whether to run the full pipeline
         id: gate
         run: |
-          if [ "${{ github.event_name }}" != "schedule" ] || [ "${{ github.event.schedule }}" != "45 * * * *" ]; then
+          gated=false
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "45 * * * *" ]; then gated=true; fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.pre_deadline_check }}" = "true" ]; then gated=true; fi
+          if [ "$gated" != "true" ]; then
             echo "Not the hourly pre-deadline check -- full run."
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
