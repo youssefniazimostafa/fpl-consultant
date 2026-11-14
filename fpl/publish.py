@@ -74,6 +74,7 @@ from fpl.league import resolve_team_id
 from fpl.league_page import build_league_page
 from fpl.overview import build_overview
 from fpl.planner import build_planner
+from fpl.analytics import build_analytics
 from fpl.last_gameweek import build_last_gameweek
 from fpl.optimise import resolve_my_squad
 
@@ -1264,6 +1265,18 @@ def main() -> None:
         )
     except RuntimeError as exc:
         payload["last_gameweek"] = {"available": False, "reason": f"Couldn't reach FPL for last gameweek's results ({exc})."}
+    payload["analytics"] = build_analytics(
+        team_id=team_id,
+        league_history=league_history,
+        league_managers=league_managers,
+        league_picks=league_picks,
+        fixtures=load_optional("fixtures"),
+        teams=load_optional("teams"),
+        next_gameweek=decision.get("gameweek") if decision.get("available") else None,
+        predictions_dir=ROOT / "data" / "predictions",
+        accuracy_dir=ROOT / "data" / "accuracy",
+        model_accuracy=payload["model_accuracy"],
+    )
     payload["planner"] = build_planner(
         decision=decision,
         squad_src=squad_src,
