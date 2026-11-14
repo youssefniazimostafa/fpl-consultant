@@ -32,6 +32,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
@@ -49,9 +50,20 @@ def next_deadline(now: datetime) -> tuple[int, datetime] | None:
     if os.environ.get("GATE_DEADLINE"):
         dl = parse(os.environ["GATE_DEADLINE"])
         return (int(os.environ.get("GATE_GW", "0")), dl) if dl > now else None
-    req = urllib.request.Request(BOOTSTRAP_URL, headers={"User-Agent": "fpl-consultant-gate"})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        events = json.load(r)["events"]
+    # FPL sometimes refuses GitHub runners briefly (HTTP 403); retry, and
+    # let main() turn a lasting failure into a quiet skip (the next hourly
+    # run tries again, and no snapshot is marked as taken).
+    events = None
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(BOOTSTRAP_URL, headers={"User-Agent": "fpl-consultant-gate"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                events = json.load(r)["events"]
+            break
+        except (OSError, ValueError, KeyError):
+            if attempt == 2:
+                raise
+            time.sleep(5 * (attempt + 1))
     upcoming = [(e["id"], parse(e["deadline_time"])) for e in events if parse(e["deadline_time"]) > now]
     return min(upcoming, key=lambda x: x[1]) if upcoming else None
 
@@ -91,7 +103,11 @@ def decide(now: datetime) -> tuple[bool, str]:
 
 def main() -> None:
     now = parse(os.environ["GATE_NOW"]) if os.environ.get("GATE_NOW") else datetime.now(timezone.utc)
-    run, reason = decide(now)
+    try:
+        run, reason = decide(now)
+    except (OSError, ValueError, KeyError) as exc:
+        run, reason = False, f"couldn't read the next deadline from FPL ({exc}) -- skip; the next hourly run will try again"
+        print(f"::warning::{reason}")
     print(f"gate: {reason}")
     out = os.environ.get("GITHUB_OUTPUT")
     if out:
