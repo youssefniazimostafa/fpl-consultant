@@ -36,7 +36,7 @@ export function PlayerTile({ p, label, size }: { p: PlayerView; label?: string; 
       </div>
       <div className="tile-meta">
         <span>{p.opponent ?? "–"}</span>
-        <b>{p.projected != null ? p.projected.toFixed(1) : "–"}</b>
+        <b>{p.points != null ? String(p.points) : p.projected != null ? p.projected.toFixed(1) : "–"}</b>
       </div>
     </div>
   );

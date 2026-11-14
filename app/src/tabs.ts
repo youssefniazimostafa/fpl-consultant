@@ -1,5 +1,5 @@
-// The app's five pages. "Your team" is a real page (pages/TeamPage.tsx);
-// the other four are still placeholders that show a few raw latest.json
+// The app's five pages. "Your team" and "League" are real pages
+// (pages/TeamPage.tsx, pages/LeaguePage.tsx); the other three are still placeholders that show a few raw latest.json
 // fields to prove the data flows. The real pages replace these one by one.
 
 export interface TabDef {
@@ -11,16 +11,7 @@ export interface TabDef {
 
 export const TABS: TabDef[] = [
   { id: "team", name: "Your team", short: "Team", fields: [] },
-  {
-    id: "league",
-    name: "League",
-    fields: [
-      { label: "Table gameweek", path: "league_table.gameweek" },
-      { label: "Leader", path: "league_table.standings.0" },
-      { label: "Gap to first", path: "strategy.gap_to_first" },
-      { label: "Strategy mode", path: "strategy.mode" },
-    ],
-  },
+  { id: "league", name: "League", fields: [] },
   {
     id: "overview",
     name: "FPL overview",

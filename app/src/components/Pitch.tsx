@@ -4,7 +4,7 @@ import type { PlayerView } from "../model/team";
 const ROWS = ["GKP", "DEF", "MID", "FWD"] as const;
 
 /** Striped pitch with the starting XI in formation, goalkeeper at the top. */
-export function Pitch({ players }: { players: PlayerView[] }) {
+export function Pitch({ players, legend = "Projected points under each name" }: { players: PlayerView[]; legend?: string }) {
   return (
     <div className="pitch">
       <div className="pitch-box" aria-hidden />
@@ -19,7 +19,7 @@ export function Pitch({ players }: { players: PlayerView[] }) {
           </div>
         );
       })}
-      <div className="pitch-legend">Projected points under each name</div>
+      <div className="pitch-legend">{legend}</div>
     </div>
   );
 }

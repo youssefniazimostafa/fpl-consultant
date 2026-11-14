@@ -194,6 +194,90 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
 .chip-note { font-size: 10px; opacity: 0.85; }
 .chip.available .chip-note { color: var(--neon); opacity: 1; }
 
+
+/* ---------------------------------------------------------------- league page */
+/* Laptop (as in the laptop mock-up): standings on the left with the
+   ownership sections under them; the headline cards, the selected rival's
+   team and "rivals in your area" on the right. Phone: everything stacked. */
+.league-grid {
+  display: grid; column-gap: 16px; row-gap: 12px;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 1fr);
+  grid-template-areas: "table cards" "table side" "below side";
+  grid-template-rows: auto auto 1fr;
+  align-items: start;
+}
+.lg-cards { grid-area: cards; }
+.lg-table { grid-area: table; }
+.lg-side { grid-area: side; display: flex; flex-direction: column; gap: 12px; }
+.lg-below { grid-area: below; display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+
+.league-select { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--text-muted); }
+.league-select select {
+  font: inherit; font-size: 13px; color: var(--purple); padding: 6px 10px; border-radius: var(--radius-pill);
+  border: 1.5px solid var(--lilac-deep); background: var(--white);
+}
+
+.headline-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat-card { border-radius: var(--radius-md); padding: 14px 16px; min-height: 96px; display: flex; flex-direction: column; justify-content: center; }
+.stat-card.dark { background: var(--purple); color: var(--white); }
+.stat-card.bright { background: var(--neon); color: var(--purple); }
+.stat-big { font-size: 30px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+.stat-of { font-size: 14px; font-weight: 600; opacity: 0.8; }
+.stat-sub { margin-top: 6px; font-size: 14px; font-weight: 600; color: var(--neon); }
+.stat-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+.stat-line { font-size: 13px; font-weight: 600; }
+.stat-line b { font-size: 20px; font-weight: 800; margin-right: 2px; }
+.strategy-line { margin: 8px 2px 0; font-size: 13px; font-weight: 600; color: var(--purple); }
+
+.standings { display: flex; flex-direction: column; gap: 4px; }
+.st-row {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr) 44px 56px; align-items: center; gap: 10px;
+  padding: 9px 12px; border: 0; border-radius: var(--radius-sm); background: var(--white);
+  font: inherit; color: var(--purple); text-align: left; cursor: pointer;
+}
+.st-row:nth-child(odd) { background: transparent; }
+.st-row:hover { outline: 2px solid var(--lilac-deep); }
+.st-row.you { background: var(--neon-soft); }
+.st-row.selected { outline: 2px solid var(--purple); }
+.st-head { cursor: default; background: transparent !important; outline: none !important; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding-top: 0; padding-bottom: 2px; }
+.st-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--grey); }
+.st-dot.area { background: var(--pink); }
+.st-dot.me { background: var(--purple); }
+.st-team { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.st-rank { font-weight: 800; width: 18px; text-align: right; font-variant-numeric: tabular-nums; }
+.st-name { display: flex; flex-direction: column; min-width: 0; }
+.st-name b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-name small { font-size: 11px; color: var(--text-muted); }
+.area-tag { margin-left: 6px; color: var(--pink); font-weight: 700; }
+.st-row .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.st-row .total { font-weight: 800; }
+
+.rival-team .pitch { min-height: 360px; }
+.rival-team .facts { margin: 6px 0 10px; }
+.rival-team .card-head h2 { display: flex; align-items: center; gap: 8px; }
+.back { border: 0; background: var(--purple); color: var(--white); border-radius: var(--radius-pill); padding: 4px 12px; font-weight: 700; cursor: pointer; text-transform: none; letter-spacing: 0; }
+
+.rival-area { padding: 10px 0; border-top: 1px solid var(--lilac-deep); }
+.rival-area:first-of-type { border-top: 0; padding-top: 0; }
+.ra-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.link { border: 0; background: none; padding: 0; font: inherit; color: var(--purple); cursor: pointer; text-decoration: underline; text-decoration-color: var(--neon); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.ra-facts { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 3px 10px; margin: 6px 0 0; font-size: 12px; }
+.ra-facts dt { color: var(--text-muted); font-weight: 600; }
+.ra-facts dd { margin: 0; }
+
+.plist { display: flex; flex-direction: column; gap: 6px; }
+.plist-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; grid-template-areas: "shirt name right" "shirt own right"; column-gap: 10px; align-items: center; }
+.plist-row .shirt { grid-area: shirt; }
+.pl-name { grid-area: name; display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.pl-name b { font-size: 13px; white-space: nowrap; }
+.pl-name small { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.pl-own { grid-area: own; font-size: 11px; color: var(--text-muted); }
+.plist-row > .pill, .pl-pts { grid-area: right; }
+.pl-pts { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; }
+.pl-pts b { font-size: 15px; }
+.pl-pts small { font-size: 10px; color: var(--text-muted); }
+.league-overlay { position: relative; }
+
 /* ---------------------------------------------------------------- placeholders */
 .placeholder-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 .placeholder-grid code { font-size: 10px; }
@@ -217,6 +301,14 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
     grid-template-columns: minmax(0, 1fr); grid-template-rows: none;
     grid-template-areas: "title" "pitch" "bench" "side" "why" "track";
   }
+
+  .league-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "cards" "table" "side" "below"; grid-template-rows: none; }
+  .lg-below { grid-template-columns: minmax(0, 1fr); }
+  .stat-big { font-size: 24px; }
+  .stat-line b { font-size: 17px; }
+  .league-select label { display: none; }
+  .ra-facts { grid-template-columns: 1fr; }
+  .ra-facts dt { margin-top: 4px; }
   .tracker-side { display: none; }
   .tracker-bottom { display: block; grid-area: track;
   }

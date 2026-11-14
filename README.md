@@ -115,8 +115,11 @@ not signed or distributed. Every page has a status bar (next-deadline
 countdown, when the data was generated, data source, Refresh button). The
 home page, **Your team**, is built: the recommended XI on a pitch, the bench,
 transfers, captain, chips and a plain-English "Why this team" (screenshots in
-`docs/screenshots/`). The other four tabs are still placeholders showing raw
-`latest.json` fields.
+`docs/screenshots/`). **League** is built too: your position and chances, the
+standings (tap a team to see its last confirmed team on a pitch), rivals in
+your area, who owns what, popular players you don't own and differentials,
+from `latest.json`'s `league_page` section (`fpl/league_page.py`). The other
+three tabs are still placeholders showing raw `latest.json` fields.
 
 The shared design system lives in `app/src/theme/` (colours, radii and font
 in `theme.ts`, styles in `theme.css`, club colours in `clubColours.ts`) and
@@ -158,7 +161,23 @@ Drag it into Applications.
   Refresh automatically, which is useful for testing. Two more test aids:
   `FPL_CONSULTANT_WINDOW=390,844` opens the window at that size (for
   screenshots), and `FPL_CONSULTANT_SIMULATE_OFFLINE=1` makes the app act as
-  if there were no network, using only its saved data and cached shirts.
+  if there were no network, using only its saved data and cached shirts. `FPL_CONSULTANT_TAB=league`,
+  `FPL_CONSULTANT_RIVAL=<manager id>` and `FPL_CONSULTANT_SCROLL=1` open a tab,
+  a rival's team and scroll to the bottom, also for screenshots.
+
+## Pre-deadline snapshot run
+
+Besides the 3-hourly schedule, `update.yml` has an hourly cron (minute 45)
+whose first job, `gate`, runs `.github/scripts/deadline_gate.py` (standard
+library only, no `uv sync`). It lets the full pipeline run only once per
+deadline: when the deadline is 1-2 hours away (or, if GitHub delayed the cron
+past that, down to 15 minutes before) and no recommendation snapshot from the
+final 2 hours is on `origin/main` yet. Every other hourly run skips the full
+job and ends in seconds as a success, without deploying or committing.
+Scheduled, push and manual runs always run in full. `fpl.publish` never
+overwrites a snapshot taken in the final 2 hours, so
+`data/recommendations/gw{N}.json` is the one from 1-2 hours before the
+deadline.
 
 ## `config.json` fields
 

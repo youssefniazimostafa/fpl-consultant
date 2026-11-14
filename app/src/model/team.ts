@@ -15,6 +15,7 @@ export interface PlayerView {
   position: string;
   opponent: string | null; // "NEW (A)"
   projected: number | null;
+  points?: number | null; // actual points (rival teams on the League page)
   price: number | null;
   isCaptain: boolean;
   isVice: boolean;

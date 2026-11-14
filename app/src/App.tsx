@@ -6,6 +6,7 @@ import { TABS } from "./tabs";
 import { AppHeader, Banner, BottomNav, StatusBar } from "./components/Chrome";
 import { TeamPage } from "./pages/TeamPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
+import { LeaguePage } from "./pages/LeaguePage";
 
 interface Progress {
   stage: string;
@@ -51,6 +52,7 @@ export default function App() {
   const [loaded, setLoaded] = useState<LoadedData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState(TABS[0].id);
+  const [startRival, setStartRival] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
 
   const [refreshing, setRefreshing] = useState(false);
@@ -80,6 +82,18 @@ export default function App() {
         setLoadError(String(e));
         log(`initial load failed: ${e}`);
       });
+    invoke<[string | null, number | null, boolean]>("start_view")
+      .then(([t, r, scroll]) => {
+        if (t && TABS.some((x) => x.id === t)) setTab(t);
+        if (r != null) setStartRival(r);
+        if (scroll) {
+          setTimeout(() => {
+            const c = document.querySelector(".content");
+            if (c) c.scrollTop = c.scrollHeight;
+          }, 2500);
+        }
+      })
+      .catch(() => {});
     // a refresh may already be running (e.g. after a dev-mode reload)
     invoke<boolean>("is_refreshing").then((r) => r && setRefreshing(true));
   }, []);
@@ -178,7 +192,14 @@ export default function App() {
 
       <main className="content">
         {loadError && !data && <Banner tone="error">Couldn't load any data: {loadError}</Banner>}
-        {data && (current.id === "team" ? <TeamPage data={data} /> : <PlaceholderPage tab={current} data={data} />)}
+        {data &&
+          (current.id === "team" ? (
+            <TeamPage data={data} />
+          ) : current.id === "league" ? (
+            <LeaguePage key={startRival ?? "league"} data={data} startRival={startRival} />
+          ) : (
+            <PlaceholderPage tab={current} data={data} />
+          ))}
         {loaded && (
           <p className="footnote">
             Data: {sourceLabel(loaded.source)} · generated {fmtTime(loaded.generatedAt)}

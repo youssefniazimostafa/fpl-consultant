@@ -95,6 +95,18 @@ fn ui_log(message: String) {
 /// Launching with FPL_CONSULTANT_AUTOREFRESH=1 makes the UI start one
 /// refresh after its first data load -- used to test the whole flow without
 /// clicking (e.g. `open --env FPL_CONSULTANT_AUTOREFRESH=1 "FPL Consultant.app"`).
+/// Screenshot aid: FPL_CONSULTANT_TAB=league opens that tab, and
+/// FPL_CONSULTANT_RIVAL=<manager id> opens that manager's team on the
+/// League page; FPL_CONSULTANT_SCROLL=1 scrolls the page to the bottom.
+#[tauri::command]
+fn start_view() -> (Option<String>, Option<i64>, bool) {
+    (
+        std::env::var("FPL_CONSULTANT_TAB").ok(),
+        std::env::var("FPL_CONSULTANT_RIVAL").ok().and_then(|v| v.parse().ok()),
+        std::env::var("FPL_CONSULTANT_SCROLL").as_deref() == Ok("1"),
+    )
+}
+
 #[tauri::command]
 fn autorefresh_requested() -> bool {
     std::env::var("FPL_CONSULTANT_AUTOREFRESH").as_deref() == Ok("1")
@@ -470,7 +482,8 @@ pub fn run() {
             start_refresh,
             is_refreshing,
             ui_log,
-            autorefresh_requested
+            autorefresh_requested,
+            start_view
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
