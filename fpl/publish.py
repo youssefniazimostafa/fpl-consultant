@@ -58,6 +58,7 @@ Run with `uv run python -m fpl.publish`.
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -68,10 +69,11 @@ from fpl.check_consistency import check as consistency_errors
 from fpl.consultant import build_section as build_consultant_section
 from fpl.consultant import freeze_recommendation
 from fpl.decision import ROLL, build_decision, choose_plan, rival_captaincy
-from fpl.fetch import load_config
+from fpl.fetch import RAW_DIR, get, load_config
 from fpl.league import resolve_team_id
 from fpl.league_page import build_league_page
 from fpl.overview import build_overview
+from fpl.last_gameweek import build_last_gameweek
 from fpl.optimise import resolve_my_squad
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -1247,6 +1249,19 @@ def main() -> None:
         "top_xp": build_top_xp(xp_by_gameweek),
         "consultant_vs_you": build_consultant_section(),
     }
+    # The Last gameweek page reads FPL API responses earlier stages already
+    # cached today; a network failure here only hides that page, it never
+    # fails the publish (and the site deploy).
+    try:
+        payload["last_gameweek"] = build_last_gameweek(
+            team_id=team_id,
+            get_json=lambda path: get(path, RAW_DIR / date.today().isoformat()),
+            league_history=league_history,
+            league_managers=league_managers,
+            predictions_dir=ROOT / "data" / "predictions",
+        )
+    except RuntimeError as exc:
+        payload["last_gameweek"] = {"available": False, "reason": f"Couldn't reach FPL for last gameweek's results ({exc})."}
     payload["overview"] = build_overview(
         players=players,
         xp_by_gameweek=xp_by_gameweek,
