@@ -34,6 +34,7 @@ from fpl.optimise import (
     is_flagged_unavailable,
     load_tables,
     lookup_weekly_xp,
+    pair_moves,
     recommend_transfers,
     rule_inputs,
     resolve_free_transfers,
@@ -122,19 +123,24 @@ def run_check() -> bool:
     for r in hit_reasons:
         print(f"  hit reason: {r}")
 
-    # Rule: every later planned week went through the same bar as this
-    # week (gate_planned_weeks) -- a planned move gains at least the bar,
-    # and no later week takes a hit.
-    for wk in final_plan["weeks"][1:]:
-        g8 = wk.get("gate")
-        if wk["transfers_in"]:
-            check(f"GW{wk['gameweek']} planned move clears the bar "
-                  f"({g8['gain']:.2f} >= {g8['required']:.2f})" if g8 else f"GW{wk['gameweek']} planned move was gated",
-                  bool(g8) and g8["passed"] and g8["gain"] >= g8["required"])
-        elif g8:
-            check(f"GW{wk['gameweek']} holds: best move gained {g8['gain']:.2f} < {g8['required']:.2f}",
-                  not g8["passed"])
-        check(f"GW{wk['gameweek']} takes no hit", wk["hits"] == 0)
+    # Rule: every move of every planned week clears the bar by itself
+    # (gate_planned_weeks' per-move test), a dropped move is not in the
+    # plan, and no later week takes a hit.
+    for wk in final_plan["weeks"]:
+        g8 = wk.get("gate") or {}
+        planned = {(o, n) for o, n in pair_moves(set(wk["transfers_in"]), set(wk["transfers_out"]), pool_info)}
+        for r in g8.get("moves") or []:
+            label = f"{pool_info[r['out']]['web_name']} -> {pool_info[r['in']]['web_name']}"
+            if r["passed"]:
+                check(f"GW{wk['gameweek']} {label} clears the bar by itself ({r['gain']:.2f} >= {r['required']:.2f})",
+                      r["gain"] >= r["required"] - 1e-9 and (r["out"], r["in"]) in planned)
+            else:
+                check(f"GW{wk['gameweek']} {label} dropped ({r['gain']:.2f} < {r['required']:.2f})",
+                      (r["out"], r["in"]) not in planned)
+        if planned and not g8.get("moves"):
+            check(f"GW{wk['gameweek']} planned moves were gated", False)
+        if wk is not final_plan["weeks"][0]:
+            check(f"GW{wk['gameweek']} takes no hit", wk["hits"] == 0)
 
     # Rule: never recommend more transfers than free transfers available,
     # unless the extra ones are paid hits that passed ``justify_hits``.

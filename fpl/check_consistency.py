@@ -26,7 +26,9 @@ itself:
 11. every planned move in every week clears the same bar as this week's
    (gain vs holding >= the required gain, fpl.optimise.gate_planned_weeks),
    and the Planner's later weeks show exactly those moves (a held week
-   shows a hold).
+   shows a hold);
+12. the bar is per move: every planned move's own gain (over the same
+   week without it) clears the bar by itself.
 
 Run with ``uv run python -m fpl.check_consistency [path/to/latest.json]``.
 ``--self-test`` breaks each rule once on a copy of the real data and
@@ -215,6 +217,16 @@ def check(data: dict[str, Any]) -> list[str]:
         if row.get("recommended") is not True or gain is None or need is None or gain < need - 1e-9:
             errors.append(f"rule 11: GW{g} plans {row.get('player_out')} -> {row.get('player_in')} "
                           f"but it gains {gain} vs the {need} bar (recommended={row.get('recommended')})")
+    # rule 12: the bar is per move -- every planned move's own gain (over
+    # the same week without it) clears the bar by itself, so a strong move
+    # never carries a weak one.
+    for row in plan_rows:
+        if not (row.get("player_in") and row.get("player_out")):
+            continue
+        own, need = row.get("move_gain_xp"), row.get("required_gain_xp")
+        if own is None or need is None or own < need - 1e-9:
+            errors.append(f"rule 12: GW{row['gameweek']} move {row['player_out']} -> {row['player_in']} "
+                          f"gains {own} by itself vs the {need} bar")
     if planner.get("available"):
         for w in planner.get("transfers") or []:
             if not w.get("planned") or w["gameweek"] == d["gameweek"]:
@@ -319,6 +331,16 @@ def _breakers(data: dict[str, Any]) -> list[tuple[str, Any]]:
         held["moves"] = [{"out": {"player_id": -1, "web_name": "Calafiori"}, "in": {"player_id": -2, "web_name": "Murillo"}}]
         held["save"] = False
     tests.append(("rule 11", planner_shows_held_move))
+
+    def weak_move_carried(x):
+        # a second move in a moving week whose own gain is below the bar,
+        # while the week as a whole still clears it
+        rows = x["transfer_plan"]["weeks"]
+        mover = next(r for r in rows if r.get("player_in"))
+        weak = dict(mover, player_out="Hughes", player_in="Barnes",
+                    move_gain_xp=(mover.get("required_gain_xp") or 1.75) - 0.3)
+        rows.insert(rows.index(mover) + 1, weak)
+    tests.append(("rule 12", weak_move_carried))
     return tests
 
 

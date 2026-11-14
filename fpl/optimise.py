@@ -801,10 +801,86 @@ def recommend_transfers(
         baseline, *args, raw_weekly_xp=raw_weekly_xp, uncertainty_k=uncertainty_k, no_hit_weeks=no_hit_weeks, **rules
     )
     if gate_later_weeks and len(weeks) > 1:
+        moved_before = bool(plan["weeks"][0]["transfers_in"])
         plan = gate_planned_weeks(
             plan, *args, raw_weekly_xp=raw_weekly_xp, uncertainty_k=uncertainty_k, no_hit_weeks=no_hit_weeks, **rules
         )
+        if moved_before and not plan["weeks"][0]["transfers_in"]:  # every week-0 move failed the per-move bar
+            recommended, hit_reasons = False, []
+        elif plan["weeks"][0]["hits"] == 0:
+            hit_reasons = []
     return plan, gain, recommended, hit_reasons
+
+
+def pair_moves(ins: set[int], outs: set[int], pool_info: dict[int, dict[str, Any]]) -> list[tuple[int, int]]:
+    """A week's transfers as (out, in) swaps. FPL's 2/5/5/3 quotas force
+    every sale to be replaced within its own position, so the pairing is
+    within position (most expensive with most expensive when a week has
+    two swaps in one position)."""
+    pairs = []
+    for pos in POSITION_QUOTAS:
+        o = sorted((p for p in outs if pool_info[p]["position"] == pos), key=lambda p: -pool_info[p]["now_cost"])
+        n = sorted((p for p in ins if pool_info[p]["position"] == pos), key=lambda p: -pool_info[p]["now_cost"])
+        pairs.extend(zip(o, n))
+    return pairs
+
+
+def _filter_week_moves(
+    fixed: dict[int, tuple[frozenset[int], frozenset[int]]],
+    g: int,
+    i: int,
+    moves: list[tuple[int, int]],
+    full: dict[str, Any],
+    args: tuple,
+    weeks: list[int],
+    discount: dict[int, float],
+    raw: dict[tuple[int, int], float],
+    pool_info: dict[int, dict[str, Any]],
+    uncertainty_k: float | None,
+    solve: Any,
+) -> tuple[list[tuple[int, int]], list[dict[str, Any]]]:
+    """Step 13 per-move bar. With every earlier week pinned and later weeks
+    free: each move's own gain = the plan with all of this week's moves
+    minus the same plan without that one move (its transfer banked, so the
+    saved-transfer value counts). If any move is below ``transfer_margin``,
+    drop the weakest, re-test the rest, repeat. A move that can't be
+    removed on its own (its sale funds another buy, or the club cap needs
+    it) is judged as a bundle against holding the whole week. Returns the
+    kept moves and one record per move considered."""
+    pin = lambda ms: {**fixed, g: (frozenset(m[1] for m in ms), frozenset(m[0] for m in ms))}  # noqa: E731
+    hold_obj = None
+    records: dict[tuple[int, int], dict[str, Any]] = {}
+    kept = list(moves)
+    cur = full
+    while kept:
+        gains = {}
+        for m in kept:
+            rest = [x for x in kept if x != m]
+            alt = solve(pin(rest))
+            bundled = alt["status"] != "Optimal"
+            if bundled:
+                if hold_obj is None:
+                    hold_obj = solve(pin([]))["objective"] or 0.0
+                other = hold_obj
+            else:
+                other = alt["objective"] or 0.0
+            required = transfer_margin(
+                {"transfers_in": {m[1]}, "transfers_out": {m[0]}}, weeks[i:], discount, raw, pool_info, uncertainty_k
+            )
+            gains[m] = ((cur["objective"] or 0.0) - other, required, bundled)
+        failing = [m for m in kept if gains[m][0] < gains[m][1] - 1e-9]
+        for m in kept:
+            gain, required, bundled = gains[m]
+            records[m] = {"out": m[0], "in": m[1], "gain": gain, "required": required,
+                          "passed": m not in failing, "bundled": bundled}
+        if not failing:
+            break
+        worst = min(failing, key=lambda m: gains[m][0] - gains[m][1])
+        kept.remove(worst)
+        records[worst]["passed"] = False
+        if kept:
+            cur = solve(pin(kept))
+    return kept, [records[m] for m in moves if m in records]
 
 
 def gate_planned_weeks(
@@ -823,44 +899,80 @@ def gate_planned_weeks(
     no_hit_weeks: frozenset[int] = frozenset(),
     **solve_kwargs: Any,
 ) -> dict[str, Any]:
-    """Put every later week of ``plan`` through week 0's bar, in order.
+    """Every move of every week of ``plan`` through the same bar, in order.
 
-    Week 0's moves (whatever ``_recommend_week0`` chose) are pinned. Then
-    for each later week g, with every earlier week pinned: solve with g
-    free and with g held (later weeks still free either way, exactly like
-    week 0's test). The move stays only if it gains at least
-    ``transfer_margin`` (the 1.75 xP threshold today); the saved-transfer
-    value counts automatically, because the held solve keeps the free
-    transfer and both objectives include ``ft_value``. A week that fails
-    holds and banks its free transfer, so later weeks' free-transfer
-    counts go up. Later weeks may not take hits: whether a hit is
-    justified (a flagged starter) can only be judged when that week
-    arrives.
+    Week 0: ``_recommend_week0`` already tested the week as a whole
+    (threshold + hit rules); with two or more moves, each must now also
+    clear the bar by itself (``_filter_week_moves``), so a strong move
+    can't carry a weak one. Then for each later week g, with every earlier
+    week pinned: solve with g free (later weeks free too, exactly like
+    week 0's test), and put each of g's moves through the per-move bar.
+    The bar is ``transfer_margin`` (1.75 xP today); the saved-transfer
+    value counts automatically, since the comparison plan keeps that free
+    transfer and both objectives include ``ft_value``. A dropped move's
+    transfer is banked, so later weeks' free-transfer counts go up. Later
+    weeks may not take hits: whether a hit is justified (a flagged starter)
+    can only be judged when that week arrives.
 
-    Each week gets ``gate``: {"gain", "required", "passed", "best_in",
-    "best_out"} (None when the solve wanted no move that week)."""
+    Each week gets ``gate``: {"gain", "required", "passed", "moves":
+    [per-move records], "best_in", "best_out"} -- ``best_*`` is the
+    strongest rejected move of a week that ends up holding; ``gate`` is
+    None when the solve wanted no move that week."""
     args = (pool_ids, weekly_value, pool_info, my_squad_ids, sell_price, initial_bank, free_transfers_now, weeks, discount)
-    w0 = plan["weeks"][0]
-    gates: dict[int, dict[str, Any] | None] = {weeks[0]: plan["weeks"][0].get("gate")}
-    fixed = {weeks[0]: (frozenset(w0["transfers_in"]), frozenset(w0["transfers_out"]))}
     later_no_hits = frozenset(no_hit_weeks) | frozenset(weeks[1:])
     raw = raw_weekly_xp or weekly_value
+
+    def solve(fixed: dict[int, tuple[frozenset[int], frozenset[int]]], **kw: Any) -> dict[str, Any]:
+        return solve_horizon(*args, fixed_moves=fixed, no_hit_weeks=later_no_hits, **solve_kwargs, **kw)
+
+    def week_gate(fixed, g, i, wk, full, base_gate=None):
+        moves = pair_moves(set(wk["transfers_in"]), set(wk["transfers_out"]), pool_info)
+        if len(moves) == 1 and base_gate is not None:  # week 0, one move: its own gain is the week's gain
+            kept = moves if base_gate["passed"] else []
+            records = [{"out": moves[0][0], "in": moves[0][1], "gain": base_gate["gain"],
+                        "required": base_gate["required"], "passed": base_gate["passed"], "bundled": False}]
+        else:
+            kept, records = _filter_week_moves(fixed, g, i, moves, full, args, weeks, discount, raw,
+                                               pool_info, uncertainty_k, solve)
+        rejected = [r for r in records if not r["passed"]]
+        best = max(rejected, key=lambda r: r["gain"]) if rejected and not kept else None
+        # week-level gain: week 0 keeps its whole-week gain vs holding (the
+        # verdict shows it); a later week shows its weakest kept move's own
+        # gain, or the best rejected move's when it holds
+        if base_gate is not None:
+            week_gain = base_gate["gain"]
+        elif kept:
+            week_gain = min(r["gain"] for r in records if r["passed"])
+        else:
+            week_gain = best["gain"]
+        gate = {
+            "gain": week_gain, "required": records[0]["required"] if records else None,
+            "passed": bool(kept), "moves": records,
+            "best_in": [best["in"]] if best else [], "best_out": [best["out"]] if best else [],
+        }
+        return kept, gate
+
+    gates: dict[int, dict[str, Any] | None] = {}
+    w0 = plan["weeks"][0]
+    g0 = weeks[0]
+    base_gate = w0.get("gate")
+    fixed: dict[int, tuple[frozenset[int], frozenset[int]]] = {g0: (frozenset(w0["transfers_in"]), frozenset(w0["transfers_out"]))}
+    if w0["transfers_in"] or w0["transfers_out"]:
+        kept, gate = week_gate({}, g0, 0, w0, plan, base_gate=base_gate or {"gain": 0.0, "required": TRANSFER_THRESHOLD_XP, "passed": True})
+        fixed[g0] = (frozenset(m[1] for m in kept), frozenset(m[0] for m in kept))
+        gates[g0] = gate
+    else:
+        gates[g0] = base_gate
     for i, g in enumerate(weeks[1:], start=1):
-        free = solve_horizon(*args, fixed_moves=fixed, no_hit_weeks=later_no_hits, **solve_kwargs)
+        free = solve(fixed)
         wk = free["weeks"][i]
         if not wk["transfers_in"] and not wk["transfers_out"]:
             fixed[g] = (frozenset(), frozenset())
             gates[g] = None
             continue
-        held = solve_horizon(*args, fixed_moves=fixed, held_weeks=frozenset({g}), no_hit_weeks=later_no_hits,
-                             **solve_kwargs)
-        gain = (free["objective"] or 0.0) - (held["objective"] or 0.0)
-        required = transfer_margin(wk, weeks[i:], discount, raw, pool_info, uncertainty_k)
-        passed = gain >= required
-        gates[g] = {"gain": gain, "required": required, "passed": passed,
-                    "best_in": sorted(wk["transfers_in"]), "best_out": sorted(wk["transfers_out"])}
-        fixed[g] = (frozenset(wk["transfers_in"]), frozenset(wk["transfers_out"])) if passed else (frozenset(), frozenset())
-    gated = solve_horizon(*args, fixed_moves=fixed, no_hit_weeks=later_no_hits, **solve_kwargs)
+        kept, gates[g] = week_gate(fixed, g, i, wk, free)
+        fixed[g] = (frozenset(m[1] for m in kept), frozenset(m[0] for m in kept))
+    gated = solve(fixed)
     if gated["status"] != "Optimal":  # can't happen (every pinned week was feasible), but never lose the plan
         return plan
     for wk in gated["weeks"]:
@@ -1231,7 +1343,8 @@ def build_transfers_table(
     names = lambda ids: ", ".join(pool_info[p]["web_name"] for p in ids) or None  # noqa: E731
     rows = []
     for i, wk in enumerate(plan["weeks"]):
-        ins, outs = sorted(wk["transfers_in"]), sorted(wk["transfers_out"])
+        pairs = pair_moves(set(wk["transfers_in"]), set(wk["transfers_out"]), pool_info)
+        outs, ins = [o for o, _ in pairs], [n for _, n in pairs]
         # Every week has been through the same bar (gate_planned_weeks):
         # its gain vs holding and the bar it needed; a held week also
         # names the best move it turned down, for the Planner's reason.
@@ -1239,7 +1352,9 @@ def build_transfers_table(
         week_gain = round(gain, 2) if i == 0 else (round(g8["gain"], 2) if g8 else None)
         week_rec = recommended if i == 0 else (bool(g8["passed"]) if g8 else False)
         rejected = g8 is not None and not g8["passed"]
+        own = {(r["out"], r["in"]): r for r in (g8 or {}).get("moves") or []}
         for j in range(max(len(ins), len(outs), 1)):
+            mv = own.get((outs[j], ins[j])) if j < len(outs) and j < len(ins) else None
             rows.append(
                 {
                     "gameweek": wk["gameweek"],
@@ -1247,7 +1362,9 @@ def build_transfers_table(
                     "player_in": pool_info[ins[j]]["web_name"] if j < len(ins) else None,
                     "hits_taken": wk["hits"] if j == 0 else 0,
                     "horizon_gain_xp": week_gain,
-                    "required_gain_xp": round(g8["required"], 2) if g8 else None,
+                    # this move's own gain over the same week without it (the per-move bar)
+                    "move_gain_xp": round(mv["gain"], 2) if mv else (round(g8["gain"], 2) if rejected and j == 0 else None),
+                    "required_gain_xp": round(g8["required"], 2) if g8 and g8.get("required") is not None else None,
                     "recommended": week_rec,
                     "held_best_out": names(g8["best_out"]) if rejected and j == 0 else None,
                     "held_best_in": names(g8["best_in"]) if rejected and j == 0 else None,
@@ -1443,6 +1560,16 @@ def main() -> None:
         print(f"  no transfer recommended this week -- roll the free transfer{held_gain}.")
     captain_name = pool_info[wk0["captain_id"]]["web_name"] if wk0["captain_id"] else "none"
     print(f"  captain: {captain_name}")
+    print("\nPer-move bar, every planned week (own gain vs the bar):")
+    for wk in final_plan["weeks"]:
+        g8 = wk.get("gate") or {}
+        recs = g8.get("moves") or []
+        if not recs:
+            print(f"  GW{wk['gameweek']}: no move wanted ({wk['free_transfers']} FT)")
+        for r in recs:
+            print(f"  GW{wk['gameweek']}: {pool_info[r['out']]['web_name']} -> {pool_info[r['in']]['web_name']} "
+                  f"{r['gain']:+.2f} vs {r['required']:.2f} -> {'keep' if r['passed'] else 'drop, bank the transfer'}"
+                  f"{' (bundled)' if r['bundled'] else ''}")
     if not captain_board.empty:
         print("\nCaptain board (top 5):")
         print(captain_board.head(5).to_string(index=False))
