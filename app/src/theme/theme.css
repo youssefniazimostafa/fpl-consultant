@@ -104,10 +104,13 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
 .player-tile { display: flex; flex-direction: column; align-items: center; width: 92px; min-width: 0; }
 .tile-label { font-size: 10px; font-weight: 700; color: var(--text-muted); margin-bottom: 2px; text-transform: uppercase; }
 .tile-shirt { position: relative; display: inline-block; }
+/* Long names shrink to fit (PlayerTile sets --name-scale); never "..." */
 .tile-name {
+  --name-size: 12px;
   margin-top: 2px; max-width: 100%; padding: 2px 6px; border-radius: 6px 6px 0 0;
-  background: var(--white); color: var(--purple); font-size: 12px; font-weight: 700;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; min-width: 76px;
+  background: var(--white); color: var(--purple); font-weight: 700; letter-spacing: -0.01em;
+  font-size: calc(var(--name-size) * var(--name-scale, 1)); line-height: 15px;
+  white-space: nowrap; overflow: hidden; text-align: center; min-width: 76px;
 }
 .tile-meta {
   display: flex; justify-content: space-between; gap: 6px; min-width: 76px; max-width: 100%;
@@ -211,7 +214,7 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
   .pitch { min-height: 420px; padding: 30px 0 22px; }
   .player-tile { width: 80px; }
   .tile-name, .tile-meta { min-width: 72px; }
-  .tile-name { font-size: 11px; padding: 2px 4px; }
+  .tile-name { --name-size: 11px; padding: 2px 4px; line-height: 14px; }
   .tile-meta { font-size: 9.5px; white-space: nowrap; padding: 2px 4px; gap: 3px; }
   .player-tile .shirt { width: 46px !important; height: 46px !important; }
   .bench .player-tile .shirt { width: 38px !important; height: 38px !important; }
