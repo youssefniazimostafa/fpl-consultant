@@ -54,8 +54,9 @@ whatever downstream panels it can.
 | 6 | `rival_transfers` | A model of when each rival is likely to transfer, to anticipate incoming threats. |
 | 7 | `scoring` | Post-gameweek feedback: once a gameweek's deadline has passed and its scores lock, compares the frozen pre-deadline xP snapshot against what actually happened and appends to `data/accuracy/accuracy_log.csv`. Safe to run every 3 hours -- it's a no-op except right after a gameweek finishes. |
 | 8 | `optimise` | The actual recommendation: best XI, transfer plan (respecting free transfers and the hit-justification policy), captain/vice-captain, chip plan. |
-| 9 | `simulation` | Monte Carlo win-probability for this gameweek and the rest of the season, comparing your recommended plan against rolling the transfer. |
-| 10 | `publish` | Writes `site/data/latest.json`, the one file the static site fetches. Every panel is `null` with a short `reason` if its config/table isn't available yet. |
+| 9 | `simulation` | Monte Carlo win-probability for this gameweek and the rest of the season, comparing the optimiser's recommended plan (exactly as `optimise` recommends it) against rolling the transfer. |
+| 10 | `publish` | Writes `site/data/latest.json`, the one file the static site fetches. Every panel is `null` with a short `reason` if its config/table isn't available yet. Builds the one `decision` for the upcoming gameweek (`fpl/decision.py`): transfer or roll, hits and free transfers, XI, bench, captain, chip and the "why" text. Rule for transfer vs hold: in "chasing" mode follow the better chance of winning this week; otherwise follow the higher projected points. `verdict`, `xi`, `recommended_team` and `transfer_plan` are built from the same choice. |
+| 11 | `check_consistency` | Fails the run (before the site deploys) if the recommendation contradicts itself, e.g. an incoming player missing from the team, the captain differing between panels, or hit/free-transfer numbers that don't add up. `publish` also runs it before writing, so a contradictory `latest.json` is never written. |
 
 Two more modules are **not** part of the scheduled pipeline (one-off model
 validation, not something that needs to re-run every 3 hours):
@@ -78,7 +79,7 @@ Requires [`uv`](https://docs.astral.sh/uv/) and Python 3.14+ (see
 `pyproject.toml`/`uv.lock` automatically.
 
 ```bash
-# Run the whole pipeline once (fetch through publish):
+# Run the whole pipeline once (fetch through publish and the consistency check):
 uv run python -m fpl.pipeline
 
 # Or run an individual stage while developing, e.g.:
@@ -86,6 +87,11 @@ uv run python -m fpl.optimise
 
 # Regression-check the transfer-hit policy:
 uv run python -m fpl.check_transfer_policy
+
+# Check the published recommendation is consistent (runs in the pipeline too);
+# --self-test breaks each rule once on a copy and checks it's caught:
+uv run python -m fpl.check_consistency
+uv run python -m fpl.check_consistency --self-test
 
 # Serve the site locally to view the result in a browser:
 cd site && python3 -m http.server 8000

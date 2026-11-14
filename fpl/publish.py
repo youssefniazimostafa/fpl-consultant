@@ -64,6 +64,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from fpl.check_consistency import check as consistency_errors
+from fpl.decision import ROLL, build_decision, choose_plan, rival_captaincy
 from fpl.fetch import load_config
 from fpl.league import resolve_team_id
 from fpl.optimise import resolve_my_squad
@@ -139,6 +141,10 @@ def build_verdict(
     hits_taken = int(wk0_moves["hits_taken"].sum())
     hit_reason = wk0_moves["hit_reason"].iloc[0] if "hit_reason" in wk0_moves.columns else None
     hit_reason = hit_reason if isinstance(hit_reason, str) and hit_reason else None
+    if not (recommended and not moves.empty):
+        # holding: a held week's "hits" is only multi-week free-transfer
+        # bookkeeping in the solver (see fpl.simulation), never a real cost
+        hits_taken, hit_reason = 0, None
 
     if recommended and not moves.empty:
         pairs = ", ".join(
@@ -397,6 +403,9 @@ def build_recommended_team(
                             "player_in": in_card or {"web_name": r.player_in},
                         }
                     )
+            if not transfers:
+                # holding (see build_verdict): no real hit this gameweek
+                hits_taken, hit_reason = 0, None
 
     free_transfers_available = None
     if not league_free_transfers.empty and team_id is not None:
@@ -1064,6 +1073,64 @@ def main() -> None:
     team_id = resolve_team_id(config, league_managers)
     generated_at = pd.Timestamp.now("UTC").isoformat()
     season_simulation = build_season_simulation()
+    strategy_mode = league_strategy["mode"].iloc[0] if not league_strategy.empty else config.get("strategy")
+
+    # ONE decision for the upcoming gameweek (see fpl/decision.py): choose
+    # transfer vs hold with a single rule, then build every "what to do"
+    # panel -- verdict, xi, recommended_team, transfer_plan and the app's
+    # `decision` -- from that same chosen squad, so they can't disagree.
+    sim_path = TABLES_DIR / "simulation_results.json"
+    sim_rows = json.loads(sim_path.read_text()) if sim_path.exists() else []
+    gw0_moves = (
+        optimise_transfers[optimise_transfers["gameweek"] == optimise_transfers["gameweek"].min()]
+        if not optimise_transfers.empty else optimise_transfers
+    )
+    optimiser_transfer = bool(not gw0_moves.empty and gw0_moves["recommended"].iloc[0])
+    horizon_gain = (
+        float(gw0_moves["horizon_gain_xp"].iloc[0])
+        if not gw0_moves.empty and pd.notna(gw0_moves["horizon_gain_xp"].iloc[0]) else None
+    )
+    plan_choice = choose_plan(strategy_mode, optimiser_transfer, sim_rows)
+    squad_src, transfers_src = optimise_squad, optimise_transfers
+    if plan_choice["overridden"] and plan_choice["choice"] == ROLL:
+        hold_squad = load_optional("simulation_hold_squad")
+        hold_transfers = load_optional("simulation_hold_transfers")
+        if not hold_squad.empty and not hold_transfers.empty:
+            squad_src, transfers_src = hold_squad, hold_transfers
+        else:  # can't switch without the hold plan's squad -- keep the optimiser's
+            plan_choice = {**plan_choice, "choice": plan_choice["optimiser_choice"], "rule": "projected_points", "overridden": False}
+    print(
+        f"Decision: {plan_choice['choice']} (rule: {plan_choice['rule']}, mode: {plan_choice['mode']}, "
+        f"optimiser: {plan_choice['optimiser_choice']}, simulation: {plan_choice['simulation_choice']}, "
+        f"win chance transfer/hold: {plan_choice['win_chance_transfer']}/{plan_choice['win_chance_hold']})"
+    )
+
+    recommended_team = build_recommended_team(
+        squad_src, transfers_src, players, features, league_free_transfers, team_id, xp_by_gameweek
+    )
+    transfer_plan = build_transfer_plan(transfers_src, players)
+    chips = build_chips(optimise_chip_plan, league_chips_grid, season_simulation, team_id)
+    gw_cols = sorted(int(c[2:-3]) for c in xp_by_gameweek.columns if c.startswith("gw") and c.endswith("_xp")) \
+        if not xp_by_gameweek.empty else []
+    grid_row = None
+    if not league_chips_grid.empty and team_id is not None:
+        match = league_chips_grid[league_chips_grid["manager_id"] == team_id]
+        grid_row = records(match)[0] if not match.empty else None
+    strategy = build_strategy(league_strategy)
+    decision = build_decision(
+        recommended_team,
+        transfer_plan,
+        plan_choice,
+        horizon_gain,
+        len(gw_cols) or 5,
+        records(optimise_chip_plan) if not optimise_chip_plan.empty else [],
+        grid_row,
+        rival_captaincy(league_picks, team_id),
+        _xp_next_by_player(xp_by_gameweek, recommended_team.get("gameweek", gw_cols[0] if gw_cols else 0)),
+        players.set_index("id")["web_name"].to_dict() if not players.empty else {},
+        strategy,
+        chips.get("season_context"),
+    )
 
     payload = {
         "generated_at": generated_at,
@@ -1071,20 +1138,17 @@ def main() -> None:
         "config": {
             "team_id": team_id,
             "league_id": config.get("league_id"),
-            "strategy_mode": (
-                league_strategy["mode"].iloc[0] if not league_strategy.empty else config.get("strategy")
-            ),
+            "strategy_mode": strategy_mode,
         },
-        "verdict": build_verdict(optimise_transfers, optimise_squad),
-        "xi": build_xi(optimise_squad),
-        "recommended_team": build_recommended_team(
-            optimise_squad, optimise_transfers, players, features, league_free_transfers, team_id, xp_by_gameweek
-        ),
+        "decision": decision,
+        "verdict": build_verdict(transfers_src, squad_src),
+        "xi": build_xi(squad_src),
+        "recommended_team": recommended_team,
         "captain_board": build_captain_board(optimise_captain_board),
         "captaincy_risk": build_captaincy_risk(optimise_captaincy_risk),
-        "transfer_plan": build_transfer_plan(optimise_transfers, players),
-        "chips": build_chips(optimise_chip_plan, league_chips_grid, season_simulation, team_id),
-        "strategy": build_strategy(league_strategy),
+        "transfer_plan": transfer_plan,
+        "chips": chips,
+        "strategy": strategy,
         "free_transfers": build_free_transfers(league_free_transfers),
         "rival_transfer_forecast": build_rival_transfer_forecast(
             league_rival_transfer_forecast, league_rival_habits
@@ -1112,6 +1176,11 @@ def main() -> None:
         "top_xp": build_top_xp(xp_by_gameweek),
     }
 
+    # Fail loudly *before* writing if the page would contradict itself
+    # (fpl/check_consistency.py), so a bad latest.json is never published.
+    problems = consistency_errors(payload)
+    if problems:
+        raise RuntimeError("decision consistency check failed:\n  " + "\n  ".join(problems))
     path = write_json(payload)
     available = [k for k, v in payload.items() if isinstance(v, dict) and v.get("available")]
     missing = [k for k, v in payload.items() if isinstance(v, dict) and v.get("available") is False]

@@ -1,7 +1,7 @@
 """Pipeline -- the one entry point the scheduled GitHub Actions run calls
 (``.github/workflows/update.yml``). Runs every step in dependency order:
 
-    fetch -> external data -> features -> model -> league -> rival transfers -> scoring -> optimise -> simulation -> publish
+    fetch -> external data -> features -> model -> league -> rival transfers -> scoring -> optimise -> simulation -> publish -> consistency check
 
 ``scoring`` (Step 11's post-gameweek feedback loop) sits here rather than
 in its own workflow: ``update.yml`` already runs every 3 hours in UTC
@@ -48,6 +48,7 @@ from __future__ import annotations
 import traceback
 from types import ModuleType
 
+import fpl.check_consistency as check_consistency
 import fpl.elo as elo
 import fpl.features as features
 import fpl.fetch as fetch
@@ -94,6 +95,7 @@ def main() -> None:
     run_stage("optimise", optimise)
     run_stage("simulation", simulation)
     run_stage("publish", publish)
+    run_stage("consistency check", check_consistency)
     print("\nPipeline complete.")
 
 

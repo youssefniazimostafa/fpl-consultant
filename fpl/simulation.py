@@ -76,6 +76,10 @@ from fpl.fetch import load_config
 from fpl.league import resolve_team_id
 from fpl.optimise import (
     HIT_COST,
+    WEEKLY_DISCOUNT,
+    build_squad_plan_table,
+    build_transfers_table,
+    recommend_transfers,
     build_candidate_pool,
     estimate_selling_prices,
     load_tables,
@@ -90,6 +94,8 @@ ROOT = Path(__file__).resolve().parent.parent
 TABLES_DIR = ROOT / "data" / "tables"
 OUTPUT_PATH = TABLES_DIR / "simulation_results.json"
 SEASON_OUTPUT_PATH = TABLES_DIR / "season_simulation.json"
+HOLD_SQUAD_PATH = TABLES_DIR / "simulation_hold_squad.parquet"
+HOLD_TRANSFERS_PATH = TABLES_DIR / "simulation_hold_transfers.parquet"
 
 N_DRAWS = 20_000
 N_CAPTAIN_CANDIDATES = 4
@@ -148,6 +154,10 @@ def load_rival_plans(
     return plans
 
 
+TRANSFER_LABEL = "transfer plan"
+HOLD_LABEL = "hold (roll free transfer)"
+
+
 def _my_candidate_plans(
     pool_ids: list[int],
     adj_weekly_value: dict[tuple[int, int], float],
@@ -159,27 +169,47 @@ def _my_candidate_plans(
     effective_free: int,
     weeks: list[int],
     discount: dict[int, float],
-) -> list[dict[str, Any]]:
-    """The two squad scenarios (transfer vs hold) crossed with every
-    plausible captain, as plain dicts ready for the simulator. Mirrors
-    ``fpl.optimise.recommend_transfers``'s own ``baseline``/``held`` solve,
-    just keeping *both* results instead of picking one."""
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], dict[str, Any]]:
+    """The squad scenarios crossed with every plausible captain, as plain
+    dicts ready for the simulator, plus the full plans themselves.
+
+    The "transfer plan" is exactly what ``fpl.optimise`` recommends -- it
+    goes through ``recommend_transfers`` the same way ``optimise.main``
+    does, so an unjustified hit is re-solved away here too. (Before this,
+    the raw ``baseline`` solve was simulated instead: in GW11 that was a
+    3-transfer, 2-hit plan the optimiser had already rejected, so the
+    simulation compared "hold" against a plan nobody recommended -- the
+    source of "simulation says hold, verdict says transfer".) When the
+    optimiser itself recommends holding, only the hold scenario exists.
+
+    Returns (scenarios, plans by label, meta) where meta carries the
+    optimiser's own horizon gain / recommended flag / hit reasons."""
     week0 = weeks[0]
     baseline = solve_horizon(
         pool_ids, adj_weekly_value, pool_info, my_squad_ids, sell_price,
         bank, effective_free, weeks, discount,
     )
+    recommended_plan, gain, transfer_recommended, hit_reasons = recommend_transfers(
+        baseline, pool_ids, adj_weekly_value, pool_info, my_squad_ids, sell_price,
+        bank, effective_free, weeks, discount, raw_weekly_xp=raw_weekly_xp,
+    )
     held = solve_horizon(
         pool_ids, adj_weekly_value, pool_info, my_squad_ids, sell_price,
         bank, effective_free, weeks, discount, held_weeks=frozenset({week0}),
     )
+    plans: dict[str, dict[str, Any]] = {HOLD_LABEL: held}
+    if transfer_recommended and recommended_plan["weeks"][0]["transfers_in"]:
+        plans = {TRANSFER_LABEL: recommended_plan, HOLD_LABEL: held}
 
     scenarios = []
-    for label, plan in (("transfer plan", baseline), ("hold (roll free transfer)", held)):
+    for label, plan in plans.items():
         wk0 = plan["weeks"][0]
         xi_ids = sorted(wk0["xi_ids"])
         by_xp = sorted(xi_ids, key=lambda p: raw_weekly_xp.get((p, week0), 0.0), reverse=True)
         captain_candidates = by_xp[:N_CAPTAIN_CANDIDATES]
+        # always test the captain the plan itself would use
+        if wk0["captain_id"] is not None and wk0["captain_id"] not in captain_candidates:
+            captain_candidates.append(wk0["captain_id"])
         average_xp_captain = by_xp[0] if by_xp else None
         transfers_in = sorted(wk0["transfers_in"])
         transfers_out = sorted(wk0["transfers_out"])
@@ -199,12 +229,14 @@ def _my_candidate_plans(
                     "xi_ids": xi_ids,
                     "captain_id": captain_id,
                     "is_average_xp_captain": captain_id == average_xp_captain,
+                    "is_plan_captain": captain_id == wk0["captain_id"],
                     "hits": hits,
                     "transfers_in": transfers_in,
                     "transfers_out": transfers_out,
                 }
             )
-    return scenarios
+    meta = {"gain": gain, "transfer_recommended": transfer_recommended, "hit_reasons": hit_reasons}
+    return scenarios, plans, meta
 
 
 def _team_points_matrix(
@@ -266,7 +298,10 @@ def run_simulation(
                 "scenario": plan["scenario"],
                 "captain": captain_name,
                 "is_average_xp_captain": plan["is_average_xp_captain"],
+                "is_plan_captain": plan.get("is_plan_captain", False),
                 "hits": plan["hits"],
+                "transfers_in": [pool_info.get(p, {}).get("web_name", "?") for p in plan.get("transfers_in", [])],
+                "transfers_out": [pool_info.get(p, {}).get("web_name", "?") for p in plan.get("transfers_out", [])],
                 "mean_points": round(float(mine.mean()), 2),
                 "p_finish_1st": round(float(win.mean()), 4),
             }
@@ -377,7 +412,15 @@ def main() -> None:
     sell_price_owned = estimate_selling_prices(my_squad_ids, players, tables["my_transfers"])
     avoid_ids = {int(x) for x in (config.get("avoid") or []) if isinstance(x, int)}
     pool_ids = build_candidate_pool(players, xp_by_gw, my_squad_ids, avoid_ids)
-    pool_info = players.set_index("id")[["web_name", "position", "team", "now_cost"]].to_dict("index")
+    # same fields as fpl.optimise.main's pool_info -- recommend_transfers'
+    # hit check reads status/chance_of_playing_next_round/news
+    pool_source = players.set_index("id")[
+        ["web_name", "position", "team", "now_cost", "status", "chance_of_playing_next_round", "news"]
+    ].copy()
+    pool_source["chance_of_playing_next_round"] = pool_source["chance_of_playing_next_round"].where(
+        pool_source["chance_of_playing_next_round"].notna(), None
+    )
+    pool_info = pool_source.to_dict("index")
     now_cost_map = {p: pool_info[p]["now_cost"] for p in pool_ids}
     sell_price = {p: sell_price_owned.get(p, now_cost_map[p]) for p in pool_ids}
 
@@ -385,14 +428,14 @@ def main() -> None:
     horizon = max(min(int(config.get("horizon", 5)), len(weeks_all)), 1)
     weeks = weeks_all[:horizon]
     next_gw = weeks[0]
-    discount = {g: 0.9**i for i, g in enumerate(weeks)}
+    discount = {g: WEEKLY_DISCOUNT**i for i, g in enumerate(weeks)}
 
     raw_weekly_xp = lookup_weekly_xp(xp_by_gw, weeks, pool_ids)
     adj_weekly_value = strategy_adjusted(raw_weekly_xp, league_eo, mode)
     effective_free = resolve_free_transfers(tables["league_free_transfers"], team_id)
 
     print(f"Simulating gameweek {next_gw} ({n_draws:,} draws)...")
-    my_plans = _my_candidate_plans(
+    my_plans, full_plans, meta = _my_candidate_plans(
         pool_ids, adj_weekly_value, raw_weekly_xp, pool_info, my_squad_ids, sell_price,
         bank, effective_free, weeks, discount,
     )
@@ -406,6 +449,13 @@ def main() -> None:
 
     results.to_json(OUTPUT_PATH, orient="records", indent=2)
     print(f"  wrote {OUTPUT_PATH} ({len(results)} rows)")
+    # The hold plan's full squad/transfer tables (same shape as
+    # optimise_squad/optimise_transfers), so fpl.publish can switch the
+    # one recommendation to holding if its decision rule says so.
+    held = full_plans[HOLD_LABEL]
+    build_squad_plan_table(held, pool_info, weeks, raw_weekly_xp).to_parquet(HOLD_SQUAD_PATH, index=False)
+    build_transfers_table(held, pool_info, 0.0, False).to_parquet(HOLD_TRANSFERS_PATH, index=False)
+    print(f"  wrote {HOLD_SQUAD_PATH.name}, {HOLD_TRANSFERS_PATH.name}")
     print(f"\nP(finish 1st) in gameweek {next_gw}, by plan (vs {len(rival_plans)} rivals' last-known squads):")
     print(results.to_string(index=False))
     if not results.empty:
