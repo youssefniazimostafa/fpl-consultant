@@ -143,6 +143,7 @@ def build_last_gameweek(
     league_managers: pd.DataFrame,
     predictions_dir: Path,
     fixtures: pd.DataFrame | None = None,
+    hindsight: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if team_id is None:
         return {"available": False, "reason": "No team ID set, so there's no gameweek to show."}
@@ -204,11 +205,14 @@ def build_last_gameweek(
     subs_in = {i for _, i in s["autosubs"]}
     subs_out = {o for o, _ in s["autosubs"]}
 
-    def card(pid: int, on_pitch: bool) -> dict[str, Any]:
+    def card(pid: int, on_pitch: bool, armband: Any = "mine", bench_counts: bool | None = None) -> dict[str, Any]:
         e = info[pid]
         pts = live.get(pid, {}).get("points", 0)
         mins = live.get(pid, {}).get("minutes", 0)
-        mult = multiplier if (on_pitch and pid == s["armband"]) else 1
+        band = s["armband"] if armband == "mine" else armband
+        mult_for = multiplier if armband == "mine" else 2
+        mult = mult_for if (on_pitch and pid == band) else 1
+        bench_counts = (mine["chip"] == "bboost") if bench_counts is None else bench_counts
         stats = breakdown.get(pid, {})
         exp = expected.get(pid)
         return {
@@ -218,7 +222,7 @@ def build_last_gameweek(
             "team_code": e.get("team_code"),
             "team_short": teams.get(e["team"], {}).get("short_name"),
             "points": pts,
-            "counted_points": pts * mult if on_pitch else (pts if mine["chip"] == "bboost" else 0),
+            "counted_points": pts * mult if on_pitch else (pts if bench_counts else 0),
             "multiplier": mult,
             "minutes": mins,
             "expected": None if exp is None else round(float(exp), 1),
@@ -227,9 +231,9 @@ def build_last_gameweek(
             "breakdown_points": sum(v["points"] for v in stats.values()),
             # FPL's own items per match ("85 min +2 · 1 goal +4 ... = 11")
             "matches": matches_by_player.get(pid, []),
-            "is_captain": pid == mine["captain"],
-            "is_vice_captain": pid == mine["vice"],
-            "had_armband": pid == s["armband"],
+            "is_captain": pid == (mine["captain"] if armband == "mine" else band),
+            "is_vice_captain": armband == "mine" and pid == mine["vice"],
+            "had_armband": pid == band,
             "subbed_on": pid in subs_in,
             "subbed_off": pid in subs_out,
         }
@@ -295,9 +299,70 @@ def build_last_gameweek(
     if mine["hits"]:
         summary.append(f"Your points hit cost {4 * mine['hits']}.")
 
+    # --- hindsight: team of the week + the best you could have done ---
+    tow_section: dict[str, Any] = {"available": False, "reason": "Not computed."}
+    best_section: dict[str, Any] = {"available": False, "reason": "Not computed."}
+    if hindsight is not None:
+        from fpl import hindsight as H
+
+        pts_map = {p: v["points"] for p, v in live.items()}
+        gw_price = H.gw_prices(hindsight.get("matches", pd.DataFrame()), gw)
+        consultant = None
+        cvy = hindsight.get("consultant_csv")
+        if cvy is not None and cvy.exists():
+            cdf = pd.read_csv(cvy)
+            row = cdf[cdf["gameweek"] == gw]
+            consultant = int(row["consultant_points"].iloc[0]) if not row.empty else None
+        t = H.team_of_the_week(gw, bootstrap, pts_map, gw_price)
+        price = lambda p: round(t["info"][p]["now_cost"] / 10, 1)  # noqa: E731
+        t_xi = [{**card(p, True, armband=t["captain"]), "price": price(p)} for p in t["xi"]]
+        t_bench = [{**card(p, False, armband=t["captain"], bench_counts=False), "price": price(p)} for p in t["bench"]]
+        exp_total = sum(c["expected"] or 0 for c in t_xi) + next((c["expected"] or 0 for c in t_xi if c["had_armband"]), 0)
+        dream = None
+        try:
+            dt = get_json(f"dream-team/{gw}/")
+            if dt and dt.get("team"):
+                dream = {"total": sum(int(x["points"]) for x in dt["team"]), "players": len(dt["team"])}
+        except Exception:  # optional extra only
+            dream = None
+        tow_section = {
+            "available": t["status"] == "Optimal", "gameweek": gw, "total": t["total"], "cost": round(t["cost"] / 10, 1),
+            "captain_name": info[t["captain"]]["web_name"] if t["captain"] else None,
+            "formation": "-".join(str(sum(c["position"] == pos for c in t_xi)) for pos in ("DEF", "MID", "FWD")),
+            "you": mine["net_points"], "consultant": consultant, "fpl_average": event.get("average_entry_score"),
+            "expected_total": round(exp_total, 1) if expected else None, "has_expected": bool(expected),
+            "starting_xi": t_xi, "bench": t_bench,
+            "players": sorted(t_xi, key=lambda c: -c["counted_points"]),
+            "dream_team": dream,
+            "note": "The best team anyone could have picked within FPL's rules: £100m, max 3 per club, no chips.",
+        }
+        b = H.best_possible(
+            gw=gw, team_id=team_id, bootstrap=bootstrap, points=pts_map, live=live, gw_price=gw_price,
+            league_picks=hindsight.get("league_picks", pd.DataFrame()), league_history=league_history,
+            my_transfers=hindsight.get("my_transfers", pd.DataFrame()), chip_events=hindsight.get("chip_events", set()),
+            deadline=pd.Timestamp(event["deadline_time"]), mine=mine, net_points=mine["net_points"],
+        )
+        if b["available"]:
+            mini = lambda p: {"player_id": p, "web_name": info[p]["web_name"], "team_code": info[p].get("team_code"),  # noqa: E731
+                              "team_short": teams.get(info[p]["team"], {}).get("short_name"),
+                              "position": ELEMENT_TYPE_POSITION[info[p]["element_type"]], "points": live.get(p, {}).get("points", 0)}
+            best_section = {
+                **{k: b[k] for k in ("free_transfers", "best", "you", "your_rules_score", "parts", "hits")},
+                "available": True, "gameweek": gw, "consultant": consultant,
+                "chip": CHIP_LABELS.get(b["chip"], b["chip"]) if b["chip"] else None,
+                "transfers": [{"out": mini(o), "in": mini(i)} for o, i in zip(b["transfers_out"], b["transfers_in"])],
+                "captain": mini(b["captain"]) if b["captain"] else None,
+                "your_captain": mini(b["your_captain"]) if b["your_captain"] else None,
+                "lineup_in": [mini(p) for p in b["lineup_in"]], "lineup_out": [mini(p) for p in b["lineup_out"]],
+            }
+        else:
+            best_section = b
+
     return {
         "available": True,
         "gameweek": gw,
+        "team_of_the_week": tow_section,
+        "best_possible": best_section,
         "total": s["points"],
         "gross": s["gross_points"],
         "hit_cost": 4 * mine["hits"],

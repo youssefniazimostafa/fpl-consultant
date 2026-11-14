@@ -327,6 +327,8 @@ def solve_horizon(
     discount: dict[int, float],
     held_weeks: frozenset[int] = frozenset(),
     no_hit_weeks: frozenset[int] = frozenset(),
+    bench_weight: float = BENCH_VALUE_WEIGHT,
+    cost_tiebreak: float = 0.0,
 ) -> dict[str, Any]:
     """One MILP covering every gameweek in ``weeks`` at once. A single
     gameweek is just ``weeks`` of length 1 -- there's no separate
@@ -342,6 +344,12 @@ def solve_horizon(
     whenever the unconstrained solve's hit isn't earned by necessity, so
     the model still finds the best *free* transfer (or correctly rolls)
     instead of just forcing a hold.
+
+    ``bench_weight`` / ``cost_tiebreak`` (hindsight solves in
+    fpl/hindsight.py): with real points the bench doesn't count, so those
+    solves pass ``bench_weight=0`` and a tiny ``cost_tiebreak`` per 0.1m of
+    squad cost, which picks the cheapest bench among equally good teams.
+    Defaults leave the forward-looking plan unchanged.
     """
     # pulp >=4 ties every LpVariable to the LpProblem that will solve it
     # (created via ``m.add_variable``, not a free-standing constructor), so
@@ -367,8 +375,10 @@ def solve_horizon(
     value_terms = []
     for g in weeks:
         week_value = pulp.lpSum(weekly_value[(p, g)] * (xi[(p, g)] + cap[(p, g)]) for p in pool_ids)
-        bench_value = BENCH_VALUE_WEIGHT * pulp.lpSum(weekly_value[(p, g)] * squad[(p, g)] for p in pool_ids)
+        bench_value = bench_weight * pulp.lpSum(weekly_value[(p, g)] * squad[(p, g)] for p in pool_ids)
         value_terms.append(discount[g] * (week_value + bench_value))
+        if cost_tiebreak:
+            value_terms.append(-cost_tiebreak * pulp.lpSum(pool_info[p]["now_cost"] * squad[(p, g)] for p in pool_ids))
     m += pulp.lpSum(value_terms) - HIT_COST * pulp.lpSum(hits[g] for g in weeks)
 
     clubs = {pool_info[p]["team"] for p in pool_ids}

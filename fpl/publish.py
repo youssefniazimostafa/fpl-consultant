@@ -436,6 +436,22 @@ def build_recommended_team(
     }
 
 
+def hindsight_inputs(league_picks: pd.DataFrame, team_id: int | None) -> dict[str, Any]:
+    """Tables the Last gameweek page's hindsight (fpl/hindsight.py) needs."""
+    chips = load_optional("league_chips")
+    chip_events: set[int] = set()
+    if not chips.empty and team_id is not None:
+        mine = chips[(chips["manager_id"] == team_id) & chips["name"].isin(["wildcard", "freehit"])]
+        chip_events = {int(e) for e in mine["event"]}
+    return {
+        "matches": load_optional("player_matches"),
+        "league_picks": league_picks,
+        "my_transfers": load_optional("my_transfers"),
+        "chip_events": chip_events,
+        "consultant_csv": ROOT / "data" / "accuracy" / "consultant_vs_you.csv",
+    }
+
+
 def decision_captain_tables(
     decision: dict[str, Any],
     xp_by_gameweek: pd.DataFrame,
@@ -1262,9 +1278,14 @@ def main() -> None:
             league_managers=league_managers,
             predictions_dir=ROOT / "data" / "predictions",
             fixtures=load_optional("fixtures"),
+            hindsight=hindsight_inputs(league_picks, team_id),
         )
     except RuntimeError as exc:
         payload["last_gameweek"] = {"available": False, "reason": f"Couldn't reach FPL for last gameweek's results ({exc})."}
+    # Team of the week is its own page; it's built with last_gameweek
+    # (same gameweek, same per-player breakdown)
+    payload["team_of_the_week"] = payload["last_gameweek"].pop(
+        "team_of_the_week", {"available": False, "reason": payload["last_gameweek"].get("reason", "Not available.")})
     payload["analytics"] = build_analytics(
         team_id=team_id,
         league_history=league_history,
