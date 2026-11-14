@@ -378,13 +378,13 @@ def find_degenerate_fpl_xp_gws(gw: pd.DataFrame) -> set[int]:
     return set(all_zero[all_zero].index)
 
 
-def run_backtest() -> pd.DataFrame:
+def run_backtest(season: str | None = None) -> pd.DataFrame:
     """One row per player per backtested gameweek with our model's xP,
     all three baselines and the actual points scored. ``fpl_xp`` is NaN
     for gameweeks where the source data was missing (see
     ``find_degenerate_fpl_xp_gws``) so the FPL-xP baseline is only scored
     against gameweeks it actually had a real prediction for."""
-    season_dir, gw = load_backtest_season()
+    season_dir, gw = load_backtest_season(season)
     degenerate_fpl_xp_gws = find_degenerate_fpl_xp_gws(gw)
     players_like = build_players_like(gw)
     pairs = build_team_match_pairs(gw)
@@ -392,7 +392,8 @@ def run_backtest() -> pd.DataFrame:
 
     prior_season_dir = find_prior_season_dir(before=season_dir.name)
     full_names = gw.groupby("player_id")["name"].first()
-    prior = build_prior_season_rates(full_names, season_dir=prior_season_dir, cache_path=PRIOR_CACHE_PATH)
+    cache = PRIOR_CACHE_PATH if season is None else TABLES_DIR / f"transfer_calibration_prior_map_{season}.csv"
+    prior = build_prior_season_rates(full_names, season_dir=prior_season_dir, cache_path=cache)
 
     last_gw = int(gw["GW"].max())
     results = []

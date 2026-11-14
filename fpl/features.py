@@ -38,7 +38,36 @@ ALIASES_PATH = Path(__file__).resolve().parent / "team_aliases.csv"
 
 HALF_LIFE_MATCHES = 6  # recency decay: a match 6 back carries half the weight of the most recent one
 SHRINKAGE_MATCHES = 3  # pseudo-matches of "position average" blended in for players with little evidence
+# Both re-tested in Step 14 (fpl/form_calibration.py; half-lives 3/4/6/8/10/15
+# x shrinkage 1/3/6/10, 2025-26 + unseen 2024-25 and 2023-24): no setting
+# beat 6 / 3 on starter rank correlation by more than one SE on any season.
+# Shorter half-lives (3-4) cut the mean error per player-week by ~0.01 pts
+# on all three seasons but rank starters worse (up to -0.017), so 6 / 3 stay.
 P_START_WINDOW = 6  # "last 6" team matches, per the spec
+
+# Step 14 form weighting, each switchable and tested by fpl/form_calibration.py
+# (tuned on 2025-26, re-run unchanged on 2024-25 and 2023-24; on only if it
+# beats today's settings on both unseen seasons). Both OFF: spike damping
+# moved every metric by <= 0.002 (within noise) on all three seasons;
+# form-change detection ranked starters worse on all three (-0.007 to -0.023).
+# Spike damping: "discount" weights a match where the player scored
+# SPIKE_POINTS+ by SPIKE_WEIGHT in his rate features; "cap" clips each
+# match's xG / xA / bonus / BPS at the SPIKE_CAP_QUANTILE of that position's
+# own history (past matches only).
+SPIKE_MODE = "off"
+SPIKE_POINTS = 13
+SPIKE_WEIGHT = 0.5
+SPIKE_CAP_QUANTILE = 0.99
+SPIKE_CAP_COLUMNS = ["expected_goals", "expected_assists", "bonus", "bps"]
+# Form-change detection: if a player started all of his last
+# FORM_CHANGE_RECENT matches after starting <= 40% of the 6 before (moved
+# into the XI), or started none of them after >= 80% (moved out), matches
+# before the change get FORM_CHANGE_OLD_WEIGHT extra weight. (FPL positions
+# don't change mid-season in this data and there's no penalty-taker
+# history, so starts are the only role change it can see.)
+FORM_CHANGE_ON = False
+FORM_CHANGE_RECENT = 3
+FORM_CHANGE_OLD_WEIGHT = 0.5
 DC_THRESHOLD = {"DEF": 10, "MID": 12, "FWD": 12, "GKP": None}  # 2025/26 defensive-contribution rule
 HOME_ADV_ELO = 100  # standard rule-of-thumb home-field Elo bonus (clubelo-style Elo systems)
 DEFAULT_HORIZON = 5
@@ -89,6 +118,37 @@ def add_recency_weight(pm: pd.DataFrame) -> pd.DataFrame:
     pm = pm.sort_values(["player_id", "kickoff_time"], ascending=[True, False]).copy()
     matches_ago = pm.groupby("player_id").cumcount()
     pm["weight"] = 0.5 ** (matches_ago / HALF_LIFE_MATCHES)
+    if FORM_CHANGE_ON and "starts" in pm.columns:
+        pm["weight"] = pm["weight"] * form_change_multiplier(pm, matches_ago)
+    return pm
+
+
+def form_change_multiplier(pm: pd.DataFrame, matches_ago: pd.Series) -> pd.Series:
+    """FORM_CHANGE_OLD_WEIGHT for a player's matches before a clear change
+    in his starting role (see FORM_CHANGE_ON), 1 otherwise."""
+    r = FORM_CHANGE_RECENT
+    starts = pm["starts"].fillna(0).clip(0, 1)
+    recent = starts.where(matches_ago < r).groupby(pm["player_id"]).agg(["mean", "count"])
+    before = starts.where((matches_ago >= r) & (matches_ago < r + 6)).groupby(pm["player_id"]).agg(["mean", "count"])
+    changed = (recent["count"] == r) & (before["count"] >= 3) & (
+        ((recent["mean"] == 1) & (before["mean"] <= 0.4)) | ((recent["mean"] == 0) & (before["mean"] >= 0.8))
+    )
+    old = (matches_ago >= r) & pm["player_id"].map(changed).fillna(False).astype(bool)
+    return pd.Series(np.where(old, FORM_CHANGE_OLD_WEIGHT, 1.0), index=pm.index)
+
+
+def damp_spikes(pm: pd.DataFrame) -> pd.DataFrame:
+    """SPIKE_MODE (see above) applied to the rate features' match rows."""
+    if SPIKE_MODE == "discount" and "total_points" in pm.columns:
+        pm = pm.copy()
+        pm["weight"] = pm["weight"] * np.where(pm["total_points"] >= SPIKE_POINTS, SPIKE_WEIGHT, 1.0)
+    elif SPIKE_MODE == "cap" and "position" in pm.columns:
+        pm = pm.copy()
+        played = pm[pm["minutes"] > 0]
+        for col in SPIKE_CAP_COLUMNS:
+            if col in pm.columns:
+                caps = played.groupby("position")[col].quantile(SPIKE_CAP_QUANTILE)
+                pm[col] = np.minimum(pm[col], pm["position"].map(caps).fillna(np.inf))
     return pm
 
 
@@ -140,6 +200,10 @@ def _weighted_rate(pm: pd.DataFrame, flag_col: str, position_by_player: pd.Serie
 def build_player_rates(pm: pd.DataFrame, players: pd.DataFrame) -> pd.DataFrame:
     pm = add_recency_weight(pm)
     position_by_player = players.set_index("id")["position"]
+    if SPIKE_MODE != "off":
+        if "position" not in pm.columns:
+            pm = pm.assign(position=pm["player_id"].map(position_by_player))
+        pm = damp_spikes(pm)
 
     # team xG per match = the sum of every one of that match's player rows'
     # own expected_goals, i.e. built entirely from FPL's own numbers so it
@@ -220,6 +284,8 @@ def build_p_start(pm: pd.DataFrame, players: pd.DataFrame, fixtures: pd.DataFram
     pm_team = pm_team.sort_values(["player_id", "kickoff_time"], ascending=[True, False]).copy()
     matches_ago = pm_team.groupby("player_id").cumcount()
     pm_team["p_start_weight"] = 0.5 ** (matches_ago / HALF_LIFE_MATCHES)
+    if FORM_CHANGE_ON:
+        pm_team["p_start_weight"] = pm_team["p_start_weight"] * form_change_multiplier(pm_team, matches_ago)
     weighted_starts = (pm_team["p_start_weight"] * pm_team["starts"]).groupby(pm_team["player_id"]).sum()
     weight_total = pm_team.groupby("player_id")["p_start_weight"].sum()
     p_start_base = (weighted_starts.reindex(players["id"]) / weight_total.reindex(players["id"])).fillna(0.0)

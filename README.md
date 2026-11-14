@@ -107,6 +107,10 @@ uv run python -m fpl.transfer_calibration --stage 2 --V 1.5 --k 0.3   # discount
 uv run python -m fpl.transfer_calibration --stage oos --season 2024-25 --V 1.5 --k 0.3
 uv run python -m fpl.transfer_calibration --stage sens --sweep V --season 2024-25
 
+# Test the model's form weighting (half-life, shrinkage, spike damping,
+# form-change detection) on 2025-26 and the unseen 2024-25 / 2023-24 (~5 min):
+uv run python -m fpl.form_calibration
+
 # Serve the site locally to view the result in a browser:
 cd site && python3 -m http.server 8000
 # then open http://localhost:8000
