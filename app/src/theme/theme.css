@@ -526,6 +526,14 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
 .chat-bubble { padding: 9px 12px; border-radius: 14px; font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; }
 .chat-msg.user .chat-bubble { background: var(--purple); color: var(--white); border-bottom-right-radius: 4px; }
 .chat-msg.assistant .chat-bubble { background: var(--white); color: var(--purple); border-bottom-left-radius: 4px; }
+.chat-msg.assistant .chat-bubble:has(.chat-md) { white-space: normal; }
+.chat-md { overflow-wrap: anywhere; }
+.chat-md p { margin: 0 0 6px; }
+.chat-md ul, .chat-md ol { margin: 0 0 6px; padding-left: 18px; }
+.chat-md li { margin: 2px 0; }
+.chat-md li > p { margin: 0; }
+.chat-md > :last-child { margin-bottom: 0; }
+.chat-md strong { font-weight: 800; }
 .chat-msg.error .chat-bubble { background: var(--pink-soft); color: var(--pink); }
 .chat-cost { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
 .chat-input { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--lilac-deep); }

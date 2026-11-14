@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { ChatMarkdown } from "./ChatMarkdown";
 
 // Live consultant: quick questions about the recommendation, answered by
 // the backend (fpl/chat.py) from the app's own data. The conversation
@@ -83,7 +84,7 @@ export function ChatPanel({ onClose, initialQuestion = null }: { onClose: () => 
         )}
         {msgs.map((m, i) => (
           <div key={i} className={`chat-msg ${m.role}${m.error ? " error" : ""}`}>
-            <div className="chat-bubble">{m.content}</div>
+            <div className="chat-bubble">{m.role === "assistant" && !m.error ? <ChatMarkdown text={m.content} /> : m.content}</div>
             {m.cost != null && <div className="chat-cost">{fmtCost(m.cost)}</div>}
           </div>
         ))}
