@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { Latest } from "../data";
 import { Card } from "../components/Card";
 import { Bench, Pitch } from "../components/Pitch";
@@ -52,9 +53,57 @@ function Stat({ label, value, sub, dark }: { label: string; value: string; sub?:
   );
 }
 
+// FPL's own scoring items for one player, e.g.
+// "85 min +2 · 1 goal +4 · 1 assist +3 · 2 bonus +2 = 11", one line per
+// match (double gameweeks), then the captain step if he had the armband.
+function Breakdown({ c }: { c: Raw }) {
+  const matches: Raw[] = c.matches ?? [];
+  const captainStep =
+    c.multiplier > 1 ? (
+      <>
+        , ×{c.multiplier} as captain = <b>{c.counted_points}</b>
+      </>
+    ) : null;
+  if (!matches.length) {
+    return (
+      <div className="lg-break">
+        <span className="lg-item">Didn't play</span> <b>= 0</b>
+        {captainStep}
+      </div>
+    );
+  }
+  const many = matches.length > 1;
+  return (
+    <div className="lg-break">
+      {matches.map((m, i) => (
+        <div key={i} className="lg-match">
+          {many && <span className="lg-match-no">Match {i + 1}: </span>}
+          {m.items.map((it: Raw, j: number) => (
+            // the separator sits outside the no-wrap item, so a long line
+            // wraps between items, never inside one
+            <Fragment key={j}>
+              {j > 0 && <span className="lg-sep"> · </span>}
+              <span className={`lg-item${it.points < 0 ? " neg" : ""}`}>
+                {it.label} {it.points > 0 ? "+" : "−"}
+                {Math.abs(it.points)}
+              </span>
+            </Fragment>
+          ))}{" "}
+          <b>= {m.total}</b>
+          {!many && i === matches.length - 1 && captainStep}
+        </div>
+      ))}
+      {many && (
+        <div className="lg-match">
+          Total <b>= {c.points}</b>
+          {captainStep}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Row({ c }: { c: Raw }) {
-  const doubled = c.multiplier > 1;
-  const scored = doubled ? `scored ${c.points} (×${c.multiplier} as captain = ${c.counted_points})` : `scored ${c.points}`;
   const surprise = c.surprise;
   return (
     <div className="lg-row">
@@ -64,12 +113,12 @@ function Row({ c }: { c: Raw }) {
           <b>{c.web_name}</b>
           <span className="muted small">
             {" "}
-            {c.expected != null ? `expected ${c.expected.toFixed(1)}, ${scored}` : scored}
+            {c.expected != null ? `expected ${c.expected.toFixed(1)}` : ""}
             {c.subbed_on ? " · came in from the bench" : ""}
             {c.subbed_off ? " · replaced from the bench" : ""}
           </span>
         </div>
-        <div className="lg-row-reason">{c.reason}</div>
+        <Breakdown c={c} />
       </div>
       {surprise != null && (
         <span className={`lg-diff ${surprise >= 0 ? "beat" : "missed"}`}>

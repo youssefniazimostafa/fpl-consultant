@@ -4,7 +4,10 @@ import type { PlayerView } from "../model/team";
 
 // Names longer than this many characters shrink to fit instead of being
 // cut off; below MIN_SCALE they'd be unreadable, so only then abbreviate.
-const FIT_CHARS = 10;
+// The label may grow a little wider than the tile (CSS max-width), so
+// names up to 13 characters (e.g. "Calvert-Lewin") fit at the normal size;
+// longer ones shrink, as a last resort.
+const FIT_CHARS = 13;
 const MIN_SCALE = 0.62; // ~7.5px on laptop -- fits FPL's longest usual web_names, e.g. "Alexander-Arnold"
 
 /** FPL's web_name, shrunk to fit the label (never truncated with "..."). */
