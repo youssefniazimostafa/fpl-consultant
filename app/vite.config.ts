@@ -21,7 +21,7 @@ function webAppTags(): Plugin {
       { tag: "link", attrs: { rel: "icon", type: "image/png", href: `${PAGES_BASE}icon-192.png` }, injectTo: "head" },
       { tag: "meta", attrs: { name: "apple-mobile-web-app-capable", content: "yes" }, injectTo: "head" },
       { tag: "meta", attrs: { name: "mobile-web-app-capable", content: "yes" }, injectTo: "head" },
-      { tag: "meta", attrs: { name: "apple-mobile-web-app-title", content: "FPL Consultant" }, injectTo: "head" },
+      { tag: "meta", attrs: { name: "apple-mobile-web-app-title", content: "XPert" }, injectTo: "head" },
       { tag: "meta", attrs: { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" }, injectTo: "head" },
     ],
   };

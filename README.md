@@ -1,4 +1,9 @@
-# FPL Consultant
+# XPert, your fantasy consultant
+
+(Formerly "FPL Consultant". The app is now called XPert; its bundle identifiers, the
+`~/Library/Application Support/FPL Consultant/` data folder and the Keychain service "FPL Consultant"
+keep their old names on purpose, so saved keys, your saved plan, local data and the iPhone install
+keep working. Logo, icons and font: `docs/brand/`.)
 
 A personal Fantasy Premier League advisor: a Python pipeline models every
 player's expected points, works out the transfers/captain/chip plan that
@@ -166,7 +171,7 @@ npm run tauri dev                          # development, with hot reload
 npm run tauri build -- --bundles app       # builds the .app
 ```
 
-The built app is `app/src-tauri/target/release/bundle/macos/FPL Consultant.app`.
+The built app is `app/src-tauri/target/release/bundle/macos/XPert.app`.
 Drag it into Applications.
 
 - **Data:** on launch it loads the latest local `latest.json` (from your last
@@ -210,7 +215,7 @@ Drag it into Applications.
 - **Diagnostics:** `~/Library/Application Support/FPL Consultant/app.log`
   (restarted on each launch) records what was loaded and each refresh's
   stages and result. Launching with `FPL_CONSULTANT_AUTOREFRESH=1` (e.g.
-  `open --env FPL_CONSULTANT_AUTOREFRESH=1 "FPL Consultant.app"`) starts one
+  `open --env FPL_CONSULTANT_AUTOREFRESH=1 "XPert.app"`) starts one
   Refresh automatically, which is useful for testing. Two more test aids:
   `FPL_CONSULTANT_WINDOW=390,844` opens the window at that size (for
   screenshots), and `FPL_CONSULTANT_SIMULATE_OFFLINE=1` makes the app act as
@@ -244,7 +249,7 @@ untouched). To add it to your iPhone:
 2. Tap the **Share** button (square with an arrow; on newer iOS it's in the
    "..." menu at the bottom right).
 3. Scroll down and tap **Add to Home Screen**.
-4. Keep the name "FPL Consultant", make sure **Open as Web App** is on (if
+4. Keep the name "XPert", make sure **Open as Web App** is on (if
    shown), and tap **Add**.
 
 It opens full-screen from the home-screen icon, without Safari's bars.

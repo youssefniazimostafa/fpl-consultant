@@ -4,7 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 import { getPath, loadInitial, loadLocal, loadViewer, sourceLabel, type LoadedData } from "./data";
 import { DESKTOP, VIEWER, inTauri } from "./platform";
 import { TABS } from "./tabs";
-import { AppHeader, Banner, BottomNav, StatusBar } from "./components/Chrome";
+import { Banner, BottomNav, TabBar, TopBar, type Game } from "./components/Chrome";
+import { UclPage } from "./pages/UclPage";
 import { Settings } from "./components/Settings";
 import { ChatPanel } from "./components/ChatPanel";
 import { TeamPage } from "./pages/TeamPage";
@@ -70,6 +71,17 @@ function countdown(deadlineIso: string | undefined, now: number): string {
   return `${d > 0 ? `${d}d ` : ""}${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
+// PL | UCL switch: remembered between launches (default PL). Only the PL
+// game exists so far; UCL shows a "to be continued" page and runs nothing.
+const GAME_KEY = "xpert:game";
+function readGame(): Game {
+  try {
+    return localStorage.getItem(GAME_KEY) === "ucl" ? "ucl" : "pl";
+  } catch {
+    return "pl";
+  }
+}
+
 export default function App() {
   const [loaded, setLoaded] = useState<LoadedData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -79,6 +91,18 @@ export default function App() {
   const [showChat, setShowChat] = useState(false);
   const [chatQuestion, setChatQuestion] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [game, setGame] = useState<Game>(readGame);
+  const gameRef = useRef(game);
+  gameRef.current = game;
+  const started = useRef(false);
+  useEffect(() => {
+    document.documentElement.dataset.game = game;
+    try {
+      localStorage.setItem(GAME_KEY, game);
+    } catch {
+      /* storage unavailable: the choice just isn't remembered */
+    }
+  }, [game]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [stage, setStage] = useState<string | null>(null);
@@ -93,6 +117,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // nothing loads or runs in UCL mode; PL data loads the first time PL is shown
+    if (game !== "pl" || started.current) return;
+    started.current = true;
     if (VIEWER) {
       loadViewer().then(setLoaded, (e) => setLoadError(String(e)));
       const fromHash = location.hash.slice(1);
@@ -142,13 +169,13 @@ export default function App() {
       .catch(() => {});
     // a refresh may already be running (e.g. after a dev-mode reload)
     invoke<boolean>("is_refreshing").then((r) => r && setRefreshing(true));
-  }, []);
+  }, [game]);
 
   useEffect(() => {
     if (!VIEWER) return;
     let last = Date.now();
     const onVisible = () => {
-      if (document.visibilityState !== "visible" || Date.now() - last < VIEWER_RELOAD_AFTER_MS) return;
+      if (gameRef.current !== "pl" || document.visibilityState !== "visible" || Date.now() - last < VIEWER_RELOAD_AFTER_MS) return;
       last = Date.now();
       loadViewer().then(setLoaded, () => {});
     };
@@ -223,9 +250,9 @@ export default function App() {
 
   return (
     <div className="app">
-      <AppHeader tabs={TABS} active={tab} onSelect={setTab} />
-      <div className="rule" />
-      <StatusBar
+      <TopBar
+        game={game}
+        onGame={setGame}
         deadlineLabel={`GW${nextGw ?? "?"} deadline`}
         countdown={data ? countdown(deadline, now) : "…"}
         refreshedLabel={VIEWER ? "Updated" : "Last refreshed"}
@@ -237,12 +264,17 @@ export default function App() {
         onSettings={DESKTOP ? () => setShowSettings(true) : undefined}
         onChat={DESKTOP ? () => setShowChat(true) : undefined}
       />
-      {VIEWER && loaded?.offlineReason && (
+      {game === "pl" ? (
+        <TabBar tabs={TABS} active={tab} onSelect={setTab} />
+      ) : (
+        <TabBar tabs={[{ id: "ucl", name: "Champions League" }]} active="ucl" onSelect={() => {}} />
+      )}
+      {game === "pl" && VIEWER && loaded?.offlineReason && (
         <Banner tone="info">
           <strong>Offline: showing data from {fmtTime(loaded.generatedAt)}.</strong>
         </Banner>
       )}
-      {DESKTOP && showChat && (
+      {game === "pl" && DESKTOP && showChat && (
         <ChatPanel
           initialQuestion={chatQuestion}
           onClose={() => {
@@ -251,26 +283,27 @@ export default function App() {
           }}
         />
       )}
-      {DESKTOP && showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {game === "pl" && DESKTOP && showSettings && <Settings onClose={() => setShowSettings(false)} />}
 
-      {refreshing && (
+      {game === "pl" && refreshing && (
         <Banner tone="info">
           <strong>Updating your data: {stage ?? "starting"}</strong>
           {elapsed !== null && <span> · {elapsed}s</span>}
           {lastLine && <div className="small faded">{lastLine}</div>}
         </Banner>
       )}
-      {refreshError && (
+      {game === "pl" && refreshError && (
         <Banner tone="error">
           <strong>Refresh failed. Still showing the previous data.</strong>
           <pre>{refreshError}</pre>
         </Banner>
       )}
-      {!refreshing && !refreshError && lastResult && <Banner tone="ok">{lastResult}</Banner>}
+      {game === "pl" && !refreshing && !refreshError && lastResult && <Banner tone="ok">{lastResult}</Banner>}
 
       <main className="content">
-        {loadError && !data && <Banner tone="error">Couldn't load any data: {loadError}</Banner>}
-        {data &&
+        {game === "ucl" && <UclPage />}
+        {game === "pl" && loadError && !data && <Banner tone="error">Couldn't load any data: {loadError}</Banner>}
+        {game === "pl" && data &&
           (current.id === "team" ? (
             <TeamPage data={data} />
           ) : current.id === "league" ? (
@@ -288,14 +321,14 @@ export default function App() {
           ) : (
             <PlaceholderPage tab={current} data={data} />
           ))}
-        {loaded && (
+        {game === "pl" && loaded && (
           <p className="footnote">
             Data: {sourceLabel(loaded.source)} · generated {fmtTime(loaded.generatedAt)}
           </p>
         )}
       </main>
 
-      <BottomNav tabs={TABS} active={tab} onSelect={setTab} />
+      {game === "pl" && <BottomNav tabs={TABS} active={tab} onSelect={setTab} />}
     </div>
   );
 }
