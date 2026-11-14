@@ -71,6 +71,7 @@ from fpl.decision import ROLL, build_decision, choose_plan, rival_captaincy
 from fpl.fetch import load_config
 from fpl.league import resolve_team_id
 from fpl.league_page import build_league_page
+from fpl.overview import build_overview
 from fpl.optimise import resolve_my_squad
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -1246,6 +1247,17 @@ def main() -> None:
         "top_xp": build_top_xp(xp_by_gameweek),
         "consultant_vs_you": build_consultant_section(),
     }
+    payload["overview"] = build_overview(
+        players=players,
+        xp_by_gameweek=xp_by_gameweek,
+        next_fixture=_next_fixture_by_player(features, int(min(
+            int(c[2:-3]) for c in xp_by_gameweek.columns if c.startswith("gw") and c.endswith("_xp")
+        ))) if not xp_by_gameweek.empty else {},
+        matches=load_optional("player_matches"),
+        league_picks=league_picks,
+        team_id=team_id,
+        predictions_dir=ROOT / "data" / "predictions",
+    )
     payload["league_page"] = build_league_page(
         team_id=team_id,
         league_id=config.get("league_id"),
