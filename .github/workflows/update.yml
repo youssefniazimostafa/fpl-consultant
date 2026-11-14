@@ -14,6 +14,8 @@ on:
     # FPL's :00 and :30 deadlines in the middle of the window even when
     # GitHub starts the run late.
     - cron: "45 * * * *"
+    # (2026-11-14: no scheduled run had started since 04:14 UTC; this
+    # comment-only change re-registers the schedule.)
   # Settings -> Actions -> "Run workflow" button, for a manual run.
   workflow_dispatch: {}
   # Catch breakage immediately when fpl/ changes, before the next scheduled run.
