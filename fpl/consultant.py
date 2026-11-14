@@ -33,6 +33,8 @@ ROOT = Path(__file__).resolve().parent.parent
 RECOMMENDATIONS_DIR = ROOT / "data" / "recommendations"
 CSV_PATH = ROOT / "data" / "accuracy" / "consultant_vs_you.csv"
 FIRST_TRACKED_GW = 11
+# Keep in sync with .github/scripts/deadline_gate.py WINDOW_START.
+FINAL_SNAPSHOT_WINDOW = pd.Timedelta(hours=2)
 HIT_COST = 4
 ELEMENT_TYPE_POSITION = {1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
 FORMATION_MIN = {"GKP": 1, "DEF": 3, "MID": 2, "FWD": 1}
@@ -76,17 +78,31 @@ def frozen_recommendation(decision: dict[str, Any], frozen_at: str) -> dict[str,
 
 
 def freeze_recommendation(decision: dict[str, Any], gameweeks: pd.DataFrame, now: pd.Timestamp | None = None) -> Path | None:
-    """Write data/recommendations/gw{N}.json unless gw N's deadline has passed."""
+    """Write data/recommendations/gw{N}.json unless gw N's deadline has
+    passed -- or a snapshot was already taken in the final
+    ``FINAL_SNAPSHOT_WINDOW`` before it. The first run inside that window
+    (normally the hourly pre-deadline run, see .github/scripts/
+    deadline_gate.py) takes the final snapshot; later runs leave it alone,
+    so the frozen file is the 1-2-hours-before-deadline one."""
     if not decision.get("available"):
         return None
     gw = int(decision["gameweek"])
     now = now or pd.Timestamp.now("UTC")
+    path = RECOMMENDATIONS_DIR / f"gw{gw}.json"
     if not gameweeks.empty:
         row = gameweeks[gameweeks["gameweek"] == gw]
-        if not row.empty and now >= pd.Timestamp(row["deadline_time"].iloc[0]):
-            return None  # frozen -- never touched after the deadline
+        if not row.empty:
+            deadline = pd.Timestamp(row["deadline_time"].iloc[0])
+            if now >= deadline:
+                return None  # frozen -- never touched after the deadline
+            if path.exists():
+                try:
+                    prev = pd.Timestamp(json.loads(path.read_text())["frozen_at"])
+                except (KeyError, ValueError):
+                    prev = None
+                if prev is not None and prev >= deadline - FINAL_SNAPSHOT_WINDOW:
+                    return None  # the final pre-deadline snapshot is already taken
     RECOMMENDATIONS_DIR.mkdir(parents=True, exist_ok=True)
-    path = RECOMMENDATIONS_DIR / f"gw{gw}.json"
     path.write_text(json.dumps(frozen_recommendation(decision, now.isoformat()), indent=2, ensure_ascii=False))
     return path
 

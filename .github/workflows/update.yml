@@ -7,6 +7,13 @@ on:
   # evenings and Sun/Mon) so the verdict reflects this week's picks fast.
   schedule:
     - cron: "0 */3 * * *"
+    # Pre-deadline snapshot: hourly, but the `gate` job below lets it run
+    # the full pipeline only once per deadline, 1-2 hours before it (see
+    # .github/scripts/deadline_gate.py); every other hourly run ends in
+    # seconds as a success without deploying or committing. Minute 45 puts
+    # FPL's :00 and :30 deadlines in the middle of the window even when
+    # GitHub starts the run late.
+    - cron: "45 * * * *"
   # Settings -> Actions -> "Run workflow" button, for a manual run.
   workflow_dispatch: {}
   # Catch breakage immediately when fpl/ changes, before the next scheduled run.
@@ -26,24 +33,55 @@ permissions:
   pages: write
   id-token: write
 
-# One run of this workflow at a time -- two overlapping runs would both try
-# to commit/push data/predictions and deploy Pages concurrently.
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
-  update:
+  # Cheap check first (standard library only, no uv sync). Regular
+  # scheduled runs, pushes and manual runs always pass; the hourly
+  # pre-deadline cron passes only for the one snapshot run per deadline.
+  gate:
     runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decide whether to run the full pipeline
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ] || [ "${{ github.event.schedule }}" != "45 * * * *" ]; then
+            echo "Not the hourly pre-deadline check -- full run."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git fetch --depth=1 origin main:refs/remotes/origin/main
+          python3 .github/scripts/deadline_gate.py
+
+  update:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    # One full run at a time -- two overlapping runs would both try to
+    # commit/push data/predictions and deploy Pages concurrently. Set on
+    # this job (not the workflow) so the quick hourly gate runs never hold
+    # or cancel a queued full run.
+    concurrency:
+      group: "pages"
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
+      # A run that waited behind another one starts from an older commit;
+      # start from the latest main so the pipeline sees the newest frozen
+      # recommendation (publish won't overwrite a final pre-deadline one).
+      - name: Sync to the latest main
+        run: |
+          git fetch --depth=1 origin main
+          git reset --hard FETCH_HEAD
+
       - uses: astral-sh/setup-uv@v5
 
-      - name: Run the pipeline (fetch -> external data -> features -> model -> league -> scoring -> optimise -> simulation -> publish)
+      - name: Run the pipeline (fetch -> external data -> features -> model -> league -> scoring -> optimise -> simulation -> publish -> consistency check)
         run: uv run python -m fpl.pipeline
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
