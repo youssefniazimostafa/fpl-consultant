@@ -55,6 +55,7 @@ export interface Decision {
     urgent: string[];
     useBy: number | null;
     statuses: ChipStatus[];
+    nextHalf: ChipStatus[]; // second set, unlocks after GW19
   };
   horizonGain: number | null;
   horizonWeeks: number;
@@ -131,9 +132,34 @@ export function readDecision(data: Latest): Decision | null {
       urgent: d.chip?.urgent ?? [],
       useBy: d.chip?.use_by_gameweek ?? null,
       statuses: d.chip?.statuses ?? [],
+      nextHalf: d.chip?.next_half ?? [],
     },
     horizonGain: num(d.headline?.horizon_gain),
     horizonWeeks: d.headline?.horizon_weeks ?? 5,
     why: d.why ?? [],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// "You vs the consultant" (fpl/consultant.py, latest.json consultant_vs_you)
+// ---------------------------------------------------------------------------
+
+export interface Tracker {
+  started: boolean;
+  firstGameweek: number;
+  lastWeek: { gameweek: number; consultant: number; you: number } | null;
+  totals: { consultant: number; you: number; difference: number } | null;
+}
+
+export function readTracker(data: Latest): Tracker {
+  const t: Raw | undefined = data.consultant_vs_you;
+  if (!t?.available || !t.started) {
+    return { started: false, firstGameweek: t?.first_gameweek ?? 11, lastWeek: null, totals: null };
+  }
+  return {
+    started: true,
+    firstGameweek: t.first_gameweek,
+    lastWeek: { gameweek: t.last_week.gameweek, consultant: t.last_week.consultant_points, you: t.last_week.my_points },
+    totals: { consultant: t.totals.consultant, you: t.totals.you, difference: t.totals.difference },
   };
 }

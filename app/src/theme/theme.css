@@ -163,6 +163,8 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
 .team-bench { grid-area: bench; }
 .team-side { grid-area: side; display: flex; flex-direction: column; gap: 12px; }
 .why-card { grid-area: why; }
+.tracker-bottom { display: none; }
+.tracker-line { font-size: 14px; font-weight: 600; margin: 4px 0 0 !important; }
 .team-bench .bench { margin-top: 0; }
 .why { font-size: 14px; }
 
@@ -185,6 +187,9 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
 }
 .chip.available { background: var(--purple); color: var(--white); }
 .chip.used { background: var(--grey); color: var(--white); }
+.chip.locked { background: transparent; color: var(--text-muted); border: 1.5px dashed var(--grey); padding: 5px 4px; }
+.chip-half { margin-top: 10px; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.chip-half + .chip-row { margin-top: 5px; }
 .chip-name { font-size: 11px; font-weight: 800; }
 .chip-note { font-size: 10px; opacity: 0.85; }
 .chip.available .chip-note { color: var(--neon); opacity: 1; }
@@ -201,14 +206,19 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
   .rule { margin: 0 8px; }
   .statusbar { gap: 14px; padding: 8px 14px; }
   .hide-phone { display: none; }
-  .value { font-size: 14px; }
+  .value { font-size: 13px; }
+  .statusbar .label { white-space: nowrap; font-size: 10px; }
+  .statusbar { gap: 10px; }
   .refresh { padding: 8px 14px; }
   .banner { margin: 8px 10px 0; }
   .content { padding: 12px 10px 16px; }
 
   .team-page {
     grid-template-columns: minmax(0, 1fr); grid-template-rows: none;
-    grid-template-areas: "title" "pitch" "bench" "side" "why";
+    grid-template-areas: "title" "pitch" "bench" "side" "why" "track";
+  }
+  .tracker-side { display: none; }
+  .tracker-bottom { display: block; grid-area: track;
   }
   .page-title h1 { font-size: 19px; }
   .pitch { min-height: 420px; padding: 30px 0 22px; }

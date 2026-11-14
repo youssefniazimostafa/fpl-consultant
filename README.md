@@ -52,11 +52,11 @@ whatever downstream panels it can.
 | 4 | `xp` | Expected points per player per gameweek over the lookahead horizon, plus a frozen pre-deadline snapshot per gameweek for later scoring. |
 | 5 | `league` | Your mini-league's ownership/EO, ownership swings, chips-remaining grid, strategy mode (chasing/protecting/balanced), and ("manual mode") converts a hand-transcribed `data/manual/league_snapshot.json` into the same tables if `league_id` isn't usable. |
 | 6 | `rival_transfers` | A model of when each rival is likely to transfer, to anticipate incoming threats. |
-| 7 | `scoring` | Post-gameweek feedback: once a gameweek's deadline has passed and its scores lock, compares the frozen pre-deadline xP snapshot against what actually happened and appends to `data/accuracy/accuracy_log.csv`. Safe to run every 3 hours -- it's a no-op except right after a gameweek finishes. |
+| 7 | `scoring` | Post-gameweek feedback: once a gameweek's deadline has passed and its scores lock, compares the frozen pre-deadline xP snapshot against what actually happened and appends to `data/accuracy/accuracy_log.csv`. Safe to run every 3 hours -- it's a no-op except right after a gameweek finishes. Also scores "You vs the consultant" (`fpl/consultant.py`): each gameweek's recommendation is frozen at the deadline in `data/recommendations/gw{N}.json` (written by `publish` before every deadline), then scored with real points under FPL's rules (captain/vice, automatic subs, chips, hits) next to your actual result, both read from the FPL API. Results go to `data/accuracy/consultant_vs_you.csv`. |
 | 8 | `optimise` | The actual recommendation: best XI, transfer plan (respecting free transfers and the hit-justification policy), captain/vice-captain, chip plan. |
 | 9 | `simulation` | Monte Carlo win-probability for this gameweek and the rest of the season, comparing the optimiser's recommended plan (exactly as `optimise` recommends it) against rolling the transfer. |
 | 10 | `publish` | Writes `site/data/latest.json`, the one file the static site fetches. Every panel is `null` with a short `reason` if its config/table isn't available yet. Builds the one `decision` for the upcoming gameweek (`fpl/decision.py`): transfer or roll, hits and free transfers, XI, bench, captain, chip and the "why" text. Rule for transfer vs hold: in "chasing" mode follow the better chance of winning this week; otherwise follow the higher projected points. `verdict`, `xi`, `recommended_team` and `transfer_plan` are built from the same choice. |
-| 11 | `check_consistency` | Fails the run (before the site deploys) if the recommendation contradicts itself, e.g. an incoming player missing from the team, the captain differing between panels, or hit/free-transfer numbers that don't add up. `publish` also runs it before writing, so a contradictory `latest.json` is never written. |
+| 11 | `check_consistency` | Fails the run (before the site deploys) if the recommendation contradicts itself, e.g. an incoming player missing from the team, the captain differing between panels (including the site's captain board, captaincy-risk and simulation panels), or hit/free-transfer numbers that don't add up. `publish` also runs it before writing, so a contradictory `latest.json` is never written. |
 
 Two more modules are **not** part of the scheduled pipeline (one-off model
 validation, not something that needs to re-run every 3 hours):
@@ -92,6 +92,13 @@ uv run python -m fpl.check_transfer_policy
 # --self-test breaks each rule once on a copy and checks it's caught:
 uv run python -m fpl.check_consistency
 uv run python -m fpl.check_consistency --self-test
+
+# Check the consultant scorer reproduces FPL's official points (your GW10,
+# every league manager's GW1-10, plus rule cases):
+uv run python -m fpl.check_consultant_scoring
+
+# Check the optimiser uses FPL's formation rules, not a fixed 4-4-2:
+uv run python -m fpl.check_formation
 
 # Serve the site locally to view the result in a browser:
 cd site && python3 -m http.server 8000

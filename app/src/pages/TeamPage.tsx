@@ -2,7 +2,7 @@ import type { Latest } from "../data";
 import { Card, Pill } from "../components/Card";
 import { Bench, Pitch } from "../components/Pitch";
 import { Shirt } from "../components/Shirt";
-import { readDecision, type Decision, type PlayerView } from "../model/team";
+import { readDecision, readTracker, type Decision, type PlayerView } from "../model/team";
 
 // Every panel below renders `decision` (fpl/decision.py) as published --
 // none of them works out a recommendation of its own.
@@ -111,6 +111,7 @@ function ChipsCard({ d }: { d: Decision }) {
             ? `Best upcoming: ${chip.upcoming.label} in GW${chip.upcoming.gameweek} (about ${chip.upcoming.gain.toFixed(0)} extra points).`
             : "None of your chips is worth playing in the next few weeks."}
       </p>
+      {chip.useBy && <div className="chip-half">This half: use by the end of GW{chip.useBy}</div>}
       <div className="chip-row">
         {chip.statuses.map((c) => (
           <div key={c.chip} className={`chip ${c.available ? "available" : "used"}`} title={c.note}>
@@ -119,11 +120,50 @@ function ChipsCard({ d }: { d: Decision }) {
           </div>
         ))}
       </div>
+      {chip.nextHalf.length > 0 && (
+        <>
+          <div className="chip-half">Second half: unlocks in GW{(chip.useBy ?? 19) + 1}</div>
+          <div className="chip-row">
+            {chip.nextHalf.map((c) => (
+              <div key={c.chip} className="chip locked" title={c.note}>
+                <span className="chip-name">{c.label}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
       {chip.urgent.length > 0 && chip.useBy && (
         <p className="note warn">
           Use {chip.urgent.join(" and ")} by GW{chip.useBy} or lose {chip.urgent.length > 1 ? "them" : "it"}.
         </p>
       )}
+    </Card>
+  );
+}
+
+// Rendered twice: at the bottom of the right column on laptop, and after
+// "Why this team" on phone (CSS shows one or the other).
+function TrackerCard({ data, place }: { data: Latest; place: "side" | "bottom" }) {
+  const t = readTracker(data);
+  let lines: string[];
+  if (!t.started || !t.lastWeek || !t.totals) {
+    lines = [`Tracking starts with Gameweek ${t.firstGameweek}. First result after it finishes.`];
+  } else {
+    const diff = t.totals.difference;
+    lines = [
+      `Last week: you ${t.lastWeek.you}, the consultant's team ${t.lastWeek.consultant}`,
+      diff === 0
+        ? `Since GW${t.firstGameweek}: level`
+        : `Since GW${t.firstGameweek}: ${diff > 0 ? "consultant" : "you"} ahead by ${Math.abs(diff)}`,
+    ];
+  }
+  return (
+    <Card title="You vs the consultant" className={`tracker-card tracker-${place}`}>
+      {lines.map((l) => (
+        <p key={l} className="tracker-line">
+          {l}
+        </p>
+      ))}
     </Card>
   );
 }
@@ -156,10 +196,12 @@ export function TeamPage({ data }: { data: Latest }) {
         <TransfersCard d={d} />
         {d.captain && <CaptainCard d={d} />}
         <ChipsCard d={d} />
+        <TrackerCard data={data} place="side" />
       </aside>
       <Card title="Why this team" className="why-card">
         <p className="why">{d.why.join(" ")}</p>
       </Card>
+      <TrackerCard data={data} place="bottom" />
     </div>
   );
 }
