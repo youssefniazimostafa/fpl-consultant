@@ -18,13 +18,12 @@ as a future plan:
    had just hauled ("chases form"), and how often an outgoing player had
    already gone a gameweek with 0 minutes before being sold ("sells
    flagged players").
-3. ``forecast_rival_transfers`` -- for whichever gameweek you ask about,
-   picks each rival's single most-likely incoming and outgoing player
-   using those three habit numbers plus this gameweek's actual signals
-   (who just hauled league-wide, who's currently flagged in ``players.
-   chance_of_playing_next_round``) -- each forecast line names the signal
-   it's based on, so "no clear signal" is a real, visible answer rather
-   than a guess dressed up as one.
+3. ``forecast_rival_transfers`` -- each rival's single most likely move,
+   from their own habits and squad: whether they move at all (transfers a
+   week so far), who goes out (flagged, or their weakest starter), and who
+   comes in (same position, within their budget; recent haulers for
+   haul-chasers, best expected points otherwise). Each forecast line names
+   the reason it's based on.
 
 This does **not** fold the forecast into ``fpl.league``'s own
 ``league_eo`` -- that calculation is validated against live standings
@@ -118,6 +117,14 @@ def build_rival_habits(
     return habits
 
 
+# A rival who made fewer than this many transfers per gameweek so far is
+# forecast to save the free transfer rather than make a move.
+MIN_TRANSFERS_PER_GW_TO_MOVE = 0.5
+# "Recent haul" window for haul-chasers: the last N gameweeks.
+HAUL_WINDOW_GWS = 2
+MAX_PER_CLUB = 3
+
+
 def forecast_rival_transfers(
     habits: pd.DataFrame,
     league_picks: pd.DataFrame,
@@ -125,25 +132,53 @@ def forecast_rival_transfers(
     player_matches: pd.DataFrame,
     free_transfers: pd.DataFrame,
     gameweek: int,
+    xp_by_gameweek: pd.DataFrame | None = None,
+    league_history: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    """For each rival, the single most-likely incoming and outgoing player
-    next gameweek, from this gameweek's actual signals (who just hauled
-    league-wide, who's currently flagged) weighted by that rival's own
-    tracked habit rate -- a rival whose ``chase_rate``/``sells_flagged_rate``
-    isn't both tracked on enough transfers (``MIN_TRACKED_TRANSFERS_FOR_HABIT``)
-    and above ``CONFIDENCE_THRESHOLD`` gets "no clear signal" instead of a
-    guess. Only rivals with >= 1 free transfer get a forecast at all --
-    nobody can buy without one.
-    """
+    """Each rival's single most likely move next gameweek, built from that
+    rival's own habits and squad (Step 15) -- not one league-wide "whoever
+    just hauled" pick for everyone:
+
+    1. Will they move at all? Nobody can without a free transfer; a rival
+       who has made fewer than MIN_TRANSFERS_PER_GW_TO_MOVE transfers a
+       gameweek so far is forecast to save it.
+    2. Who goes out: a flagged player in their squad if they usually sell
+       flagged players (``sells_flagged_rate``, as before); otherwise
+       their starter with the lowest expected points next gameweek.
+    3. Who comes in, for that position, affordable with that player's price
+       plus their bank, keeping 3-per-club: a haul-chaser (``chase_rate``
+       >= CONFIDENCE_THRESHOLD on enough tracked transfers) gets the best
+       recent hauler (last HAUL_WINDOW_GWS gameweeks); everyone else the
+       player with the most expected points over the next few gameweeks.
+    Every forecast names the reason it's based on."""
     current_squads = league_picks[league_picks["gameweek"] == gameweek].groupby("manager_id")["player_id"].apply(set)
+    starters = league_picks[(league_picks["gameweek"] == gameweek) & (league_picks["multiplier"] > 0)]
+    starters = starters.groupby("manager_id")["player_id"].apply(set)
+    info = players.set_index("id")
+    price = info["now_cost"].to_dict()
+    pos = info["position"].to_dict()
+    club = info["team"].to_dict()
+    name = info["web_name"].to_dict()
+    available = set(info.index[info["status"].isin(["a"])]) if "status" in info.columns else set(info.index)
+
+    xp_next: dict[int, float] = {}
+    xp_total: dict[int, float] = {}
+    if xp_by_gameweek is not None and not xp_by_gameweek.empty:
+        cols = sorted((c for c in xp_by_gameweek.columns if c.startswith("gw") and c.endswith("_xp")), key=lambda c: int(c[2:-3]))
+        x = xp_by_gameweek.set_index("player_id")
+        if cols:
+            xp_next = x[cols[0]].fillna(0.0).to_dict()
+        if "xp_total" in x.columns:
+            xp_total = x["xp_total"].fillna(0.0).to_dict()
+    bank: dict[int, int] = {}
+    if league_history is not None and not league_history.empty and "bank" in league_history.columns:
+        lh = league_history[league_history["gameweek"] == league_history["gameweek"].max()]
+        bank = {int(m): int(b) for m, b in zip(lh["manager_id"], lh["bank"].fillna(0))}
 
     haul_cutoff = player_matches.groupby("gameweek")["total_points"].quantile(HAUL_PERCENTILE)
-    this_gw_matches = player_matches[player_matches["gameweek"] == gameweek]
-    haulers = (
-        this_gw_matches[this_gw_matches["total_points"] >= haul_cutoff.get(gameweek, np.inf)]
-        .merge(players[["id", "web_name", "form"]], left_on="player_id", right_on="id", how="left")
-        .sort_values("total_points", ascending=False)
-    )
+    recent = player_matches[player_matches["gameweek"] > gameweek - HAUL_WINDOW_GWS]
+    recent = recent[recent["total_points"] >= recent["gameweek"].map(haul_cutoff)]
+    haul_points = recent.groupby("player_id")["total_points"].max().to_dict()
 
     flagged = players[
         players["chance_of_playing_next_round"].notna() & (players["chance_of_playing_next_round"] < 100)
@@ -152,42 +187,65 @@ def forecast_rival_transfers(
     rows = []
     for row in habits.itertuples():
         ft_row = free_transfers[free_transfers["manager_id"] == row.manager_id]
-        has_ft = not ft_row.empty and ft_row["free_transfers"].iloc[0] >= 1
+        ft = int(ft_row["free_transfers"].iloc[0]) if not ft_row.empty else None
         squad = current_squads.get(row.manager_id, set())
+        xi = starters.get(row.manager_id, set())
+        rate = float(row.transfers_per_gw) if pd.notna(getattr(row, "transfers_per_gw", np.nan)) else 0.0
+        base = {"manager_id": row.manager_id, "entry_name": row.entry_name, "player_name": row.player_name,
+                "free_transfers": ft}
+        if not ft or not squad:
+            rows.append({**base, "predicted_in": None, "predicted_in_reason": "no free transfer",
+                         "predicted_out": None, "predicted_out_reason": "no free transfer"})
+            continue
+        if rate < MIN_TRANSFERS_PER_GW_TO_MOVE:
+            why = f"saves transfers: {rate:.1f} a week so far"
+            rows.append({**base, "predicted_in": None, "predicted_in_reason": why,
+                         "predicted_out": None, "predicted_out_reason": why})
+            continue
 
-        predicted_in, in_reason = None, "no clear signal"
-        enough_data = row.transfers_in_tracked >= MIN_TRACKED_TRANSFERS_FOR_HABIT
-        if has_ft and enough_data and row.chase_rate >= CONFIDENCE_THRESHOLD:
-            candidates = haulers[~haulers["player_id"].isin(squad)]
-            if not candidates.empty:
-                pick = candidates.iloc[0]
-                predicted_in = pick["web_name"]
-                in_reason = (
-                    f"hauled {int(pick['total_points'])} pts this GW; chases hauls "
-                    f"{row.chase_rate:.0%} of the time ({row.transfers_in_tracked} tracked)"
-                )
+        # who goes out
+        out_id, out_reason = None, None
+        enough_out = row.transfers_out_tracked >= MIN_TRACKED_TRANSFERS_FOR_HABIT
+        owned_flagged = flagged[flagged.index.isin(squad)]
+        if not owned_flagged.empty and enough_out and (row.sells_flagged_rate or 0) >= CONFIDENCE_THRESHOLD:
+            worst = owned_flagged.sort_values("chance_of_playing_next_round").iloc[0]
+            out_id = int(worst.name)
+            out_reason = (f"{int(worst['chance_of_playing_next_round'])}% chance of playing; sells flagged "
+                          f"players {row.sells_flagged_rate:.0%} of the time")
+        elif not owned_flagged.empty:
+            worst = owned_flagged.sort_values("chance_of_playing_next_round").iloc[0]
+            out_id = int(worst.name)
+            out_reason = f"{int(worst['chance_of_playing_next_round'])}% chance of playing"
+        elif xi:
+            out_id = min(xi, key=lambda p: xp_next.get(p, 0.0))
+            out_reason = f"weakest starter by expected points ({xp_next.get(out_id, 0.0):.1f})"
 
-        predicted_out, out_reason = None, "no clear signal"
-        enough_out_data = row.transfers_out_tracked >= MIN_TRACKED_TRANSFERS_FOR_HABIT
-        if has_ft and enough_out_data and row.sells_flagged_rate >= CONFIDENCE_THRESHOLD:
-            owned_flagged = flagged[flagged.index.isin(squad)]
-            if not owned_flagged.empty:
-                worst = owned_flagged.sort_values("chance_of_playing_next_round").iloc[0]
-                predicted_out = worst["web_name"]
-                out_reason = (
-                    f"{int(worst['chance_of_playing_next_round'])}% chance of playing; sells flagged "
-                    f"players {row.sells_flagged_rate:.0%} of the time ({row.transfers_out_tracked} tracked)"
-                )
-
+        # who comes in
+        in_id, in_reason = None, None
+        if out_id is not None:
+            budget = price.get(out_id, 0) + bank.get(int(row.manager_id), 0)
+            clubs: dict[Any, int] = {}
+            for p in squad - {out_id}:
+                clubs[club.get(p)] = clubs.get(club.get(p), 0) + 1
+            fits = [p for p in info.index if p not in squad and pos.get(p) == pos.get(out_id)
+                    and price.get(p, 10**6) <= budget and p in available
+                    and clubs.get(club.get(p), 0) < MAX_PER_CLUB]
+            chases = (row.transfers_in_tracked >= MIN_TRACKED_TRANSFERS_FOR_HABIT
+                      and pd.notna(row.chase_rate) and row.chase_rate >= CONFIDENCE_THRESHOLD)
+            haulers = [p for p in fits if p in haul_points]
+            if chases and haulers:
+                in_id = max(haulers, key=lambda p: (haul_points[p], xp_total.get(p, 0.0)))
+                in_reason = (f"hauled {int(haul_points[in_id])} pts recently; chases hauls "
+                             f"{row.chase_rate:.0%} of the time ({row.transfers_in_tracked} tracked)")
+            elif fits:
+                in_id = max(fits, key=lambda p: xp_total.get(p, 0.0))
+                in_reason = f"most expected points in that position within budget (£{budget / 10:.1f}m)"
         rows.append({
-            "manager_id": row.manager_id,
-            "entry_name": row.entry_name,
-            "player_name": row.player_name,
-            "free_transfers": int(ft_row["free_transfers"].iloc[0]) if not ft_row.empty else None,
-            "predicted_in": predicted_in,
-            "predicted_in_reason": in_reason,
-            "predicted_out": predicted_out,
-            "predicted_out_reason": out_reason,
+            **base,
+            "predicted_in": name.get(in_id) if in_id is not None else None,
+            "predicted_in_reason": in_reason or "no clear signal",
+            "predicted_out": name.get(out_id) if out_id is not None else None,
+            "predicted_out_reason": out_reason or "no clear signal",
         })
     return pd.DataFrame(rows)
 
@@ -223,7 +281,10 @@ def main() -> None:
     habits = build_rival_habits(history, league_history, league_picks, player_matches, league_managers)
     write_table(habits, "league_rival_habits.parquet")
 
-    forecast = forecast_rival_transfers(habits, league_picks, players, player_matches, free_transfers, gameweek)
+    xp_path = TABLES_DIR / "xp_by_gameweek.parquet"
+    xp_by_gameweek = pd.read_parquet(xp_path) if xp_path.exists() else None
+    forecast = forecast_rival_transfers(habits, league_picks, players, player_matches, free_transfers, gameweek,
+                                        xp_by_gameweek=xp_by_gameweek, league_history=league_history)
     write_table(forecast, "league_rival_transfer_forecast.parquet")
 
     print(f"\nCheckpoint: rival transfer forecast for the gameweek after {gameweek}:")

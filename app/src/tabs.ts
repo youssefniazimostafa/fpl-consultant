@@ -15,8 +15,8 @@ export const TABS: TabDef[] = [
   { id: "team", name: "Recommended team", short: "Team", fields: [] },
   { id: "lastgw", name: "Last gameweek", short: "Last", fields: [] },
   { id: "totw", name: "Team of the week", short: "TOTW", fields: [] },
-  { id: "league", name: "League", fields: [] },
-  { id: "overview", name: "FPL overview", short: "FPL", fields: [] },
+  { id: "league", name: "Your leagues", short: "Leagues", fields: [] },
+  { id: "overview", name: "Scout", short: "Scout", fields: [] },
   { id: "planner", name: "Planner", short: "Plan", fields: [] },
   { id: "analytics", name: "Analytics", short: "Stats", fields: [] },
 ];

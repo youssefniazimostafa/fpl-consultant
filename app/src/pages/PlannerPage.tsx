@@ -1,6 +1,8 @@
 import type { Latest } from "../data";
 import { Card } from "../components/Card";
 import { Shirt } from "../components/Shirt";
+import { YourPlanCard } from "../components/YourPlan";
+import { DESKTOP } from "../platform";
 
 // Planner: the plan for the next few gameweeks at a glance. Everything
 // comes from latest.json's `planner` section (fpl/planner.py); its first
@@ -107,6 +109,7 @@ export function PlannerPage({ data }: { data: Latest }) {
         </span>
       </div>
       <p className="planner-note">{p.note}</p>
+      {DESKTOP && <YourPlanCard />}
 
       {/* laptop: weeks across, a row per item */}
       <div className="show-laptop">

@@ -18,6 +18,7 @@ import pandas as pd
 from fpl.decision import CHIP_HALF_BOUNDARY, CHIP_LABELS, CHIP_ORDER
 
 TOP_OWNED = 15
+CHIP_SHORT = {"wildcard": "WC", "freehit": "FH", "bboost": "BB", "3xc": "TC"}
 DIFFERENTIALS = 10
 DIFFERENTIAL_MAX_RIVALS = 1  # "few or none"
 POPULAR_NOT_OWNED = 8
@@ -157,9 +158,19 @@ def build_league_page(
                 if isinstance(g.get(f"{k}_{half}"), str) and g[f"{k}_{half}"].startswith("used")]
         left = [CHIP_LABELS[k] for k in CHIP_ORDER if g.get(f"{k}_{half}") == "available"]
         fc = fc_by.get(mid, {})
+        chip_icons = []
+        for k in CHIP_ORDER:
+            v = g.get(f"{k}_{half}")
+            if not isinstance(v, str):
+                continue
+            used_gw = int(v.split("GW")[-1]) if v.startswith("used") and "GW" in v and v.split("GW")[-1].isdigit() else None
+            chip_icons.append({"chip": k, "short": CHIP_SHORT.get(k, k), "label": CHIP_LABELS[k],
+                               "used_gameweek": used_gw, "available": v == "available"})
         rivals_in_area.append({
             "manager_id": mid, "entry_name": s["entry_name"], "player_name": s["player_name"],
             "rank": s["rank"], "points_vs_you": s["total_points"] - me["total_points"],
+            "chips": chip_icons,
+            "likely_in_reason": fc.get("predicted_in_reason"), "likely_out_reason": fc.get("predicted_out_reason"),
             "they_have": sorted(name.get(p, "?") for p in theirs - mine),
             "you_have": sorted(name.get(p, "?") for p in mine - theirs),
             "free_transfers": ft_by.get(mid),

@@ -41,6 +41,9 @@ export interface RivalInArea {
   likelyOut: string | null;
   chipsUsed: string[];
   chipsLeft: string[];
+  chips: { chip: string; short: string; label: string; usedGameweek: number | null; available: boolean }[];
+  likelyInReason: string | null;
+  likelyOutReason: string | null;
 }
 
 export interface OwnedPlayer {
@@ -170,6 +173,11 @@ export function readLeague(data: Latest): LeaguePageData | null {
       likelyOut: r.likely_out ?? null,
       chipsUsed: r.chips_used ?? [],
       chipsLeft: r.chips_left ?? [],
+      chips: (r.chips ?? []).map((c: Raw) => ({
+        chip: c.chip, short: c.short, label: c.label, usedGameweek: c.used_gameweek ?? null, available: !!c.available,
+      })),
+      likelyInReason: r.likely_in_reason ?? null,
+      likelyOutReason: r.likely_out_reason ?? null,
     })),
     rivalsCount: l.rivals_count ?? 0,
     topOwned: (l.top_owned ?? []).map(owned),

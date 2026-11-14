@@ -180,9 +180,13 @@ def build_gameweeks_table(bootstrap: dict[str, Any]) -> pd.DataFrame:
     the fields Step 12 needs downstream: whether it's ``finished`` (safe to
     archive permanently -- see ``fpl.league``'s GW snapshot writer),
     ``is_current``/``is_next``, and ``deadline_time`` (for the dashboard's
-    "next deadline" countdown)."""
+    "next deadline" countdown), plus ``average_entry_score`` (FPL's overall
+    average points that gameweek, for the Analytics chart; 0 before a
+    gameweek is played)."""
     events = pd.DataFrame(bootstrap["events"])
-    return events[["id", "finished", "is_current", "is_next", "deadline_time"]].rename(
+    if "average_entry_score" not in events.columns:
+        events["average_entry_score"] = None
+    return events[["id", "finished", "is_current", "is_next", "deadline_time", "average_entry_score"]].rename(
         columns={"id": "gameweek"}
     )
 

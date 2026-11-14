@@ -79,6 +79,7 @@ from fpl.optimise import (
     WEEKLY_DISCOUNT,
     build_squad_plan_table,
     build_transfers_table,
+    gate_planned_weeks,
     recommend_transfers,
     rule_inputs,
     build_candidate_pool,
@@ -93,6 +94,10 @@ from fpl.optimise import (
 ROOT = Path(__file__).resolve().parent.parent
 TABLES_DIR = ROOT / "data" / "tables"
 OUTPUT_PATH = TABLES_DIR / "simulation_results.json"
+# Step 15: "Your options this week" (Analytics) -- a separate output, never
+# read by the decision, so the recommendation can't change because of it.
+OPTIONS_PATH = TABLES_DIR / "simulation_options.json"
+N_OPTIONS = 3
 SEASON_OUTPUT_PATH = TABLES_DIR / "season_simulation.json"
 HOLD_SQUAD_PATH = TABLES_DIR / "simulation_hold_squad.parquet"
 HOLD_TRANSFERS_PATH = TABLES_DIR / "simulation_hold_transfers.parquet"
@@ -144,6 +149,7 @@ def load_rival_plans(
             captain_id = int(max(xi["player_id"], key=lambda p: xp_map.get(p, 0.0)))
         plans.append(
             {
+                "manager_id": int(manager_id),
                 "team": team_by_manager.get(manager_id, f"manager {manager_id}"),
                 "manager": name_by_manager.get(manager_id, ""),
                 "xi_ids": sorted(int(p) for p in xi["player_id"]),
@@ -311,6 +317,145 @@ def run_simulation(
     return pd.DataFrame(rows).sort_values("p_finish_1st", ascending=False).reset_index(drop=True)
 
 
+def simulate_options(
+    options: list[dict[str, Any]],
+    rival_plans: list[dict[str, Any]],
+    xp_map: dict[int, float],
+    leader_id: int | None,
+    n_draws: int = N_DRAWS,
+    seed: int = SEED,
+) -> list[dict[str, Any]]:
+    """For each option (``xi_ids``, ``captain_id``, ``hits``): mean points,
+    a bad week and a good week (10th / 90th percentile of the same shared
+    Poisson draws as ``run_simulation``), the chance of the top score in the
+    league, and the chance of outscoring the leader this week."""
+    universe: set[int] = set()
+    for plan in options + rival_plans:
+        universe.update(plan["xi_ids"])
+        if plan.get("captain_id") is not None:
+            universe.add(plan["captain_id"])
+    ids = sorted(universe)
+    index_of = {p: i for i, p in enumerate(ids)}
+    rng = np.random.default_rng(seed)
+    draws = rng.poisson(np.clip(np.array([xp_map.get(p, 0.0) for p in ids]), 0.0, None), size=(n_draws, len(ids)))
+    rival_tot = {p["manager_id"]: _team_points_matrix(p["xi_ids"], p["captain_id"], draws, index_of) for p in rival_plans}
+    best = np.column_stack(list(rival_tot.values())).max(axis=1) if rival_tot else np.zeros(n_draws)
+    leader = rival_tot.get(leader_id)
+    out = []
+    for o in options:
+        mine = _team_points_matrix(o["xi_ids"], o["captain_id"], draws, index_of) - HIT_COST * o.get("hits", 0)
+        out.append({
+            "mean_points": round(float(mine.mean()), 1),
+            "bad_week": int(np.percentile(mine, 10)),
+            "good_week": int(np.percentile(mine, 90)),
+            "p_top_score": round(float((mine >= best).mean()), 3),
+            "p_beat_leader": round(float((mine > leader).mean()), 3) if leader is not None else None,
+        })
+    return out
+
+
+def build_options(
+    full_plans: dict[str, dict[str, Any]],
+    meta: dict[str, Any],
+    solver_args: tuple,
+    rules: dict[str, Any],
+    pool_info: dict[int, dict[str, Any]],
+    raw_weekly_xp: dict[tuple[int, int], float],
+    xp_map: dict[int, float],
+    rival_plans: list[dict[str, Any]],
+    league_picks: pd.DataFrame,
+    league_history: pd.DataFrame,
+    league_managers: pd.DataFrame,
+    team_id: int,
+) -> dict[str, Any]:
+    """Analytics' "Your options this week": the top captain choices for the
+    recommended plan and the top transfer choices (the optimiser's move, the
+    next best ones with its incoming player(s) left out, and holding),
+    each with its simulated range and rival context. Options, not advice:
+    the consultant's pick is only marked."""
+    pool_ids, weekly_value, info, my_squad, sell, bank, free, weeks, discount = solver_args
+    g0 = weeks[0]
+    name = lambda p: pool_info.get(p, {}).get("web_name", "?")  # noqa: E731
+    latest = league_picks[league_picks["gameweek"] == league_picks["gameweek"].max()] if not league_picks.empty else league_picks
+    rivals = latest[latest["manager_id"] != team_id]
+    n_rivals = int(rivals["manager_id"].nunique()) if not rivals.empty else 0
+    rivals_captaining = rivals[rivals["is_captain"]].groupby("player_id").size().to_dict() if not rivals.empty else {}
+    rivals_owning = rivals.groupby("player_id").size().to_dict() if not rivals.empty else {}
+    leader_id, leader_name = None, None
+    if not league_history.empty:
+        lh = league_history[league_history["gameweek"] == league_history["gameweek"].max()]
+        lh = lh[lh["manager_id"] != team_id].sort_values("total_points", ascending=False)
+        if not lh.empty:
+            leader_id = int(lh["manager_id"].iloc[0])
+            names = league_managers.set_index("manager_id")["entry_name"].to_dict() if not league_managers.empty else {}
+            leader_name = names.get(leader_id)
+
+    def five_weeks(plan: dict[str, Any]) -> float:
+        tot = 0.0
+        for wk in plan["weeks"]:
+            g = wk["gameweek"]
+            tot += sum(raw_weekly_xp.get((p, g), 0.0) for p in wk["xi_ids"])
+            if wk["captain_id"] is not None:
+                tot += raw_weekly_xp.get((wk["captain_id"], g), 0.0)
+            tot -= HIT_COST * wk["hits"]
+        return round(tot, 1)
+
+    rec_label = TRANSFER_LABEL if meta.get("transfer_recommended") and TRANSFER_LABEL in full_plans else HOLD_LABEL
+    rec = full_plans[rec_label]
+    w0 = rec["weeks"][0]
+    xi = sorted(w0["xi_ids"])
+
+    # captain choices: the recommended plan's XI, highest expected points first
+    caps = sorted(xi, key=lambda p: -xp_map.get(p, 0.0))[:N_OPTIONS]
+    if w0["captain_id"] is not None and w0["captain_id"] not in caps:
+        caps = caps[: N_OPTIONS - 1] + [w0["captain_id"]]
+    cap_opts = [{"xi_ids": xi, "captain_id": c, "hits": w0["hits"]} for c in caps]
+    cap_sims = simulate_options(cap_opts, rival_plans, xp_map, leader_id)
+    captains = [{
+        "player_id": c, "web_name": name(c), "projected_points": round(2 * xp_map.get(c, 0.0), 1),
+        "team_projected": sim["mean_points"], "bad_week": sim["bad_week"], "good_week": sim["good_week"],
+        "p_beat_leader": sim["p_beat_leader"], "p_top_score": sim["p_top_score"],
+        "rivals_captaining": int(rivals_captaining.get(c, 0)), "is_consultant_pick": c == w0["captain_id"],
+    } for c, sim in zip(caps, cap_sims)]
+
+    # transfer choices
+    plans: list[tuple[dict[str, Any], bool]] = []
+    if rec_label == TRANSFER_LABEL:
+        plans.append((rec, True))
+    banned: set[int] = set(rec["weeks"][0]["transfers_in"])
+    for _ in range(N_OPTIONS - len(plans)):
+        ids = [p for p in pool_ids if p not in banned or p in my_squad]
+        alt = solve_horizon(ids, weekly_value, info, my_squad, sell, bank, free, weeks, discount,
+                            no_hit_weeks=frozenset({g0}), **rules)
+        if alt["status"] != "Optimal" or not alt["weeks"][0]["transfers_in"]:
+            break
+        # later weeks through the same transfer bar as the recommendation
+        alt = gate_planned_weeks(alt, *solver_args, raw_weekly_xp=raw_weekly_xp, **rules)
+        plans.append((alt, False))
+        banned |= set(alt["weeks"][0]["transfers_in"])
+    hold = full_plans[HOLD_LABEL]
+    if rec_label != HOLD_LABEL:  # the recommendation itself is already gated
+        hold = gate_planned_weeks(hold, *solver_args, raw_weekly_xp=raw_weekly_xp, **rules)
+    plans.append((hold, rec_label == HOLD_LABEL))
+    t_opts = [{"xi_ids": sorted(p["weeks"][0]["xi_ids"]), "captain_id": p["weeks"][0]["captain_id"],
+               "hits": p["weeks"][0]["hits"]} for p, _ in plans]
+    t_sims = simulate_options(t_opts, rival_plans, xp_map, leader_id)
+    transfers = []
+    for (plan, is_rec), sim in zip(plans, t_sims):
+        wk = plan["weeks"][0]
+        ins, outs = sorted(wk["transfers_in"]), sorted(wk["transfers_out"])
+        transfers.append({
+            "transfers_in": [name(p) for p in ins], "transfers_out": [name(p) for p in outs],
+            "hold": not ins, "captain": name(wk["captain_id"]), "hits": wk["hits"],
+            "projected_points": sim["mean_points"], "five_week_points": five_weeks(plan),
+            "bad_week": sim["bad_week"], "good_week": sim["good_week"],
+            "p_beat_leader": sim["p_beat_leader"], "p_top_score": sim["p_top_score"],
+            "rivals_owning_in": [int(rivals_owning.get(p, 0)) for p in ins], "is_consultant_pick": is_rec,
+        })
+    return {"available": True, "gameweek": g0, "rivals": n_rivals, "leader_name": leader_name,
+            "captains": captains, "transfers": transfers}
+
+
 def simulate_season_standings(
     league_history: pd.DataFrame,
     league_managers: pd.DataFrame,
@@ -451,6 +596,16 @@ def main() -> None:
 
     results.to_json(OUTPUT_PATH, orient="records", indent=2)
     print(f"  wrote {OUTPUT_PATH} ({len(results)} rows)")
+    try:
+        options = build_options(
+            full_plans, meta,
+            (pool_ids, adj_weekly_value, pool_info, my_squad_ids, sell_price, bank, effective_free, weeks, discount),
+            rules, pool_info, raw_weekly_xp, xp_map, rival_plans, league_picks, league_history, league_managers, team_id,
+        )
+    except Exception as e:  # noqa: BLE001 -- an Analytics extra must never stop the pipeline
+        options = {"available": False, "reason": f"options not computed: {e}"}
+    OPTIONS_PATH.write_text(json.dumps(options, indent=2, default=float))
+    print(f"  wrote {OPTIONS_PATH.name} ({len(options.get('captains', []))} captain, {len(options.get('transfers', []))} transfer options)")
     # The hold plan's full squad/transfer tables (same shape as
     # optimise_squad/optimise_transfers), so fpl.publish can switch the
     # one recommendation to holding if its decision rule says so.

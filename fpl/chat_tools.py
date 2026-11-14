@@ -175,27 +175,37 @@ def compare_players(a: str, b: str) -> dict[str, Any]:
     return {"a": A, "b": B, "swap": swaps}
 
 
-def _plan_points(plan: dict[str, Any]) -> tuple[float, float]:
+def _plan_points(plan: dict[str, Any], raw: dict[tuple[int, int], float] | None = None) -> tuple[float, float]:
     c = _ctx()
+    raw = raw or c["raw"]
     pts = []
     for wk in plan["weeks"]:
         g = wk["gameweek"]
-        v = sum(c["raw"].get((p, g), 0.0) for p in wk["xi_ids"])
+        v = sum(raw.get((p, g), 0.0) for p in wk["xi_ids"])
         if wk["captain_id"] is not None:
-            v += c["raw"].get((wk["captain_id"], g), 0.0)
+            v += raw.get((wk["captain_id"], g), 0.0)
         pts.append(v - HIT_COST * wk["hits"])
     return pts[0], sum(pts)
 
 
-def what_if(transfers_in: list[str] | None = None, transfers_out: list[str] | None = None, captain: str | None = None) -> dict[str, Any]:
-    """Empty transfers = keep your squad this week (no transfer)."""
+def compare_plan(ins: frozenset[int], outs: frozenset[int], cap: int | None) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """The recommendation vs a forced plan (these players in/out this week,
+    this captain), both re-planned the same way for later weeks. Works for
+    any player id, not only the optimiser's candidate pool (an incoming
+    player outside it is added with his own projections). Returns the
+    what_if result and both plans (the plan review simulates them)."""
     c = _ctx()
-    args = (c["pool"], c["adj"], c["info"], c["my_squad"], c["sell"], c["bank"], c["free"], c["weeks"], c["discount"])
-    base = solve_horizon(*args, **c["rules"])  # the recommendation, exactly as fpl.optimise.main
-    rec, _, _, _ = recommend_transfers(base, *args, raw_weekly_xp=c["raw"], **c["rules"])
-    ins = frozenset(_find(n) for n in (transfers_in or []))
-    outs = frozenset(_find(n) for n in (transfers_out or []))
-    cap = _find(captain) if captain else None
+    pool, raw, adj, sell = c["pool"], c["raw"], c["adj"], c["sell"]
+    extra = [p for p in ins if p not in pool]
+    if extra:
+        pool = sorted(set(pool) | set(extra))
+        raw = lookup_weekly_xp(c["xp_by_gw"], c["weeks"], pool)
+        adj, _ = rule_inputs(raw, c["eo"], c["mode"], c["weeks"])
+        sell = {**sell, **{p: c["info"][p]["now_cost"] for p in extra}}
+    args = (pool, adj, c["info"], c["my_squad"], sell, c["bank"], c["free"], c["weeks"], c["discount"])
+    base_args = (c["pool"], c["adj"], c["info"], c["my_squad"], c["sell"], c["bank"], c["free"], c["weeks"], c["discount"])
+    base = solve_horizon(*base_args, **c["rules"])  # the recommendation, exactly as fpl.optimise.main
+    rec, _, _, _ = recommend_transfers(base, *base_args, raw_weekly_xp=c["raw"], **c["rules"])
     for p in outs:
         if p not in c["my_squad"]:
             raise ToolError(f"You don't own {c['info'][p]['web_name']}.")
@@ -207,12 +217,12 @@ def what_if(transfers_in: list[str] | None = None, transfers_out: list[str] | No
     if alt["status"] != "Optimal":
         raise ToolError("That move isn't possible within FPL's rules (budget, positions or 3 per club).")
     # later weeks through the same transfer bar as the recommendation's plan
-    alt = gate_planned_weeks(alt, *args, raw_weekly_xp=c["raw"], force_captain=cap, **c["rules"])
+    alt = gate_planned_weeks(alt, *args, raw_weekly_xp=raw, force_captain=cap, **c["rules"])
     r0, r5 = _plan_points(rec)
-    a0, a5 = _plan_points(alt)
+    a0, a5 = _plan_points(alt, raw)
     name = lambda ids: sorted(c["info"][p]["web_name"] for p in ids)  # noqa: E731
     wk = alt["weeks"][0]
-    return {
+    result = {
         "scenario": {"transfers_in": name(wk["transfers_in"]), "transfers_out": name(wk["transfers_out"]),
                      "captain": c["info"][wk["captain_id"]]["web_name"] if wk["captain_id"] else None,
                      "points_hit": HIT_COST * wk["hits"], "kept_squad_this_week": bool(held)},
@@ -222,6 +232,15 @@ def what_if(transfers_in: list[str] | None = None, transfers_out: list[str] | No
         "projected_points_next_5_weeks": {"scenario": round(a5, 1), "recommendation": round(r5, 1), "difference": round(a5 - r5, 1)},
         "note": "Projected points of the best XI + captain each week, minus any points hits; later weeks are re-planned for both.",
     }
+    return result, rec, alt
+
+
+def what_if(transfers_in: list[str] | None = None, transfers_out: list[str] | None = None, captain: str | None = None) -> dict[str, Any]:
+    """Empty transfers = keep your squad this week (no transfer)."""
+    ins = frozenset(_find(n) for n in (transfers_in or []))
+    outs = frozenset(_find(n) for n in (transfers_out or []))
+    cap = _find(captain) if captain else None
+    return compare_plan(ins, outs, cap)[0]
 
 
 def get_league_context() -> dict[str, Any]:

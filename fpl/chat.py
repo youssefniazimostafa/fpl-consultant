@@ -111,9 +111,13 @@ def _run_tool(name: str, args: dict[str, Any]) -> tuple[str, bool]:
         return f"Tool failed: {e}", True
 
 
-def answer(messages: list[dict[str, str]], model: str = DEFAULT_MODEL) -> dict[str, Any]:
+def answer(messages: list[dict[str, str]], model: str = DEFAULT_MODEL, extra_rules: str | None = None) -> dict[str, Any]:
+    """``extra_rules`` (fpl/my_plan.py's plan review): task-specific
+    instructions added after the grounding rules and the data summary."""
     client = anthropic.Anthropic(max_retries=1, timeout=120.0)  # key from ANTHROPIC_API_KEY
     system = [{"type": "text", "text": RULES}, {"type": "text", "text": _summary(), "cache_control": {"type": "ephemeral"}}]
+    if extra_rules:
+        system.append({"type": "text", "text": extra_rules})
     convo: list[dict[str, Any]] = [{"role": m["role"], "content": m["content"]} for m in messages if m.get("content")]
     extra: dict[str, Any] = {}
     if model in FALLBACK_MODELS:

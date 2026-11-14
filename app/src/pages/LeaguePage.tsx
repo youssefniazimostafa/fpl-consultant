@@ -6,7 +6,7 @@ import { Shirt } from "../components/Shirt";
 import { defaultRival, readLeague, type LeaguePageData, type OwnedPlayer, type RivalInArea } from "../model/league";
 import { PHONE_BREAKPOINT } from "../theme/theme";
 
-// League page: everything comes from latest.json's `league_page`
+// Your leagues page: everything comes from latest.json's `league_page`
 // (fpl/league_page.py). Rivals' teams are their last confirmed ones --
 // FPL hides upcoming picks until the deadline.
 
@@ -144,43 +144,123 @@ function Names({ names }: { names: string[] }) {
   return names.length ? <span>{names.join(", ")}</span> : <span className="muted">nobody</span>;
 }
 
-function RivalArea({ r, onOpen }: { r: RivalInArea; onOpen: () => void }) {
-  const diff = r.pointsVsYou;
+function ChipIcons({ chips }: { chips: RivalInArea["chips"] }) {
   return (
-    <div className="rival-area">
-      <div className="ra-head">
-        <button className="link" onClick={onOpen}>
+    <span className="chip-icons">
+      {chips.map((c) => (
+        <span
+          key={c.chip}
+          className={`chip-ic ${c.available ? "avail" : "used"}`}
+          title={c.available ? `${c.label}: still available` : `${c.label}: used${c.usedGameweek ? ` in GW${c.usedGameweek}` : ""}`}
+        >
+          {c.short}
+          {!c.available && c.usedGameweek ? <small> · GW{c.usedGameweek}</small> : null}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+const gapText = (diff: number) => (diff === 0 ? "level" : diff > 0 ? `${diff} ahead` : `${-diff} behind`);
+
+function likelyMove(r: RivalInArea): string {
+  if (r.likelyOut && r.likelyIn) return `${r.likelyOut} → ${r.likelyIn}`;
+  if (r.likelyIn) return `→ ${r.likelyIn}`;
+  if (r.likelyOut) return `${r.likelyOut} out`;
+  return r.freeTransfers ? "Save the transfer" : "No free transfer";
+}
+
+function RivalRow({ r, open, onToggle, phone, l }: { r: RivalInArea; open: boolean; onToggle: () => void; phone: boolean; l: LeaguePageData }) {
+  return (
+    <div className={`ra-row${open ? " open" : ""}`}>
+      <button className="ra-line" onClick={onToggle} aria-expanded={open}>
+        <span className="ra-who">
           <b>{r.team}</b>
-        </button>
+          <small>{r.manager}</small>
+        </span>
+        <span className="ra-rank">{r.rank}{r.rank === 1 ? "st" : r.rank === 2 ? "nd" : r.rank === 3 ? "rd" : "th"}</span>
+        <span className={`ra-gap ${r.pointsVsYou > 0 ? "ahead" : r.pointsVsYou < 0 ? "behind" : ""}`}>{gapText(r.pointsVsYou)}</span>
+        <span className="ra-move" title={[r.likelyOutReason, r.likelyInReason].filter(Boolean).join(" · ") || undefined}>
+          {likelyMove(r)}
+        </span>
+        <span className="ra-ft" title="Free transfers">{r.freeTransfers ?? "–"} FT</span>
+        <ChipIcons chips={r.chips} />
+        <span className="ra-caret" aria-hidden>{open ? "▾" : "▸"}</span>
+      </button>
+      {open && (
+        <div className="ra-detail">
+          <dl className="ra-facts">
+            <dt>They have, you don't</dt>
+            <dd><Names names={r.theyHave} /></dd>
+            <dt>You have, they don't</dt>
+            <dd><Names names={r.youHave} /></dd>
+            {(r.likelyInReason || r.likelyOutReason) && (
+              <>
+                <dt>Why that move</dt>
+                <dd>{[r.likelyOutReason, r.likelyInReason].filter((x) => x && x !== "no clear signal").filter((x, i, a) => a.indexOf(x) === i).join("; ") || "no clear signal"}</dd>
+              </>
+            )}
+          </dl>
+          {phone && <RivalPitch l={l} managerId={r.managerId} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RivalPitch({ l, managerId }: { l: LeaguePageData; managerId: number }) {
+  const s = l.standings.find((x) => x.managerId === managerId);
+  const t = l.teams[String(managerId)];
+  if (!s || !t) return null;
+  return (
+    <div className="ra-pitch">
+      <div className="ra-pitch-head">
+        <b>{s.team}</b>
         <span className="muted small">
-          {r.rank}
-          {r.rank === 1 ? "st" : r.rank === 2 ? "nd" : r.rank === 3 ? "rd" : "th"} ·{" "}
-          {diff === 0 ? "level with you" : diff > 0 ? `${diff} ahead of you` : `${-diff} behind you`}
+          GW{t.gameweek} team{t.captain ? ` · captain ${t.captain}` : ""}{t.chip ? ` · played ${t.chip}` : ""}
         </span>
       </div>
-      <dl className="ra-facts">
-        <dt>They have, you don't</dt>
-        <dd>
-          <Names names={r.theyHave} />
-        </dd>
-        <dt>You have, they don't</dt>
-        <dd>
-          <Names names={r.youHave} />
-        </dd>
-        <dt>Next week</dt>
-        <dd>
-          {r.freeTransfers != null ? plural(r.freeTransfers, "free transfer") : "free transfers unknown"}
-          {r.likelyIn || r.likelyOut
-            ? ` · likely ${[r.likelyOut && `${r.likelyOut} out`, r.likelyIn && `${r.likelyIn} in`].filter(Boolean).join(", ")}`
-            : ""}
-        </dd>
-        <dt>Chips</dt>
-        <dd>
-          {r.chipsUsed.length ? `Used ${r.chipsUsed.join(", ")}` : "None used"}
-          {` · still has ${r.chipsLeft.length ? r.chipsLeft.join(", ") : "none"}`}
-        </dd>
-      </dl>
+      <Pitch players={t.xi} legend={`GW${t.gameweek} points under each name`} />
+      <Bench players={t.bench} />
     </div>
+  );
+}
+
+function RivalsInArea({ l, phone }: { l: LeaguePageData; phone: boolean }) {
+  const [open, setOpen] = useState<number | null>(() => (phone ? null : l.rivalsInArea[0]?.managerId ?? null));
+  const shown = open ?? l.rivalsInArea[0]?.managerId ?? null;
+  return (
+    <Card title="Rivals in your area" aside={`${plural(l.rivalsInArea.length, "rival")} · tap one to compare`} className="rivals-card">
+      {l.rivalsInArea.length ? (
+        <div className="ra-layout">
+          <div className="ra-list">
+            <div className="ra-line ra-headrow" aria-hidden>
+              <span>Rival</span><span>Rank</span><span>Gap</span><span>Likely transfer</span><span>FT</span><span>Chips</span><span />
+            </div>
+            {l.rivalsInArea.map((r) => (
+              <RivalRow
+                key={r.managerId}
+                r={r}
+                l={l}
+                phone={phone}
+                open={open === r.managerId}
+                onToggle={() => setOpen(open === r.managerId ? null : r.managerId)}
+              />
+            ))}
+            <p className="note muted ra-how">
+              How we guess each rival's next move: a rival who usually saves transfers is expected to save. Otherwise their
+              injured or doubtful player (or, if none, their weakest starter by expected points) goes out, replaced in the
+              same position within their budget: by a player who just hauled if they usually chase hauls (most of your
+              rivals do), or by the best expected points otherwise. Chips: <span className="chip-ic avail">FH</span> still
+              available, <span className="chip-ic used">FH<small> · GW6</small></span> used.
+            </p>
+          </div>
+          {!phone && shown != null && <RivalPitch l={l} managerId={shown} />}
+        </div>
+      ) : (
+        <p className="muted">No rivals within a gameweek's points of you right now.</p>
+      )}
+    </Card>
   );
 }
 
@@ -226,7 +306,7 @@ export function LeaguePage({ data, startRival = null }: { data: Latest; startRiv
 
   if (!l) {
     return (
-      <Card title="League">
+      <Card title="Your leagues">
         <p className="muted">No league data in this update yet. Press Refresh to run a fresh update.</p>
       </Card>
     );
@@ -254,7 +334,7 @@ export function LeaguePage({ data, startRival = null }: { data: Latest; startRiv
     return (
       <div className="league-page">
         <div className="page-title">
-          <h1>League</h1>
+          <h1>Your leagues</h1>
           {selector}
         </div>
         <Card title="Coming soon">
@@ -275,7 +355,7 @@ export function LeaguePage({ data, startRival = null }: { data: Latest; startRiv
   return (
     <div className="league-page">
       <div className="page-title">
-        <h1>League</h1>
+        <h1>Your leagues</h1>
         {selector}
       </div>
       <div className="league-grid">
@@ -288,13 +368,9 @@ export function LeaguePage({ data, startRival = null }: { data: Latest; startRiv
         </div>
         <div className="lg-side">
           {!phone && selected != null && <RivalTeamView l={l} managerId={selected} />}
-          <Card title="Rivals in your area" aside={plural(l.rivalsInArea.length, "rival")}>
-            {l.rivalsInArea.length ? (
-              l.rivalsInArea.map((r) => <RivalArea key={r.managerId} r={r} onOpen={() => pick(r.managerId)} />)
-            ) : (
-              <p className="muted">No rivals within a gameweek's points of you right now.</p>
-            )}
-          </Card>
+        </div>
+        <div className="lg-rivals">
+          <RivalsInArea l={l} phone={phone} />
         </div>
         <div className="lg-below">
           <Card title="Who owns what" aside={`your ${l.rivalsCount} rivals' latest teams`}>

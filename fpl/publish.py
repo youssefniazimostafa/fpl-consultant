@@ -100,6 +100,14 @@ EO_THREATS_LIMIT = 10
 # ---------------------------------------------------------------------------
 
 
+def _load_json(path: Path) -> dict[str, Any] | None:
+    """A small JSON side-output (e.g. simulation_options.json), or None."""
+    try:
+        return json.loads(path.read_text()) if path.exists() else None
+    except (OSError, ValueError):
+        return None
+
+
 def load_optional(name: str) -> pd.DataFrame:
     path = TABLES_DIR / f"{name}.parquet"
     return pd.read_parquet(path) if path.exists() else pd.DataFrame()
@@ -1299,6 +1307,8 @@ def main() -> None:
         predictions_dir=ROOT / "data" / "predictions",
         accuracy_dir=ROOT / "data" / "accuracy",
         model_accuracy=payload["model_accuracy"],
+        gameweeks=load_optional("gameweeks"),
+        options=_load_json(TABLES_DIR / "simulation_options.json"),
     )
     payload["planner"] = build_planner(
         decision=decision,

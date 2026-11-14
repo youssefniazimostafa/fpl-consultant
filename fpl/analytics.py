@@ -16,7 +16,12 @@ captain_board, decision, model_accuracy).
   difficulty rating;
 * experiment: the live ep_next comparison rows from the accuracy log,
   once any gameweek has been scored with it;
-* backtest: the matched 10-gameweek and 37-gameweek backtest runs.
+* backtest: the matched 10-gameweek and 37-gameweek backtest runs;
+* league_series also carries FPL's overall average per gameweek
+  (bootstrap-static events' average_entry_score, via gameweeks.parquet);
+* options: the top captain and transfer choices this week with a bad-week /
+  good-week range, how many rivals captain or own each, and the chance of
+  outscoring the leader (data/tables/simulation_options.json).
 """
 
 from __future__ import annotations
@@ -47,8 +52,14 @@ def build_analytics(
     predictions_dir: Path,
     accuracy_dir: Path,
     model_accuracy: dict[str, Any],
+    gameweeks: pd.DataFrame | None = None,
+    options: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     out: dict[str, Any] = {"available": True}
+    fpl_avg: dict[int, float] = {}
+    if gameweeks is not None and not gameweeks.empty and "average_entry_score" in gameweeks.columns:
+        played = gameweeks[gameweeks["finished"].fillna(False).astype(bool) & gameweeks["average_entry_score"].notna()]
+        fpl_avg = {int(g): float(v) for g, v in zip(played["gameweek"], played["average_entry_score"])}
 
     # --- league series ---
     series: list[dict[str, Any]] = []
@@ -68,6 +79,7 @@ def build_analytics(
                 "gameweek": int(gw),
                 "you": int(me["net"].iloc[0]),
                 "league_average": round(float(wk["net"].mean()), 1),
+                "fpl_average": fpl_avg.get(int(gw)),
                 "leader": int(wk[wk["manager_id"] == leader_id]["net"].iloc[0]) if (wk["manager_id"] == leader_id).any() else None,
                 "position": int((wk["total_points"] > my_total).sum()) + 1,
                 "managers": len(wk),
@@ -165,4 +177,6 @@ def build_analytics(
         backtest.append({"gameweeks": n, "run_at": r["run_at"], "predictions": r.get("n_predictions"),
                          "scope": r.get("scope"), "rows": rows})
     out["backtest"] = backtest
+    # --- your options this week (fpl.simulation's options run) ---
+    out["options"] = options or {"available": False}
     return out

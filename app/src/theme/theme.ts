@@ -11,6 +11,8 @@ export const colors = {
   cyan: "#04f5ff", // accent
   pink: "#e90052", // accent, warnings ("points hit", flagged players)
   pinkSoft: "#fde3ec",
+  yellow: "#ffd23f", // 75% chance of playing
+  red: "#c8102e", // 0% chance of playing
   lilac: "#f4f0f5", // card backgrounds
   lilacDeep: "#e7dfe9", // borders, pill tracks on cards
   grey: "#b7a9ba", // used chips, dimmed shirts
@@ -32,6 +34,15 @@ export const radius = {
 export const font = {
   family: '"Inter Variable", Inter, -apple-system, BlinkMacSystemFont, sans-serif',
 } as const;
+
+/** Chance-of-playing colour class: 75% yellow, 50% and 25% pink, 0% red
+ * (theme.css .cop-75 / .cop-50 / .cop-0); none when fit or unknown. */
+export function chanceClass(chance: number | null | undefined): string {
+  if (chance == null || chance >= 100) return "";
+  if (chance <= 0) return "cop-0";
+  if (chance <= 50) return "cop-50";
+  return "cop-75";
+}
 
 /** Width (px) below which the app switches to the stacked phone layout. */
 export const PHONE_BREAKPOINT = 720;

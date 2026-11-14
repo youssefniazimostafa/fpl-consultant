@@ -398,6 +398,96 @@ fn chat_send_blocking(messages: Vec<ChatMessage>) -> Result<serde_json::Value, S
     Ok(v)
 }
 
+// "Your plan" (Planner): fpl/my_plan.py in the engine copy, like the chat.
+// The plan itself is saved only in this app's data folder (my_plan.json,
+// next to app.log, outside the engine's git checkout), never in the repo,
+// the engine copy or latest.json, and the pipeline never reads it.
+
+fn plan_path() -> Result<PathBuf, String> {
+    Ok(support_dir()?.join("my_plan.json"))
+}
+
+fn run_plan_module(mode: &str, body: Option<String>, key: Option<String>) -> Result<serde_json::Value, String> {
+    let engine = engine_dir()?;
+    if !engine.join("fpl/my_plan.py").exists() {
+        return Err("The app's engine copy isn't set up yet (or is out of date). Press Refresh once, then try again.".into());
+    }
+    let env = shell_env();
+    let uv_bin = find_program("uv", &env.path)?;
+    let mut cmd = Command::new(&uv_bin);
+    cmd.args(["run", "python", "-m", "fpl.my_plan", mode])
+        .current_dir(&engine)
+        .env("PATH", &env.path)
+        .env_remove("ANTHROPIC_API_KEY")
+        .env_remove("ANTHROPIC_BASE_URL")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    if let Some(k) = key {
+        cmd.env("ANTHROPIC_API_KEY", k);
+    }
+    let mut child = cmd.spawn().map_err(|e| format!("couldn't start the plan check: {e}"))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(body.unwrap_or_default().as_bytes()).map_err(|e| e.to_string())?;
+    }
+    let out = child.wait_with_output().map_err(|e| e.to_string())?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let line = stdout
+        .lines()
+        .rev()
+        .find_map(|l| l.strip_prefix("PLAN_RESULT "))
+        .ok_or("The plan check stopped unexpectedly. Press Refresh to update the engine, then try again.")?;
+    serde_json::from_str(line).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn plan_context() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(|| run_plan_module("context", None, None))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// The saved plan (and its last review), or null.
+#[tauri::command]
+fn plan_load() -> Result<Option<serde_json::Value>, String> {
+    let path = plan_path()?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let text = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    Ok(serde_json::from_str(&text).ok())
+}
+
+#[tauri::command]
+fn plan_save(saved: serde_json::Value) -> Result<(), String> {
+    let path = plan_path()?;
+    std::fs::create_dir_all(path.parent().ok_or("bad path")?).map_err(|e| e.to_string())?;
+    std::fs::write(&path, saved.to_string()).map_err(|e| e.to_string())?;
+    app_log("plan: saved");
+    Ok(())
+}
+
+/// Checks the plan and compares it with the recommendation; with an
+/// Anthropic key saved, also writes the consultant's review.
+#[tauri::command]
+async fn plan_review(plan: serde_json::Value) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let key = keychain_anthropic_key();
+        let with_ai = key.is_some();
+        let body = serde_json::json!({ "plan": plan, "model": get_chat_model(), "with_ai": with_ai }).to_string();
+        let v = run_plan_module("review", Some(body), key)?;
+        app_log(&format!(
+            "plan: reviewed ok={} ai={} cost=${:.4}",
+            v.get("ok").and_then(|b| b.as_bool()).unwrap_or(false),
+            with_ai,
+            v.get("cost_usd").and_then(|c| c.as_f64()).unwrap_or(0.0)
+        ));
+        Ok(v)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 fn is_refreshing(lock: State<'_, RefreshLock>) -> bool {
     lock.0.load(Ordering::SeqCst)
@@ -673,6 +763,10 @@ pub fn run() {
             get_chat_model,
             set_chat_model,
             chat_send,
+            plan_context,
+            plan_load,
+            plan_save,
+            plan_review,
             offline_simulated,
             start_refresh,
             is_refreshing,
