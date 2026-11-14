@@ -130,7 +130,9 @@ cheap high scorers and injury news, from the `overview` section
 planned transfers with free transfers and any hit, the best week for each chip
 you still have, and your players' fixtures coloured by FPL's own difficulty
 (`planner` section, `fpl/planner.py`); its first week is the decision itself.
-**Analytics** is still a placeholder showing raw `latest.json` fields.
+**Analytics** is the page for technical detail, in three tabs (what happened,
+what's expected, what to do), with charts bundled locally (Chart.js) and the
+`analytics` section (`fpl/analytics.py`).
 
 The shared design system lives in `app/src/theme/` (colours, radii and font
 in `theme.ts`, styles in `theme.css`, club colours in `clubColours.ts`) and
@@ -189,6 +191,32 @@ Scheduled, push and manual runs always run in full. `fpl.publish` never
 overwrites a snapshot taken in the final 2 hours, so
 `data/recommendations/gw{N}.json` is the one from 1-2 hours before the
 deadline.
+
+### Backup trigger for the hourly pre-deadline run
+
+GitHub's own scheduled runs can be late or skipped for hours. A free
+external scheduler can call the workflow at :45 every hour instead; the call
+goes through the same deadline gate, so it only runs the pipeline once per
+deadline and skips (in seconds, green) otherwise.
+
+1. **Create a token** (github.com → Settings → Developer settings →
+   Personal access tokens → Fine-grained tokens → Generate new token):
+   name `fpl-consultant hourly trigger`; expiry 1 year; Repository access →
+   Only select repositories → `fpl-consultant`; Permissions → Repository
+   permissions → **Actions: Read and write** (nothing else). Copy the token.
+   It goes only into the scheduler below, never into this repo.
+2. **Create the cron job** at [cron-job.org](https://cron-job.org) (free
+   account): Create cronjob →
+   - URL: `https://api.github.com/repos/youssefniazimostafa/fpl-consultant/actions/workflows/update.yml/dispatches`
+   - Schedule: every hour at minute 45 (time zone UTC)
+   - Advanced → Request method: `POST`
+   - Headers: `Authorization: Bearer <your token>`,
+     `Accept: application/vnd.github+json`,
+     `X-GitHub-Api-Version: 2022-11-28`
+   - Request body: `{"ref":"main","inputs":{"pre_deadline_check":"true"}}`
+   - Save, then "Test run": it should return HTTP 204, and a
+     `workflow_dispatch` run appears in the Actions tab with the `update`
+     job skipped (unless a deadline is 1-2 hours away).
 
 ## `config.json` fields
 
