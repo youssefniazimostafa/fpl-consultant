@@ -31,7 +31,7 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
 .app {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   /* a dark band under the iPhone status bar (white status-bar text), then the game's page colour */
-  background: linear-gradient(#1c1b22 0 env(safe-area-inset-top), var(--game-bg) 0);
+  background: linear-gradient(#000000 0 env(safe-area-inset-top), var(--game-bg) 0);
 }
 .viewer-hide { display: none; }
 
@@ -41,7 +41,9 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
    fill in pages. PL keeps today's look. The UCL theme is our own: midnight
    navy, a royal-blue tab bar, a bright cyan accent -- no UEFA marks or fonts. */
 :root {
-  --top-bg: #ffffff; --top-text: #1c1b22; --top-muted: #6b6a75; --top-line: #e6e5ec;
+  /* top bar: one solid black bar in every game and theme, white on black */
+  --top-bg: #000000; --top-text: #ffffff; --top-muted: #b9b8c4; --top-line: #000000;
+  --ucl-blue: #1d47d6; /* the royal blue of the UCL theme, for the switch */
   --game-bg: var(--white); --game-bar: var(--purple); --game-bar-text: #ffffff;
   --game-accent: var(--neon); --game-accent-text: var(--purple);
 }
@@ -65,12 +67,22 @@ body { background: var(--game-bg); }
 .xp-words { display: flex; flex-direction: column; line-height: 1; }
 .xp-words b { font-family: "Barlow Condensed", "Arial Narrow", sans-serif; font-weight: 700; font-size: 24px; letter-spacing: 0.01em; }
 .xp-words small { font-size: 10.5px; color: var(--top-muted); margin-top: 2px; letter-spacing: 0.02em; }
-.game-switch { display: inline-flex; border: 1.5px solid var(--top-line); border-radius: var(--radius-pill); padding: 2px; background: #f6f5f9; }
+.game-switch { display: inline-flex; border: 1.5px solid rgba(255, 255, 255, 0.22); border-radius: var(--radius-pill); padding: 2px; background: none; }
 .game-switch button {
   border: 0; background: none; color: var(--top-muted); font: inherit; font-size: 11px; font-weight: 800;
   letter-spacing: 0.05em; padding: 4px 11px; border-radius: var(--radius-pill); cursor: pointer;
 }
-.game-switch button.active { background: var(--top-text); color: #ffffff; }
+.game-switch button { color: #8f8e9a; }
+/* the only colour on the bar: PL purple with FPL green text, UCL royal blue with white text */
+.game-switch button.pl.active { background: var(--purple); color: var(--neon); }
+.game-switch button.ucl.active { background: var(--ucl-blue); color: #ffffff; }
+.game-switch button:not(.active):hover { color: #d6d5df; }
+/* tools: black with white text/icons and a thin white pill outline */
+.xbar .chat-btn, .xbar .settings-btn, .xbar .refresh {
+  background: #000000; color: #ffffff; border: 1.5px solid rgba(255, 255, 255, 0.85);
+}
+.xbar .chat-btn:hover, .xbar .settings-btn:hover, .xbar .refresh:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); }
+.xbar .refresh:disabled, .xbar .chat-btn:disabled, .xbar .settings-btn:disabled { opacity: 0.45; }
 .show-phone-inline { display: none; }
 .refresh-short { display: none; }
 

@@ -11,7 +11,7 @@ export function GameSwitch({ game, onChange }: { game: Game; onChange: (g: Game)
   return (
     <div className="game-switch" role="tablist" aria-label="Game">
       {(["pl", "ucl"] as Game[]).map((g) => (
-        <button key={g} role="tab" aria-selected={game === g} className={game === g ? "active" : ""} onClick={() => onChange(g)}>
+        <button key={g} role="tab" aria-selected={game === g} className={`${g}${game === g ? " active" : ""}`} onClick={() => onChange(g)}>
           {g.toUpperCase()}
         </button>
       ))}
