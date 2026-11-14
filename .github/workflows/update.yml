@@ -51,11 +51,11 @@ jobs:
   # scheduled runs, pushes and manual runs always pass; the hourly
   # pre-deadline cron passes only for the one snapshot run per deadline.
   gate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: ubuntu-latest is moving to 26.04
     outputs:
       run: ${{ steps.gate.outputs.run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Decide whether to run the full pipeline
         id: gate
         run: |
@@ -73,7 +73,7 @@ jobs:
   update:
     needs: gate
     if: needs.gate.outputs.run == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: ubuntu-latest is moving to 26.04
     # One full run at a time -- two overlapping runs would both try to
     # commit/push data/predictions and deploy Pages concurrently. Set on
     # this job (not the workflow) so the quick hourly gate runs never hold
@@ -85,7 +85,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # A run that waited behind another one starts from an older commit;
       # start from the latest main so the pipeline sees the newest frozen
@@ -95,7 +95,7 @@ jobs:
           git fetch --depth=1 origin main
           git reset --hard FETCH_HEAD
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v10
 
       - name: Run the pipeline (fetch -> external data -> features -> model -> league -> scoring -> optimise -> simulation -> publish -> consistency check)
         run: uv run python -m fpl.pipeline
@@ -116,16 +116,16 @@ jobs:
         run: bash .github/scripts/save_bot_data.sh
 
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload site artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       - name: Fail the run if the data save failed (site was still deployed)
         if: steps.save.outcome == 'failure'
