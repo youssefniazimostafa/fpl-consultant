@@ -300,7 +300,7 @@ function PlayerList({ players, rivals, mode }: { players: OwnedPlayer[]; rivals:
 export function LeaguePage({ data, startRival = null }: { data: Latest; startRival?: number | null }) {
   const l = readLeague(data);
   const phone = usePhone();
-  const [selected, setSelected] = useState<number | null>(() => startRival ?? (l ? defaultRival(l) : null));
+  const [selected, setSelected] = useState<number | null>(() => startRival ?? (l ? defaultRival(l, l.rivalsInArea[0]?.managerId ?? null) : null));
   const [overlay, setOverlay] = useState<number | null>(() => (phone ? startRival : null));
   const [leagueId, setLeagueId] = useState<number | null>(l?.leagueId ?? null);
 

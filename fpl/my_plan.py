@@ -31,6 +31,7 @@ import contextlib
 import io
 import json
 import sys
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -50,10 +51,85 @@ Write the review in plain football language, in exactly this order, as five shor
 1. One line summing up the plan.
 2. Its strengths and weaknesses.
 3. How it compares with the consultant's recommendation: expected points this week and over 5 weeks, and the chances against your rivals where given. Say plainly when a gap is tiny ("about half a point, basically level").
-4. The risks of this plan, and the risks of the consultant's plan.
+4. The risks, as two short paragraphs that start exactly "Risks for your plan:" and "Risks for the consultant's plan:". Put each risk under the plan that actually carries it: "chip_facts" says which plan plays a chip when, and only a plan that plays a chip early can lose it for a later week.
 5. One closing line that leaves the decision to the user, without telling them what to do.
 If the plan breaks a rule (budget, 3 per club, squad shape) say so first and keep the rest short. Never change or argue for a different recommendation than the app's.
 Rival facts: "rival_context" gives, for each captain and incoming player, how many of your rivals own him and how many captained him last gameweek. Use exactly those counts and never mix them up (owning is not captaining). How ownership works: a player few rivals have gains you ground when he scores and costs you ground when he blanks; a player most rivals have (or captain) changes little either way, because they score or blank with you. Only name strengths, weaknesses and risks you can support from the facts given; never mention something you didn't check (no "I haven't checked the bench")."""
+
+
+SETTINGS_PATH = Path.home() / "Library" / "Application Support" / "FPL Consultant" / "settings.json"
+MAX_REVIEW_WORDS = 180  # the card shows "under about 180 words"; longer gets one rewrite
+CHIP_WORDS = {"bboost": ("bench boost", "bb"), "3xc": ("triple captain", "tc"), "freehit": ("free hit", "fh"),
+              "wildcard": ("wildcard", "wc")}
+LOSS_WORDS = ("no ", "without", "lose", "losing", "lost", "used up", "already used", "gone", "won't have", "wont have",
+              "miss out", "missing", "burn", "spent")
+
+
+def settings_model() -> str | None:
+    """The chat model chosen in the app's Settings (the backend also passes
+    it explicitly); None if there's no settings file."""
+    try:
+        return json.loads(SETTINGS_PATH.read_text()).get("chat_model") or None
+    except (OSError, ValueError):
+        return None
+
+
+def consultant_chip_week(chip: str, c: dict[str, Any], rec: dict[str, Any], d: dict[str, Any]) -> dict[str, Any] | None:
+    """Where the consultant would play ``chip`` instead: its best week by the
+    optimiser's own chip plan within the horizon, valued from the
+    consultant's plan that week (Bench Boost: its bench; Triple Captain: its
+    captain once more; Free Hit / Wildcard: the chip planner's estimate).
+    Falls back to the decision's "upcoming" chip estimate (stated as such)
+    when the best week is beyond the horizon."""
+    path = T.ROOT / "data" / "tables" / "optimise_chip_plan.parquet"
+    rows = pd.read_parquet(path) if path.exists() else pd.DataFrame()
+    weeks = c["weeks"]
+    if not rows.empty:
+        rows = rows[(rows["chip"] == chip) & rows["available"].astype(bool) & rows["gameweek"].isin(weeks)]
+    if rows is not None and not rows.empty:
+        best = rows.sort_values("estimated_gain", ascending=False).iloc[0]
+        g = int(best["gameweek"])
+        wk = next(w for w in rec["weeks"] if w["gameweek"] == g)
+        raw = c["raw"]
+        if chip == "bboost":
+            pts = sum(raw.get((p, g), 0.0) for p in wk["squad_ids"] - wk["xi_ids"])
+        elif chip == "3xc":
+            pts = raw.get((wk["captain_id"], g), 0.0) if wk["captain_id"] is not None else 0.0
+        else:
+            pts = float(best["estimated_gain"])
+        return {"chip": CHIP_LABELS[chip], "gameweek": g, "points": round(pts, 1), "within_horizon": True,
+                "how": "from the consultant's own squad that week" if chip in ("bboost", "3xc") else "the chip planner's estimate"}
+    up = ((d.get("decision") or {}).get("chip") or {}).get("upcoming") or {}
+    if up.get("chip") == chip:
+        return {"chip": CHIP_LABELS[chip], "gameweek": up.get("gameweek"), "points": round(float(up.get("gain") or 0), 1),
+                "within_horizon": False, "how": "the chip planner's estimate for a week beyond the 5-week horizon"}
+    return None
+
+
+def risk_problems(text: str, chip: str | None, uses_early: bool) -> list[str]:
+    """A "lost chip" risk can only sit under the plan that plays the chip
+    early (yours, this week). Flags such a risk under the consultant's plan,
+    and missing risk paragraphs."""
+    low = (text or "").lower()
+    a, b = low.find("risks for your plan:"), low.find("risks for the consultant's plan:")
+    if a < 0 or b < 0:
+        return ["the review doesn't have both risk paragraphs"]
+    yours = low[a:b] if a < b else low[a:]
+    theirs = low[b:a] if b < a else low[b:]
+    cut = lambda para: para[: para.find("\n\n")] if para.find("\n\n") > 0 else para  # noqa: E731
+    yours, theirs = cut(yours), cut(theirs)
+    problems = []
+    for ck, words in CHIP_WORDS.items():
+        for sentence in theirs.split("."):
+            mentions = any((" " + w + " ") in (" " + sentence + " ") for w in words)
+            if mentions and any(lw in sentence for lw in LOSS_WORDS):
+                problems.append(f"a lost-{CHIP_LABELS[ck]} risk is listed under the consultant's plan, which keeps that chip")
+        if ck != chip or not uses_early:
+            for sentence in yours.split("."):
+                mentions = any((" " + w + " ") in (" " + sentence + " ") for w in words)
+                if mentions and any(lw in sentence for lw in LOSS_WORDS):
+                    problems.append(f"a lost-{CHIP_LABELS[ck]} risk is listed under your plan, which doesn't play that chip")
+    return sorted(set(problems))
 
 
 def _latest() -> dict[str, Any]:
@@ -192,6 +268,25 @@ def review(plan: dict[str, Any], model: str | None, with_ai: bool) -> dict[str, 
     cmp["vice_captain"] = name(plan.get("vice_captain"))
     if chip == "freehit":
         cmp["note"] += " Free Hit: the 5-week figure keeps these moves (the squad would really revert after one week)."
+    # Fair chip comparison: the consultant's plan uses the same chip in its own
+    # best week, so an early chip isn't credited with points the consultant
+    # would also get later.
+    rec_chip = consultant_chip_week(chip, c, rec, _latest()) if chip else None
+    if rec_chip:
+        k5 = "projected_points_next_5_weeks"
+        if rec_chip["within_horizon"]:
+            cmp[k5]["recommendation"] = round(cmp[k5]["recommendation"] + rec_chip["points"], 1)
+            if rec_chip["gameweek"] == g0:
+                k1 = "projected_points_this_week"
+                cmp[k1]["recommendation"] = round(cmp[k1]["recommendation"] + rec_chip["points"], 1)
+                cmp[k1]["difference"] = round(cmp[k1]["scenario"] - cmp[k1]["recommendation"], 1)
+        else:
+            cmp[k5]["recommendation_chip_beyond_horizon"] = rec_chip["points"]
+        cmp[k5]["difference"] = round(cmp[k5]["scenario"] - cmp[k5]["recommendation"], 1)
+        cmp["consultant_chip"] = rec_chip
+        cmp["note"] += (f" The consultant's plan plays {rec_chip['chip']} in GW{rec_chip['gameweek']} "
+                        f"(+{rec_chip['points']} pts, {rec_chip['how']})"
+                        + ("" if rec_chip["within_horizon"] else ", not included in the 5-week total") + ".")
     out["comparison"] = cmp
 
     # chances against your rivals (same shared draws as fpl.simulation)
@@ -202,7 +297,8 @@ def review(plan: dict[str, Any], model: str | None, with_ai: bool) -> dict[str, 
     leader = int(lh["manager_id"].iloc[0]) if not lh.empty else None
     if rivals:
         sims = simulate_options(
-            [_sim_entry(week, chip, 0 if chip in NO_HIT_CHIPS else week["hits"]), _sim_entry(rec["weeks"][0], None, rec["weeks"][0]["hits"])],
+            [_sim_entry(week, chip, 0 if chip in NO_HIT_CHIPS else week["hits"]),
+             _sim_entry(rec["weeks"][0], chip if rec_chip and rec_chip["gameweek"] == g0 else None, rec["weeks"][0]["hits"])],
             rivals, xp_next, leader,
         )
         out["chances"] = {"rivals": len(rivals), "yours": sims[0], "consultant": sims[1],
@@ -220,6 +316,12 @@ def review(plan: dict[str, Any], model: str | None, with_ai: bool) -> dict[str, 
                 "free_transfers": check["free_transfers"],
             },
             "comparison_with_recommendation": cmp,
+            "chip_facts": {
+                "your_plan": (f"plays {CHIP_LABELS[chip]} this week (GW{g0}), so it won't have it later" if chip
+                              else "plays no chip this week"),
+                "consultant_plan": (f"keeps {rec_chip['chip']} and plays it in GW{rec_chip['gameweek']}" if rec_chip
+                                    else "plays no chip this week"),
+            },
             "chances_against_rivals": out["chances"],
         }
         latest_picks = t["league_picks"][t["league_picks"]["gameweek"] == t["league_picks"]["gameweek"].max()]
@@ -234,11 +336,35 @@ def review(plan: dict[str, Any], model: str | None, with_ai: bool) -> dict[str, 
             for p in people if p is not None
         }
         msg = "Review my plan for next gameweek.\n\n" + json.dumps(facts, ensure_ascii=False)
+        use_model = model or settings_model() or DEFAULT_MODEL
+        convo = [{"role": "user", "content": msg}]
         with contextlib.redirect_stdout(io.StringIO()):
-            res = answer([{"role": "user", "content": msg}], model or DEFAULT_MODEL, extra_rules=REVIEW_RULES)
+            res = answer(convo, use_model, extra_rules=REVIEW_RULES)
+        cost, tools = res.get("cost_usd", 0.0), [u["name"] for u in res.get("tools", [])]
+        def review_problems(text: str) -> list[str]:
+            found = risk_problems(text, chip, bool(chip))
+            n = len(text.split())
+            if n > MAX_REVIEW_WORDS:
+                found.append(f"it is {n} words; keep it under 140")
+            return found
+
+        problems = review_problems(res.get("answer") or "")
+        retried = False
+        if problems:  # one corrected retry, then report whatever remains
+            retried = True
+            fix = ("Rewrite the review to fix this: " + "; ".join(problems)
+                   + ". Keep the same facts, the same five-part shape and the two risk paragraphs.")
+            with contextlib.redirect_stdout(io.StringIO()):
+                res = answer(convo + [{"role": "assistant", "content": res.get("answer") or ""}, {"role": "user", "content": fix}],
+                             use_model, extra_rules=REVIEW_RULES)
+            cost += res.get("cost_usd", 0.0)
+            tools += [u["name"] for u in res.get("tools", [])]
+            problems = review_problems(res.get("answer") or "")
         out["review"] = res.get("answer")
-        out["cost_usd"] = res.get("cost_usd", 0.0)
-        out["tools"] = [u["name"] for u in res.get("tools", [])]
+        out["cost_usd"] = cost
+        out["tools"] = tools
+        out["model"] = use_model
+        out["risk_check"] = {"ok": not problems, "problems": problems, "retried": retried}
     return out
 
 

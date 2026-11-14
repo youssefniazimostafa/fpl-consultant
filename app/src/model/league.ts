@@ -186,11 +186,15 @@ export function readLeague(data: Latest): LeaguePageData | null {
   };
 }
 
-/** The rival shown by default: the nearest one above you (or just below if you're 1st). */
-export function defaultRival(l: LeaguePageData): number | null {
+/** The rival shown by default: the nearest one to you (above first, then
+ * below), skipping ``exclude`` -- the rival already open under "Rivals in
+ * your area", so the same pitch isn't shown twice. */
+export function defaultRival(l: LeaguePageData, exclude: number | null = null): number | null {
   const me = l.standings.find((s) => s.isYou);
-  if (!me) return l.standings[0]?.managerId ?? null;
-  const above = l.standings.find((s) => s.rank === me.rank - 1);
-  const below = l.standings.find((s) => s.rank === me.rank + 1);
-  return (above ?? below)?.managerId ?? null;
+  const others = l.standings.filter((s) => !s.isYou && s.managerId !== exclude);
+  if (!me) return others[0]?.managerId ?? null;
+  const nearest = [...others].sort(
+    (a, b) => Math.abs(a.rank - me.rank) - Math.abs(b.rank - me.rank) || a.rank - b.rank,
+  );
+  return nearest[0]?.managerId ?? null;
 }
