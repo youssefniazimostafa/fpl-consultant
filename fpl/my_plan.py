@@ -46,7 +46,7 @@ REVIEW_RULES = """THIS REQUEST IS A PLAN REVIEW. It overrides the "How to answer
 
 The user has saved their own plan for next gameweek. The message gives the plan, its checks, the comparison with the app's recommendation (projected points this week and over 5 weeks, from the same engine as what_if) and the chances against rivals. Use only those numbers and tool results; you may check a player with get_player if you need a fact that isn't there.
 
-Write the review in plain football language, in exactly this order, as five short paragraphs of one or two sentences each (no headings, no bullet lists, bold only a few key names or numbers). Hard limit: 150 words in total; count them and cut detail rather than go over:
+Write the review in plain football language, in exactly this order, as five short paragraphs of one or two sentences each (no headings, no bullet lists, bold only a few key names or numbers). Hard limit: 130 words in total (the app shows it under about 180); count them and cut detail rather than go over:
 1. One line summing up the plan.
 2. Its strengths and weaknesses.
 3. How it compares with the consultant's recommendation: expected points this week and over 5 weeks, and the chances against your rivals where given. Say plainly when a gap is tiny ("about half a point, basically level").

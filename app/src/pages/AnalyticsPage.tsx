@@ -297,8 +297,11 @@ function BacktestCard({ back }: { back: Raw[] }) {
   const one = (x: number | null | undefined) => (x == null ? "–" : x.toFixed(1));
   const best = (k: string, hi = true) => Math.max(...[ppg, last5].map((r) => (r?.[k] == null ? -Infinity : hi ? r[k] : -r[k])));
   const ranksBetter = ours && (ours.rank_starters ?? -Infinity) > best("rank_starters");
-  const missSmaller = ours && -(ours.mae ?? Infinity) > best("mae", false);
+  // a gap under 0.01 points per player-week is "about the same"
+  const missSmaller = ours && -(ours.mae ?? Infinity) - best("mae", false) > 0.01;
   const capBetter = ours && (ours.captain ?? -Infinity) > best("captain");
+  const capWinner = [ppg, last5].filter(Boolean).sort((a, b) => (b!.captain ?? 0) - (a!.captain ?? 0))[0];
+  const capWinnerName = capWinner === ppg ? "picking by season points per game" : "picking by recent form";
   return (
     <ChartCard wide title="Backtest: how the model did on last season" explain="We replayed last season week by week, predicting each gameweek only from what was known before it." empty={!back.length && "No backtest results yet."}>
       {ours && (
@@ -312,12 +315,12 @@ function BacktestCard({ back }: { back: Raw[] }) {
             <li>
               It ranks likely starters {ranksBetter ? "better than" : "about as well as"} simple form does (a ranking score of {fmt(ours.rank_starters)} against{" "}
               {fmt(ppg?.rank_starters)} and {fmt(last5?.rank_starters)}), which is what transfer choices lean on, and its average miss per player is{" "}
-              {missSmaller ? "a little smaller" : "about the same or a little bigger"} ({fmt(ours.mae)} points against {fmt(ppg?.mae)} and {fmt(last5?.mae)}).
+              {missSmaller ? "a little smaller" : "about the same"} ({fmt(ours.mae)} points against {fmt(ppg?.mae)} and {fmt(last5?.mae)}).
             </li>
             <li>
               {capBetter
                 ? "Its captain picks also beat simply following form, though one player's week is mostly luck."
-                : "Captaincy is the hard part: one player's week is mostly luck, and on this test the model's captain picks were no better than simply following form."}
+                : `Captaincy is the hard part: one player's week is mostly luck, and on this test the model's captain picks did no better than simply ${capWinnerName}.`}
             </li>
             <li>
               Limits: last season is replayed without betting odds, and FPL's own past predictions may have been saved after the matches, so treat their numbers as a best case.

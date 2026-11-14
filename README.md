@@ -195,6 +195,18 @@ Drag it into Applications.
   in the engine copy with your Anthropic key, which is stored only in the
   macOS Keychain (add it in Settings). The conversation lives only in memory:
   Clear, closing the panel or quitting wipes it. Each answer shows a rough cost.
+- **Your plan (Planner, Mac app only):** pick your own transfers (out from your
+  squad, in from any player via search), captain, vice-captain and chip. It's
+  checked live (budget with selling prices, 3 per club, squad shape, free
+  transfers and hits). "Save plan" stores it only in
+  `~/Library/Application Support/FPL Consultant/my_plan.json` (outside the
+  repo and the engine copy; never committed, pushed or published, and the
+  pipeline never reads it, so the recommendation can't change because of it)
+  and runs `fpl/my_plan.py review` in the engine copy: the points comparison
+  with the recommendation (the chat's `what_if` engine), the chances against
+  your rivals (the simulation), and, with an Anthropic key, the consultant's
+  written review (`fpl/chat.py` with its grounding rules). Without a key you
+  get the checks and the comparison only. Hidden in the web/iPhone viewer.
 - **Diagnostics:** `~/Library/Application Support/FPL Consultant/app.log`
   (restarted on each launch) records what was loaded and each refresh's
   stages and result. Launching with `FPL_CONSULTANT_AUTOREFRESH=1` (e.g.
