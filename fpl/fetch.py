@@ -235,6 +235,28 @@ def build_my_transfers_table(day_dir: Path, team_id: int) -> pd.DataFrame:
     return pd.DataFrame(transfers)
 
 
+def build_my_leagues_table(day_dir: Path, team_id: int) -> pd.DataFrame:
+    """my_leagues.parquet -- every classic league you're in, from
+    entry/{team_id}/, with FPL's own type flag: ``league_type`` "x" is a
+    private (invitational) league, "s" a system league (Overall, country,
+    club fans, gameweek, broadcaster). The app's league selector keeps only
+    private classic ones."""
+    entry = get(f"entry/{team_id}/", day_dir)
+    if not entry:
+        return pd.DataFrame()
+    rows = [
+        {
+            "league_id": int(lg["id"]),
+            "name": lg["name"],
+            "league_type": lg.get("league_type"),
+            "scoring": lg.get("scoring"),
+            "entry_rank": lg.get("entry_rank"),
+        }
+        for lg in entry.get("leagues", {}).get("classic", [])
+    ]
+    return pd.DataFrame(rows)
+
+
 # ---------------------------------------------------------------------------
 # league_history.parquet / league_chips.parquet / league_picks.parquet —
 # from leagues-classic standings, entry/{id}/history/, and picks/
@@ -391,6 +413,7 @@ def main() -> None:
     if team_id is not None:
         print(f"Fetching transfer history for team {team_id}...")
         write_table(build_my_transfers_table(day_dir, team_id), "my_transfers.parquet")
+        write_table(build_my_leagues_table(day_dir, team_id), "my_leagues.parquet")
 
     if league_id is None:
         print("No league_id set in config.json (or --league-id); skipping league tables.")

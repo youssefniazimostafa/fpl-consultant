@@ -70,6 +70,7 @@ from fpl.consultant import freeze_recommendation
 from fpl.decision import ROLL, build_decision, choose_plan, rival_captaincy
 from fpl.fetch import load_config
 from fpl.league import resolve_team_id
+from fpl.league_page import build_league_page
 from fpl.optimise import resolve_my_squad
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -1245,6 +1246,24 @@ def main() -> None:
         "top_xp": build_top_xp(xp_by_gameweek),
         "consultant_vs_you": build_consultant_section(),
     }
+    payload["league_page"] = build_league_page(
+        team_id=team_id,
+        league_id=config.get("league_id"),
+        league_history=league_history,
+        league_managers=league_managers,
+        league_picks=league_picks,
+        players=players,
+        xp_by_gameweek=xp_by_gameweek,
+        my_leagues=load_optional("my_leagues"),
+        rival_window=payload["rival_window"],
+        free_transfers=payload["free_transfers"],
+        rival_forecast=payload["rival_transfer_forecast"],
+        chips=payload["chips"],
+        differentials=payload["differentials"],
+        strategy=payload["strategy"],
+        decision=decision,
+        season_simulation=payload["season_simulation"],
+    )
 
     # Fail loudly *before* writing if the page would contradict itself
     # (fpl/check_consistency.py), so a bad latest.json is never published.
