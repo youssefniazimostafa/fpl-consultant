@@ -39,7 +39,15 @@ cd "/Users/youssef/Desktop/Graduate Classes and Materials/PROGRAMMING FOR BUSINE
 ./scripts/iphone-install.sh
 ```
 
-and keep the phone unlocked until the app opens. If the script says no
+and keep the phone unlocked until it prints "Done: FPL Consultant is
+installed and open on ...". It builds with `tauri ios build`, installs with
+`xcrun devicectl device install app` and launches with `devicectl device
+process launch` (not `tauri ios run`, whose export step is broken in
+tauri-cli 2.12.4; see README). If it says iOS won't open the app until you
+trust it (only after a fresh install): iPhone Settings > General > VPN &
+Device Management > your Apple ID > Trust. With several phones plugged in,
+set `IPHONE_DEVICE="<name>"`. The script also strips the team ID that Tauri
+writes into the generated Xcode project. If the script says no
 signing certificate was found: Xcode > Settings > Accounts > sign in with
 the Apple ID > select "(Personal Team)" > Manage Certificates > + > Apple
 Development, then run it again. One-time setup and the web-app alternative

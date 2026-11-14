@@ -257,7 +257,9 @@ Tools (already installed on this Mac): Xcode, the Rust targets
    **Devices and Simulators** with the phone plugged in, wait for it to
    finish "preparing", then look again.)
 6. In Terminal: `cd ".../fpl-consultant/app" && ./scripts/iphone-install.sh`
-   (keep the phone unlocked). If it lists several devices, pick your iPhone.
+   (keep the phone unlocked). It builds the signed app, installs it with
+   `xcrun devicectl` and opens it. With several iPhones plugged in, choose
+   one with `IPHONE_DEVICE="iPhone YM" ./scripts/iphone-install.sh`.
    If it says the bundle identifier isn't available, change `identifier` in
    `app/src-tauri/tauri.ios.conf.json` (e.g. add `.app` at the end), run
    `npx tauri ios init --ci` and try again.
@@ -275,8 +277,21 @@ Apps signed with a free Apple ID stop opening after 7 days. To renew:
    cd "/Users/youssef/Desktop/Graduate Classes and Materials/PROGRAMMING FOR BUSINESS /Online Website Repo/fpl-consultant/app"
    ./scripts/iphone-install.sh
    ```
-3. Wait for "Installed" / the app to open on the phone. That's it: no need
-   to trust it again unless you deleted it.
+3. Wait for "Done: FPL Consultant is installed and open on <your iPhone>"
+   (a few minutes). That's it: no need to trust it again unless you deleted
+   the app. If it instead says iOS won't open it until you trust your
+   developer certificate, do step 7 of the one-time setup once, then open
+   the app from the home screen.
+
+To check it's on the phone: `xcrun devicectl device info apps --device
+"iPhone YM" --bundle-id com.youssefmostafa.fplconsultant` (with
+`DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` in front if
+`xcode-select -p` doesn't point at Xcode).
+
+(The script uses `tauri ios build` + `devicectl`, not `tauri ios run`: in
+tauri-cli 2.12.4 `ios run` deletes its temporary ExportOptions.plist before
+exporting, so it fails with "Couldn't load -exportOptionsPlist". Fixed
+upstream in tauri PR #14712, not yet released.)
 
 (If the script says no signing certificate was found, repeat steps 2-3 of
 the one-time setup; Xcode may have signed you out.) Free accounts can have
