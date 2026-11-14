@@ -577,6 +577,42 @@ def main() -> None:
 
     path = write_accuracy_outputs(gw, prediction_result, league_result, override_result)
     print(f"Checkpoint: wrote {path}")
+    score_consultant(gw, bootstrap)
+
+
+def score_consultant(latest_gw: int, bootstrap: dict[str, Any]) -> None:
+    """"You vs the consultant" (fpl/consultant.py): score every frozen
+    recommendation whose gameweek has finished -- new ones, plus the latest
+    finished gameweek again (bonus points can still settle) -- against what
+    you actually did, all from the FPL API. Never fails the scoring run."""
+    import traceback
+
+    from fpl.consultant import CSV_PATH, RECOMMENDATIONS_DIR, score_gameweek
+    from fpl.fetch import load_config
+    from fpl.league import resolve_team_id
+
+    try:
+        managers_path = TABLES_DIR / "league_managers.parquet"
+        managers = pd.read_parquet(managers_path) if managers_path.exists() else pd.DataFrame()
+        team_id = resolve_team_id(load_config(), managers)
+        if team_id is None:
+            print("  consultant vs you: no team_id -- skipped")
+            return
+        done = set(pd.read_csv(CSV_PATH)["gameweek"]) if CSV_PATH.exists() else set()
+        frozen = sorted(int(p.stem[2:]) for p in RECOMMENDATIONS_DIR.glob("gw*.json")) if RECOMMENDATIONS_DIR.exists() else []
+        todo = [g for g in frozen if g <= latest_gw and (g not in done or g == latest_gw)]
+        if not todo:
+            print(f"  consultant vs you: nothing to score yet (frozen: {frozen or 'none'})")
+        for g in todo:
+            r = score_gameweek(g, team_id, lambda path: get(path, _day_dir()), bootstrap)
+            if r["available"]:
+                print(f"  consultant vs you GW{g}: consultant {r['consultant_points']}, you {r['my_points']} "
+                      f"(followed transfers: {r['followed_transfers']}, captain: {r['followed_captain']})")
+            else:
+                print(f"  consultant vs you GW{g}: {r['reason']}")
+    except Exception:
+        print("  consultant vs you: scoring failed -- continuing:")
+        traceback.print_exc()
 
 
 if __name__ == "__main__":

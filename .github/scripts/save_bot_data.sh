@@ -21,7 +21,8 @@ COMMIT_MESSAGE="Prediction log + accuracy track record + GW snapshot archive"
 git config user.name "fpl-bot"
 git config user.email "fpl-bot@users.noreply.github.com"
 
-git add data/predictions data/accuracy data/manual/override_log.json data/league data/last_good
+mkdir -p data/recommendations  # frozen weekly recommendations (fpl/consultant.py)
+git add data/predictions data/recommendations data/accuracy data/manual/override_log.json data/league data/last_good
 if git diff --cached --quiet; then
   echo "No data changes to commit -- nothing to push."
   exit 0
