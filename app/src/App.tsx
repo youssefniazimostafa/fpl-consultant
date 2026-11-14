@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getPath, loadInitial, loadLocal, sourceLabel, type LoadedData } from "./data";
+import { getPath, loadInitial, loadLocal, loadViewer, sourceLabel, type LoadedData } from "./data";
+import { DESKTOP, VIEWER, inTauri } from "./platform";
 import { TABS } from "./tabs";
 import { AppHeader, Banner, BottomNav, StatusBar } from "./components/Chrome";
 import { Settings } from "./components/Settings";
@@ -31,8 +32,22 @@ let autorefreshStarted = false;
 
 /** Best-effort line in ~/Library/Application Support/FPL Consultant/app.log. */
 function log(message: string) {
-  invoke("ui_log", { message }).catch(() => {});
+  if (DESKTOP) invoke("ui_log", { message }).catch(() => {});
 }
+
+/** Viewer status bar: "6:02 AM" today, otherwise "13 Nov, 6:02 AM". */
+function fmtUpdated(iso: string | null): string {
+  if (!iso) return "unknown";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return d.toDateString() === new Date().toDateString()
+    ? time
+    : `${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })}, ${time}`;
+}
+
+/** Viewer: re-read the published data when the app comes back after a while. */
+const VIEWER_RELOAD_AFTER_MS = 10 * 60 * 1000;
 
 function fmtTime(iso: string | null): string {
   if (!iso) return "unknown";
@@ -78,6 +93,18 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (VIEWER) {
+      loadViewer().then(setLoaded, (e) => setLoadError(String(e)));
+      const fromHash = location.hash.slice(1);
+      if (TABS.some((x) => x.id === fromHash)) setTab(fromHash);
+      if (inTauri()) {
+        // iPhone app: simulator screenshot aid (FPL_CONSULTANT_TAB)
+        invoke<[string | null, number | null, boolean, string | null]>("start_view")
+          .then(([t]) => t && TABS.some((x) => x.id === t) && setTab(t))
+          .catch(() => {});
+      }
+      return;
+    }
     loadInitial()
       .then(async (d) => {
         setLoaded(d);
@@ -118,6 +145,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!VIEWER) return;
+    let last = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || Date.now() - last < VIEWER_RELOAD_AFTER_MS) return;
+      last = Date.now();
+      loadViewer().then(setLoaded, () => {});
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  useEffect(() => {
+    if (VIEWER) return;
     const unlisten = [
       listen<Progress>("refresh-progress", (e) => {
         setStage(e.payload.stage);
@@ -151,7 +191,7 @@ export default function App() {
   }, []);
 
   const onRefresh = useCallback(async () => {
-    if (refreshing) return;
+    if (VIEWER || refreshing) return; // viewer builds: compiled away, no refresh there
     setRefreshError(null);
     setLastResult(null);
     setLastLine(null);
@@ -188,15 +228,21 @@ export default function App() {
       <StatusBar
         deadlineLabel={`GW${nextGw ?? "?"} deadline`}
         countdown={data ? countdown(deadline, now) : "…"}
-        refreshed={loaded ? fmtTime(loaded.generatedAt) : "…"}
+        refreshedLabel={VIEWER ? "Updated" : "Last refreshed"}
+        refreshed={loaded ? (VIEWER ? `${fmtUpdated(loaded.generatedAt)} · refreshes twice a day` : fmtTime(loaded.generatedAt)) : "…"}
         source={loaded ? sourceLabel(loaded.source) : "loading…"}
         sourceTitle={loaded?.location}
         refreshing={refreshing}
-        onRefresh={onRefresh}
-        onSettings={() => setShowSettings(true)}
-        onChat={() => setShowChat(true)}
+        onRefresh={DESKTOP ? onRefresh : undefined}
+        onSettings={DESKTOP ? () => setShowSettings(true) : undefined}
+        onChat={DESKTOP ? () => setShowChat(true) : undefined}
       />
-      {showChat && (
+      {VIEWER && loaded?.offlineReason && (
+        <Banner tone="info">
+          <strong>Offline: showing data from {fmtTime(loaded.generatedAt)}.</strong>
+        </Banner>
+      )}
+      {DESKTOP && showChat && (
         <ChatPanel
           initialQuestion={chatQuestion}
           onClose={() => {
@@ -205,7 +251,7 @@ export default function App() {
           }}
         />
       )}
-      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {DESKTOP && showSettings && <Settings onClose={() => setShowSettings(false)} />}
 
       {refreshing && (
         <Banner tone="info">

@@ -198,6 +198,90 @@ Drag it into Applications.
   fails (to test the error banner); `FPL_CONSULTANT_AUTOREFRESH=2` starts two
   refreshes at once (to test the guard).
 
+## On your iPhone (view-only)
+
+The app's front end has two modes (`app/src/platform.ts`): **desktop** (the
+Mac app: Refresh, Live consultant, Settings) and **viewer** (web and iPhone:
+read-only). Viewer mode reads the published
+`https://youssefniazimostafa.github.io/fpl-consultant/data/latest.json`,
+loads shirts straight from FPL's image server (drawn shirt if that fails),
+keeps the last good data on the device for offline use ("Offline: showing
+data from ..."), and has no Refresh, no chat, no Settings, no keys and no
+Python. Updates arrive with the workflow's runs (twice a day plus the
+pre-deadline run).
+
+### Home-screen web app
+
+Published with every workflow run at
+**https://youssefniazimostafa.github.io/fpl-consultant/app/** (built by the
+workflow from `app/` with `npm run build:web`; the rest of the site is
+untouched). To add it to your iPhone:
+
+1. Open the link above in **Safari** (not Chrome).
+2. Tap the **Share** button (square with an arrow; on newer iOS it's in the
+   "..." menu at the bottom right).
+3. Scroll down and tap **Add to Home Screen**.
+4. Keep the name "FPL Consultant", make sure **Open as Web App** is on (if
+   shown), and tap **Add**.
+
+It opens full-screen from the home-screen icon, without Safari's bars.
+
+### Real iPhone app (Tauri iOS, free Apple ID)
+
+Built from the same front end (`npm run build:ios`) into an Xcode project
+in `app/src-tauri/gen/apple` (bundle id `com.youssefmostafa.fplconsultant`,
+set in `app/src-tauri/tauri.ios.conf.json`, so the Mac app's identity is
+unchanged). The Rust backend's desktop code (refresh, chat, Keychain) is
+compiled only for macOS (`#[cfg(desktop)]` in `src-tauri/src/lib.rs`).
+
+Tools (already installed on this Mac): Xcode, the Rust targets
+`aarch64-apple-ios` and `aarch64-apple-ios-sim`, and `xcodegen`,
+`cocoapods` and `libimobiledevice` from Homebrew.
+
+- Simulator: `cd app && ./scripts/iphone-install.sh --simulator`
+- Your iPhone: `cd app && ./scripts/iphone-install.sh` (one-time setup below)
+
+**One-time setup (needs you):**
+
+1. Open **Xcode** once and accept anything it asks to install.
+2. Xcode > **Settings...** > **Accounts** > **+** > **Apple ID** > sign in.
+   A team called "<your name> (Personal Team)" appears.
+3. Select that team, click **Manage Certificates...** > **+** >
+   **Apple Development** > **Done**. (The script reads your team ID from
+   this certificate; nothing about your Apple ID is stored in the repo.)
+4. Plug the iPhone into the Mac with a cable, unlock it, tap **Trust** on
+   "Trust This Computer?" and enter your passcode.
+5. On the iPhone: **Settings > Privacy & Security > Developer Mode** > on >
+   **Restart**, then after the restart tap **Turn On** and enter your
+   passcode. (If Developer Mode isn't listed, open Xcode > **Window** >
+   **Devices and Simulators** with the phone plugged in, wait for it to
+   finish "preparing", then look again.)
+6. In Terminal: `cd ".../fpl-consultant/app" && ./scripts/iphone-install.sh`
+   (keep the phone unlocked). If it lists several devices, pick your iPhone.
+   If it says the bundle identifier isn't available, change `identifier` in
+   `app/src-tauri/tauri.ios.conf.json` (e.g. add `.app` at the end), run
+   `npx tauri ios init --ci` and try again.
+7. The first time, the app won't open ("Untrusted Developer"). On the
+   iPhone: **Settings > General > VPN & Device Management** > under
+   "Developer App" tap your Apple ID > **Trust**. Then open the app.
+
+### Reinstalling the iPhone app every 7 days
+
+Apps signed with a free Apple ID stop opening after 7 days. To renew:
+
+1. Plug the iPhone into the Mac and unlock it.
+2. In Terminal:
+   ```
+   cd "/Users/youssef/Desktop/Graduate Classes and Materials/PROGRAMMING FOR BUSINESS /Online Website Repo/fpl-consultant/app"
+   ./scripts/iphone-install.sh
+   ```
+3. Wait for "Installed" / the app to open on the phone. That's it: no need
+   to trust it again unless you deleted it.
+
+(If the script says no signing certificate was found, repeat steps 2-3 of
+the one-time setup; Xcode may have signed you out.) Free accounts can have
+at most 3 such apps on a phone at once.
+
 ## Pre-deadline snapshot run
 
 Besides the 3-hourly schedule, `update.yml` has an hourly cron (minute 45)
@@ -305,8 +389,8 @@ external source (`fpl_api`, `odds`, `elo`, `understat`) now goes through
 ## How the site is deployed
 
 `.github/workflows/update.yml` runs on a schedule (every 3 hours), on
-manual dispatch, and on any push touching `fpl/`, `site/`, or
-`config.json`. Each run:
+manual dispatch, and on any push touching `fpl/`, `site/`, `config.json`
+or the app's front end (`app/src/`, ...). Each run:
 
 1. Runs `uv run python -m fpl.pipeline` (writes `site/data/latest.json`
    and the small data files the pipeline needs to persist: prediction
@@ -315,4 +399,7 @@ manual dispatch, and on any push touching `fpl/`, `site/`, or
 3. Deploys the `site/` folder straight to GitHub Pages via
    `actions/upload-pages-artifact` + `actions/deploy-pages` -- no build
    step; `site/index.html` is plain HTML/CSS/JS that fetches
-   `data/latest.json` at load time.
+   `data/latest.json` at load time. Before that it builds the home-screen
+   web app (`app/`, `npm run build:web`) into `site/app/`, so it's
+   published at `/fpl-consultant/app/` (if that build fails, the site still
+   deploys and the run is marked failed).

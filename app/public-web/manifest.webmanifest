@@ -1,0 +1,16 @@
+{
+  "name": "FPL Consultant",
+  "short_name": "FPL Consultant",
+  "description": "Your weekly FPL recommendation, league and analytics (view-only).",
+  "start_url": "/fpl-consultant/app/",
+  "scope": "/fpl-consultant/app/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#37003c",
+  "theme_color": "#37003c",
+  "icons": [
+    { "src": "/fpl-consultant/app/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/fpl-consultant/app/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/fpl-consultant/app/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

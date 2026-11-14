@@ -27,3 +27,22 @@ Both use a fine-grained GitHub token limited to this repo's Actions
 (read and write). **It expires on 15 June 2027 and must be renewed then**
 (create a new one with the same settings and paste it into both jobs).
 Never put the token in the repo.
+
+## Reinstalling the iPhone app every 7 days
+
+The iPhone app (Tauri iOS, viewer mode only) is signed with a free Apple ID,
+so it stops opening after 7 days. To renew: plug the iPhone into the Mac,
+unlock it, then run
+
+```
+cd "/Users/youssef/Desktop/Graduate Classes and Materials/PROGRAMMING FOR BUSINESS /Online Website Repo/fpl-consultant/app"
+./scripts/iphone-install.sh
+```
+
+and keep the phone unlocked until the app opens. If the script says no
+signing certificate was found: Xcode > Settings > Accounts > sign in with
+the Apple ID > select "(Personal Team)" > Manage Certificates > + > Apple
+Development, then run it again. One-time setup and the web-app alternative
+are in README.md ("On your iPhone"). Never put the Apple ID, team ID or any
+signing files in the repo; the script reads the team ID from the login
+keychain at build time.

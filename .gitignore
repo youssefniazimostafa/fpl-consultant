@@ -26,3 +26,6 @@ data/external/*
 # workflow deploys site/ straight to Pages, it never commits this back)
 site/data/*
 !site/data/.gitkeep
+
+# Home-screen web app: built from app/ by the workflow at deploy time
+site/app/

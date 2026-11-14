@@ -23,7 +23,16 @@ h1, h2 { margin: 0; letter-spacing: -0.01em; }
 .small { font-size: 12px; }
 .tabular { font-variant-numeric: tabular-nums; }
 
-.app { display: flex; flex-direction: column; height: 100vh; }
+.app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; box-sizing: border-box; }
+/* iPhone (home-screen web app and the iOS app): keep everything clear of the
+   notch / Dynamic Island, the home bar and the rounded corners. env() is 0
+   on the Mac, so the desktop layout is unchanged. The band under the status
+   bar is the header purple. */
+.app {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: linear-gradient(var(--purple) 0 env(safe-area-inset-top), var(--white) 0);
+}
+.viewer-hide { display: none; }
 
 /* ---------------------------------------------------------------- chrome */
 .topbar {

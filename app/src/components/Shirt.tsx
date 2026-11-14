@@ -1,10 +1,15 @@
 import { useEffect, useId, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { SHIRT_STYLE } from "../config";
+import { VIEWER } from "../platform";
 import { kitFor } from "../theme/clubColours";
 
-// One request per shirt per app session; the backend caches the files on
-// disk, so after the first download they also work offline.
+// Desktop: one request per shirt per app session; the backend caches the
+// files on disk, so after the first download they also work offline.
+// Viewer (web / iPhone): the image straight from FPL's server (the browser
+// caches it); if it can't load, the drawn shirt is shown instead.
+const fplShirtUrl = (teamCode: number, goalkeeper: boolean) =>
+  `https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_${teamCode}${goalkeeper ? "_1" : ""}-110.png`;
 const imageCache = new Map<string, Promise<string>>();
 
 function loadShirt(teamCode: number, goalkeeper: boolean): Promise<string> {
@@ -37,6 +42,10 @@ export function Shirt({ teamCode, teamShort, goalkeeper = false, size = 56, dimm
   useEffect(() => {
     setSrc(null);
     if (SHIRT_STYLE !== "real" || teamCode == null) return;
+    if (VIEWER) {
+      setSrc(fplShirtUrl(teamCode, goalkeeper));
+      return;
+    }
     let live = true;
     loadShirt(teamCode, goalkeeper).then(
       (url) => live && setSrc(url),
@@ -49,7 +58,18 @@ export function Shirt({ teamCode, teamShort, goalkeeper = false, size = 56, dimm
 
   const style = { width: size, height: size };
   const cls = `shirt${dimmed ? " dimmed" : ""}`;
-  if (src) return <img className={cls} style={style} src={src} alt={title ?? "shirt"} title={title} draggable={false} />;
+  if (src)
+    return (
+      <img
+        className={cls}
+        style={style}
+        src={src}
+        alt={title ?? "shirt"}
+        title={title}
+        draggable={false}
+        onError={() => setSrc(null)} // viewer: offline or blocked -> drawn shirt
+      />
+    );
   return <DrawnShirt className={cls} size={size} teamShort={teamShort} goalkeeper={goalkeeper} title={title} />;
 }
 

@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Viewer builds (web app for GitHub Pages, iPhone app bundle)
+dist-web
+dist-ios

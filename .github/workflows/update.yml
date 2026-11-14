@@ -35,6 +35,12 @@ on:
     paths:
       - "fpl/**"
       - "site/**"
+      - "app/src/**"
+      - "app/public-web/**"
+      - "app/index.html"
+      - "app/package.json"
+      - "app/package-lock.json"
+      - "app/vite.config.ts"
       - "config.json"
       - ".github/workflows/update.yml"
       - ".github/scripts/**"
@@ -115,6 +121,27 @@ jobs:
         continue-on-error: true
         run: bash .github/scripts/save_bot_data.sh
 
+      # The home-screen web app (viewer mode of the desktop app's front end,
+      # see app/src/platform.ts), published at /fpl-consultant/app/ next to
+      # the site. It reads the same data/latest.json. continue-on-error: if
+      # this build breaks, the site and data still deploy (without a fresh
+      # /app/) and the last step marks the run failed.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Build the home-screen web app into site/app
+        id: webapp
+        continue-on-error: true
+        run: |
+          cd app
+          npm ci --no-audit --no-fund
+          npm run build:web
+          rm -rf ../site/app
+          cp -R dist-web ../site/app
+
       - name: Configure Pages
         uses: actions/configure-pages@v6
 
@@ -131,4 +158,10 @@ jobs:
         if: steps.save.outcome == 'failure'
         run: |
           echo "::error::Saving the data to the repo failed after its retries -- see the save step's log. The site itself was deployed."
+          exit 1
+
+      - name: Fail the run if the web app build failed (site was still deployed)
+        if: steps.webapp.outcome == 'failure'
+        run: |
+          echo "::error::Building the home-screen web app failed -- see its step's log. The site and data were deployed without it."
           exit 1

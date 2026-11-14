@@ -21,6 +21,7 @@ export function AppHeader({ tabs, active, onSelect }: { tabs: TabDef[]; active: 
 export function StatusBar({
   deadlineLabel,
   countdown,
+  refreshedLabel = "Last refreshed",
   refreshed,
   source,
   sourceTitle,
@@ -31,11 +32,12 @@ export function StatusBar({
 }: {
   deadlineLabel: string;
   countdown: string;
+  refreshedLabel?: string;
   refreshed: string;
   source: string;
   sourceTitle?: string;
   refreshing: boolean;
-  onRefresh: () => void;
+  onRefresh?: () => void; // absent in viewer mode (web / iPhone): no refresh there
   onSettings?: () => void;
   onChat?: () => void;
 }) {
@@ -46,10 +48,10 @@ export function StatusBar({
         <span className="value tabular">{countdown}</span>
       </div>
       <div className="stat">
-        <span className="label">Last refreshed</span>
+        <span className="label">{refreshedLabel}</span>
         <span className="value">{refreshed}</span>
       </div>
-      <div className="stat grow hide-phone">
+      <div className={`stat grow hide-phone${onRefresh ? "" : " viewer-hide"}`}>
         <span className="label">Data</span>
         <span className="value small" title={sourceTitle}>
           {source}
@@ -66,9 +68,11 @@ export function StatusBar({
           ⚙
         </button>
       )}
-      <button className="refresh" onClick={onRefresh} disabled={refreshing}>
-        {refreshing ? "Refreshing…" : "Refresh"}
-      </button>
+      {onRefresh && (
+        <button className="refresh" onClick={onRefresh} disabled={refreshing}>
+          {refreshing ? "Refreshing…" : "Refresh"}
+        </button>
+      )}
     </div>
   );
 }

@@ -1,7 +1,10 @@
-// Loading latest.json, in order of preference:
+// Loading latest.json.
+// Desktop (Mac app), in order of preference:
 //   1. the local one from the last local refresh (in the app's engine copy)
 //   2. the published GitHub Pages one (saved to disk on every successful fetch)
 //   3. that saved copy of the published one -- so the app works offline
+// Viewer (web app / iPhone app): the published one, with the last good copy
+// kept in this device's browser storage for offline use (loadViewer).
 import { invoke } from "@tauri-apps/api/core";
 
 export const PUBLISHED_URL =
@@ -18,6 +21,7 @@ export interface LoadedData {
   source: Source;
   location: string; // file path or URL
   generatedAt: string | null; // latest.json's own generated_at
+  offlineReason?: string; // viewer: why the saved copy is shown instead
 }
 
 interface FileData {
@@ -63,6 +67,42 @@ export async function loadInitial(): Promise<LoadedData> {
     const saved = await loadSavedPublished().catch(() => null);
     if (saved) return saved;
     throw e;
+  }
+}
+
+// ---------------------------------------------------------------- viewer mode
+
+const VIEWER_CACHE_KEY = "fpl-consultant:latest.json";
+
+/** Viewer mode: fetch the published data; if that fails, the last good copy saved on this device. */
+export async function loadViewer(): Promise<LoadedData> {
+  try {
+    const res = await fetch(`${PUBLISHED_URL}?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    const data = JSON.parse(text) as Latest;
+    try {
+      localStorage.setItem(VIEWER_CACHE_KEY, text);
+    } catch {
+      // storage full or blocked (e.g. private browsing): still show the data
+    }
+    return { data, source: "published", location: PUBLISHED_URL, generatedAt: data.generated_at ?? null };
+  } catch (e) {
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(VIEWER_CACHE_KEY);
+    } catch {
+      saved = null;
+    }
+    if (!saved) throw new Error(`Couldn't load the data (${e}) and there's no saved copy on this device yet.`);
+    const data = JSON.parse(saved) as Latest;
+    return {
+      data,
+      source: "saved-published",
+      location: "saved on this device",
+      generatedAt: data.generated_at ?? null,
+      offlineReason: String(e),
+    };
   }
 }
 
