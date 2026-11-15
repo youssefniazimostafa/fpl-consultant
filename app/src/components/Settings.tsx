@@ -121,7 +121,7 @@ function StrategyRow() {
   );
 }
 
-export function Settings({ onClose }: { onClose: () => void }) {
+export function Settings({ onClose, onTour }: { onClose: () => void; onTour?: () => void }) {
   const [saved, setSaved] = useState<boolean | null>(null);
   const [key, setKey] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -193,6 +193,17 @@ export function Settings({ onClose }: { onClose: () => void }) {
           <ModelRow />
           <hr className="set-sep" />
           <StrategyRow />
+          {onTour && (
+            <>
+              <hr className="set-sep" />
+              <div className="set-row">
+                <button className="refresh ghost" onClick={onTour}>
+                  Take the tour
+                </button>
+                <p className="small muted">A quick walk through every page.</p>
+              </div>
+            </>
+          )}
         </Card>
       </div>
     </div>

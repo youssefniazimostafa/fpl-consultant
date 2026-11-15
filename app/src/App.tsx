@@ -6,6 +6,7 @@ import { DESKTOP, VIEWER, inTauri } from "./platform";
 import { TABS } from "./tabs";
 import { Banner, BottomNav, TabBar, TopBar, type Game } from "./components/Chrome";
 import { UclPage } from "./pages/UclPage";
+import { SETUP_KEY, Setup, TOUR_KEY, Tour, storageGet, storageSet } from "./components/Tour";
 import { Settings } from "./components/Settings";
 import { ChatPanel } from "./components/ChatPanel";
 import { TeamPage } from "./pages/TeamPage";
@@ -95,6 +96,9 @@ export default function App() {
   const gameRef = useRef(game);
   gameRef.current = game;
   const started = useRef(false);
+  const [showTour, setShowTour] = useState(false);
+  const [showSetup, setShowSetup] = useState(false);
+  const onboarded = useRef(false);
   useEffect(() => {
     document.documentElement.dataset.game = game;
     try {
@@ -243,6 +247,22 @@ export default function App() {
   refreshRef.current = onRefresh;
 
   const data = loaded?.data;
+  // first launch: the setup (Mac app, if no team ID is saved yet), then the tour
+  useEffect(() => {
+    if (game !== "pl" || !loaded || onboarded.current) return;
+    onboarded.current = true;
+    const tour = () => !storageGet(TOUR_KEY) && setShowTour(true);
+    if (DESKTOP && !storageGet(SETUP_KEY)) {
+      invoke<Record<string, any>>("get_setup")
+        .then((s) => {
+          if (s?.team_id) {
+            storageSet(SETUP_KEY, "1");
+            tour();
+          } else setShowSetup(true);
+        })
+        .catch(tour);
+    } else tour();
+  }, [game, loaded]);
   const deadline = data ? (getPath(data, "status.next_deadline_utc") as string | undefined) : undefined;
   const nextGw = data ? getPath(data, "status.next_gameweek") : undefined;
   const elapsed = startedAt.current ? Math.floor((now - startedAt.current) / 1000) : null;
@@ -283,7 +303,28 @@ export default function App() {
           }}
         />
       )}
-      {game === "pl" && DESKTOP && showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {game === "pl" && DESKTOP && showSettings && (
+        <Settings
+          onClose={() => setShowSettings(false)}
+          onTour={() => {
+            setShowSettings(false);
+            setShowTour(true);
+          }}
+        />
+      )}
+      {game === "pl" && DESKTOP && showSetup && (
+        <Setup
+          defaults={{
+            teamId: String(data?.config?.team_id ?? ""),
+            leagueId: String(data?.league_page?.league_id ?? ""),
+          }}
+          onDone={() => {
+            setShowSetup(false);
+            if (!storageGet(TOUR_KEY)) setShowTour(true);
+          }}
+        />
+      )}
+      {game === "pl" && showTour && !showSetup && <Tour onTab={setTab} onClose={() => setShowTour(false)} />}
 
       {game === "pl" && refreshing && (
         <Banner tone="info">
@@ -323,7 +364,15 @@ export default function App() {
           ))}
         {game === "pl" && loaded && (
           <p className="footnote">
-            Data: {sourceLabel(loaded.source)} · generated {fmtTime(loaded.generatedAt)}
+            Data: {sourceLabel(loaded.source)} · updated {fmtTime(loaded.generatedAt)}
+            {VIEWER && (
+              <>
+                {" · "}
+                <button className="link" onClick={() => setShowTour(true)}>
+                  Take the tour
+                </button>
+              </>
+            )}
           </p>
         )}
       </main>

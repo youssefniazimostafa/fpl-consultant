@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import type { Latest } from "../data";
-import { Pill } from "../components/Card";
+import { HelpButton, Pill } from "../components/Card";
+import { helpFor } from "../help";
 import { Shirt } from "../components/Shirt";
 import { chanceClass } from "../theme/theme";
 
@@ -27,7 +28,10 @@ function Bubble({ title, explain, controls, children }: { title: string; explain
   return (
     <section className="sc-card">
       <div className="sc-head">
-        <h2>{title}</h2>
+        <h2>
+          {title}
+          {helpFor(title) && <HelpButton text={helpFor(title)!} />}
+        </h2>
         {controls && <div className="sc-controls">{controls}</div>}
       </div>
       <p className="sc-explain">{explain}</p>
@@ -77,7 +81,7 @@ export function OverviewPage({ data }: { data: Latest }) {
   const [cap, setCap] = useState<Cap>("6");
 
   if (!o?.available) {
-    return <p className="muted">No FPL overview in this update yet. Press Refresh to run a fresh update.</p>;
+    return <p className="muted">No Scout data yet. Press Refresh to load the latest data.</p>;
   }
   const gw = o.next_gameweek;
   const last = o.last_gameweek;
@@ -97,7 +101,7 @@ export function OverviewPage({ data }: { data: Latest }) {
 
       <div className="sc-grid">
         <Bubble
-          title={`Top projected points, GW${gw}`}
+          title={`Top expected points, GW${gw}`}
           explain="The players expected to score the most next gameweek."
           controls={
             <Tabs<Pos>

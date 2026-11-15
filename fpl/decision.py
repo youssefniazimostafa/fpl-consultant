@@ -210,11 +210,11 @@ def captain_section(
         key=lambda p: -(p.get("projected_points") or 0.0),
     )
     if not close:
-        why = f"{cap['web_name']} is your highest projected scorer this week ({cap_xp:.1f} points)."
+        why = f"{cap['web_name']} has the most expected points in your team this week ({cap_xp:.1f} points)."
         tie_break = "top"
     else:
         alt = close[0]
-        lead = f"{_names([cap['web_name']] + [p['web_name'] for p in close])} are projected about the same"
+        lead = f"{_names([cap['web_name']] + [p['web_name'] for p in close])} are expected to score about the same"
         n_cap, n_alt = owners(cap["player_id"]), owners(alt["player_id"])
         if n_cap < n_alt:
             tie_break = "differential"
@@ -230,7 +230,7 @@ def captain_section(
             why = f"{lead}; {cap['web_name']} is {tail} ({n_cap} of your {rivals} rivals own him)."
         else:
             tie_break = "projection"
-            why = f"{lead}; {cap['web_name']} edges it on projected points."
+            why = f"{lead}; {cap['web_name']} edges it on expected points."
 
     # --- captaincy risk, only when it's meaningful ---
     fav_id = max(rc["captains"], key=rc["captains"].get) if rc["captains"] else None
@@ -238,10 +238,10 @@ def captain_section(
     xi_ids = {p["player_id"] for p in xi}
     risk: dict[str, Any] = {"show_loss": False, "rivals_favourite": None, "possible_loss": None}
     if fav_id is None:
-        risk["text"] = "No clear favourite captain among your rivals, so this pick is low-risk."
+        risk["text"] = "Your rivals have no clear favourite captain, so this is a safe pick."
     elif fav_id == cap["player_id"]:
         most = "Most" if fav_count * 2 >= rivals else "Several"
-        risk["text"] = f"{most} of your rivals are likely to captain him too, so this pick is low-risk."
+        risk["text"] = f"{most} of your rivals are likely to captain him too, so this is a safe pick."
         risk["rivals_favourite"] = {"player_id": fav_id, "web_name": cap["web_name"], "rivals_captaining": fav_count}
     else:
         fav_name = web_names.get(fav_id, "?")
@@ -264,7 +264,7 @@ def captain_section(
         elif not owned and fav_count * 2 >= rivals:
             risk["text"] = f"Most of your rivals are likely to captain {fav_name}, who isn't in your team, so a big game from him would cost you."
         else:
-            risk["text"] = f"Your rivals' most likely captain is {fav_name}, projected about the same as {cap['web_name']}, so this pick is low-risk."
+            risk["text"] = f"Your rivals' most likely captain is {fav_name}, expected to score about the same as {cap['web_name']}, so this is a safe pick."
 
     return {
         "player_id": cap["player_id"],
@@ -399,7 +399,7 @@ def why_sentences(d: dict[str, Any], strategy: dict[str, Any]) -> list[str]:
                 lead = f"Swap {o}, a doubt to play, for {i}"
             else:
                 lead = f"Swap {o} for {i}"
-            cost = "with no points hit" if d["hits"] == 0 else f"taking a {d['hit_cost']}-point hit"
+            cost = "with no hit" if d["hits"] == 0 else f"taking a {d['hit_cost']}-point hit"
             out.append(f"{lead}, {cost}.")
     else:
         nxt = f" and have {ft['next_week']} next week" if ft["next_week"] is not None else ""
@@ -416,7 +416,7 @@ def why_sentences(d: dict[str, Any], strategy: dict[str, Any]) -> list[str]:
             else:
                 chances = f"so we're doing it, even though holding gives slightly better chances this week ({_pct(p_h)} vs {_pct(p_t)})"
             sep = " " if pc["simulation_choice"] == TRANSFER else ", "
-            out.append(f"Making the transfer adds {gain_txt or 'projected points'}{sep}{chances}.")
+            out.append(f"Making the transfer adds {gain_txt or 'expected points'}{sep}{chances}.")
         elif gain_txt:
             out.append(f"Making the transfer adds {gain_txt}.")
     elif d["action"] == TRANSFER:  # chasing, win chances decided

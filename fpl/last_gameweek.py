@@ -297,7 +297,7 @@ def build_last_gameweek(
         if worst["surprise"] < 0:
             summary.append(f"Biggest letdown: {worst['web_name']} scored {worst['points']} against an expected {worst['expected']:.0f}.")
     if mine["hits"]:
-        summary.append(f"Your points hit cost {4 * mine['hits']}.")
+        summary.append(f"Your hit cost {4 * mine['hits']} points.")
 
     # --- hindsight: team of the week + the best you could have done ---
     tow_section: dict[str, Any] = {"available": False, "reason": "Not computed."}

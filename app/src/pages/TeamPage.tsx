@@ -60,10 +60,10 @@ function TransfersCard({ d }: { d: Decision }) {
               : `Uses ${ft.used} of ${ft.available} free · ${ft.left} left`}
           </Pill>
         )}
-        {!roll && (d.hits > 0 ? <Pill tone="pink">Take a {d.hitCost}-point hit</Pill> : <Pill tone="neon">No points hit needed</Pill>)}
+        {!roll && (d.hits > 0 ? <Pill tone="pink">Take a {d.hitCost}-point hit</Pill> : <Pill tone="neon">No hit needed</Pill>)}
       </div>
       {!roll && d.hits > 0 && (
-        <p className="note warn">Take a points hit: {d.hitReason ?? "the extra transfer is worth more than the points it costs."}</p>
+        <p className="note warn">Take a hit: {d.hitReason ?? "the extra transfer is worth more than the 4 points it costs."}</p>
       )}
       {!roll &&
         d.transferNews.map((n) => (
@@ -89,7 +89,7 @@ function CaptainCard({ d }: { d: Decision }) {
           <div className="big">Captain {c.name}</div>
           <div className="muted">
             {[card?.teamShort, card?.opponent].filter(Boolean).join(" · ")}
-            {` · ${c.projected.toFixed(1)} projected points, about ${(c.projected * 2).toFixed(1)} as captain`}
+            {` · ${c.projected.toFixed(1)} xP, about ${(c.projected * 2).toFixed(1)} as captain`}
           </div>
           {c.viceName && <div className="muted">Vice-captain: {c.viceName}</div>}
         </div>
@@ -175,7 +175,7 @@ export function TeamPage({ data }: { data: Latest }) {
       <Card title="Recommended team">
         <p className="muted">
           This data was made by an older version of the update and doesn't include this week's recommendation yet.
-          Press Refresh to run a fresh update.
+          Press Refresh to load the latest data.
         </p>
       </Card>
     );

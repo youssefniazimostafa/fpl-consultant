@@ -196,7 +196,7 @@ function BestPossibleCard({ b }: { b: Raw | undefined }) {
   const p = b.parts;
   const sign = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v)}`;
   const split = [
-    p.chip_hit ? `${sign(p.chip_hit)} from ${b.chip ? `not playing your ${b.chip}` : "not taking your points hit"}` : null,
+    p.chip_hit ? `${sign(p.chip_hit)} from ${b.chip ? `not playing your ${b.chip}` : "not taking your hit"}` : null,
     `${sign(p.lineup)} from your lineup`,
     `${sign(p.captain)} from the captain`,
     `${sign(p.transfer)} from the transfer${b.transfers.length === 1 ? "" : "s"}`,
@@ -270,7 +270,7 @@ export function LastGameweekPage({ data }: { data: Latest }) {
   if (!l?.available) {
     return (
       <Card title="Last gameweek">
-        <p className="muted">{l?.reason ?? "No finished gameweek in this update yet. Press Refresh to run a fresh update."}</p>
+        <p className="muted">{l?.reason ?? "No finished gameweek yet. Press Refresh to load the latest data."}</p>
       </Card>
     );
   }
@@ -292,7 +292,7 @@ export function LastGameweekPage({ data }: { data: Latest }) {
           dark
           label="Your points"
           value={String(l.total)}
-          sub={l.hit_cost ? `after a ${l.hit_cost}-point hit` : "no points hit"}
+          sub={l.hit_cost ? `after a ${l.hit_cost}-point hit` : "no hit"}
         />
         <Stat
           label="FPL average"

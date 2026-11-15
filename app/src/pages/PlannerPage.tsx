@@ -83,7 +83,7 @@ export function PlannerPage({ data }: { data: Latest }) {
   if (!p?.available) {
     return (
       <Card title="Planner">
-        <p className="muted">{p?.reason ?? "No plan in this update yet. Press Refresh to run a fresh update."}</p>
+        <p className="muted">{p?.reason ?? "No plan yet. Press Refresh to load the latest data."}</p>
       </Card>
     );
   }

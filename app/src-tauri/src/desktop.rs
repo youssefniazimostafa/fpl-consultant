@@ -353,6 +353,53 @@ fn write_setting(key: &str, value: &str) -> Result<(), String> {
     std::fs::write(&path, v.to_string()).map_err(|e| e.to_string())
 }
 
+/// First-run setup: the FPL team and league IDs (not secret), passed to the
+/// pipeline, chat and plan review as FPL_TEAM_ID / FPL_LEAGUE_ID.
+fn read_settings() -> serde_json::Value {
+    settings_path()
+        .ok()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+#[tauri::command]
+fn get_setup() -> serde_json::Value {
+    let v = read_settings();
+    serde_json::json!({ "team_id": v.get("team_id"), "league_id": v.get("league_id") })
+}
+
+#[tauri::command]
+fn set_setup(team_id: String, league_id: String) -> Result<(), String> {
+    let t = team_id.trim();
+    let l = league_id.trim();
+    if t.is_empty() || !t.chars().all(|c| c.is_ascii_digit()) {
+        return Err("The team ID is a number, e.g. 1234567.".into());
+    }
+    if !l.is_empty() && !l.chars().all(|c| c.is_ascii_digit()) {
+        return Err("The league ID is a number, e.g. 123456.".into());
+    }
+    write_setting("team_id", t)?;
+    write_setting("league_id", l)?;
+    app_log("setup: team and league IDs saved");
+    Ok(())
+}
+
+/// FPL_TEAM_ID / FPL_LEAGUE_ID for a child process, from the setup.
+fn setup_env(cmd: &mut Command) {
+    let v = read_settings();
+    for (key, env) in [("team_id", "FPL_TEAM_ID"), ("league_id", "FPL_LEAGUE_ID")] {
+        match v.get(key).and_then(|x| x.as_str()).filter(|s| !s.is_empty()) {
+            Some(val) => {
+                cmd.env(env, val);
+            }
+            None => {
+                cmd.env_remove(env);
+            }
+        }
+    }
+}
+
 const STRATEGIES: [&str; 4] = ["auto", "protect", "balanced", "chase"];
 
 /// The strategy chosen in Settings: "auto" (default) or a forced
@@ -400,7 +447,9 @@ fn chat_send_blocking(messages: Vec<ChatMessage>) -> Result<serde_json::Value, S
     }
     let env = shell_env();
     let uv_bin = find_program("uv", &env.path)?;
-    let mut child = Command::new(&uv_bin)
+    let mut chat_cmd = Command::new(&uv_bin);
+    setup_env(&mut chat_cmd);
+    let mut child = chat_cmd
         .args(["run", "python", "-m", "fpl.chat"])
         .current_dir(&engine)
         .env("PATH", &env.path)
@@ -460,6 +509,7 @@ fn run_plan_module(mode: &str, body: Option<String>, key: Option<String>) -> Res
     if let Some(k) = key {
         cmd.env("ANTHROPIC_API_KEY", k);
     }
+    setup_env(&mut cmd);
     let mut child = cmd.spawn().map_err(|e| format!("couldn't start the plan check: {e}"))?;
     if let Some(mut stdin) = child.stdin.take() {
         stdin.write_all(body.unwrap_or_default().as_bytes()).map_err(|e| e.to_string())?;
@@ -717,6 +767,7 @@ fn run_refresh(app: &AppHandle) -> Result<(), String> {
         Some(key) => cmd.env("ODDS_API_KEY", key),
         None => cmd.env_remove("ODDS_API_KEY"),
     };
+    setup_env(&mut cmd);
     let strategy = get_strategy();
     app_log(&format!("refresh: strategy {strategy}"));
     if strategy == "auto" {
@@ -805,6 +856,8 @@ pub fn run() {
             set_chat_model,
             get_strategy,
             set_strategy,
+            get_setup,
+            set_setup,
             chat_send,
             plan_context,
             plan_load,

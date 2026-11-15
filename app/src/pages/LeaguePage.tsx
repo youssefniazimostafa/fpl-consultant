@@ -288,7 +288,7 @@ function PlayerList({ players, rivals, mode }: { players: OwnedPlayer[]; rivals:
           ) : (
             <span className="pl-pts">
               <b>{p.projected != null ? p.projected.toFixed(1) : "–"}</b>
-              <small>projected</small>
+              <small>xP</small>
             </span>
           )}
         </div>
@@ -307,7 +307,7 @@ export function LeaguePage({ data, startRival = null }: { data: Latest; startRiv
   if (!l) {
     return (
       <Card title="Your leagues">
-        <p className="muted">No league data in this update yet. Press Refresh to run a fresh update.</p>
+        <p className="muted">No league data yet. Press Refresh to load the latest data.</p>
       </Card>
     );
   }

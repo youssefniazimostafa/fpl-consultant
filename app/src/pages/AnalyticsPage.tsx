@@ -140,7 +140,7 @@ function Predictive({ d }: { d: Latest }) {
     data: {
       labels: proj.map((r) => `GW${r.gameweek}`),
       datasets: [
-        { label: "Projected before the deadline", data: proj.map((r) => r.projected), backgroundColor: colors.lilacDeep, borderColor: colors.purple, borderWidth: 1, borderRadius: 6 },
+        { label: "Expected before the deadline", data: proj.map((r) => r.projected), backgroundColor: colors.lilacDeep, borderColor: colors.purple, borderWidth: 1, borderRadius: 6 },
         { label: "Actually scored", data: proj.map((r) => r.actual), backgroundColor: colors.neon, borderRadius: 6 },
       ],
     },
@@ -152,7 +152,7 @@ function Predictive({ d }: { d: Latest }) {
 
   return (
     <div className="an-grid">
-      <ChartCard wide title="Projected vs actual" explain="Your team's frozen pre-deadline projection against what it really scored, for every week a projection was saved." empty={!proj.length && "No saved projections for played gameweeks yet."}>
+      <ChartCard wide title="Expected vs actual" explain="Your team's expected points, saved before each deadline, against what it really scored." empty={!proj.length && "No saved projections for played gameweeks yet."}>
         <Chart config={projChart} height={320} />
         {avgGap != null && (
           <p className="an-summary">
@@ -212,12 +212,12 @@ function Predictive({ d }: { d: Latest }) {
         <p className="an-foot">* away game. Green easy → pink hard.</p>
       </ChartCard>
       <ChartCard
-        title="Our projections vs FPL's own"
-        explain="A live comparison of our projected points with FPL's own projection, gameweek by gameweek."
+        title="Our predictions vs FPL's own"
+        explain="How close our expected points and FPL's own predictions were to the real scores, gameweek by gameweek."
         empty={!(a.experiment ?? []).length && "First result after GW11."}
       >
         <table className="an-table">
-          <thead><tr><th>GW</th>{Object.keys(a.experiment?.[0] ?? {}).filter((k) => k !== "gameweek").map((k) => <th key={k}>{k}</th>)}</tr></thead>
+          <thead><tr><th>GW</th>{Object.keys(a.experiment?.[0] ?? {}).filter((k) => k !== "gameweek").map((k) => <th key={k}>{({ xp: "Ours: average miss", ep_next: "FPL's: average miss" } as Record<string, string>)[k] ?? k}</th>)}</tr></thead>
           <tbody>
             {(a.experiment ?? []).map((r: Raw) => (
               <tr key={r.gameweek}><td>{r.gameweek}</td>{Object.entries(r).filter(([k]) => k !== "gameweek").map(([k, v]) => <td key={k}>{fmt(v as number)}</td>)}</tr>
@@ -346,6 +346,7 @@ function BacktestCard({ back }: { back: Raw[] }) {
             </table>
           </div>
         ))}
+        <p className="an-foot">Average miss: how far each prediction was from the real score, in points per player per gameweek. Ranking: how well each method put players in the right order (1 is perfect, 0 is no better than chance). Top-10 hit: how many of each week's real top 10 it had in its own top 10.</p>
         <p className="an-foot">FPL's own historical projections only exist for 10 of the 37 gameweeks, which is why that row is blank in the 37-gameweek table.</p>
       </details>
     </ChartCard>
@@ -388,13 +389,13 @@ function Prescriptive({ d }: { d: Latest }) {
     data: {
       labels: board.map((p) => p.web_name),
       datasets: [{
-        label: "Projected points next gameweek",
+        label: "Expected points (xP) this gameweek",
         data: board.map((p) => p.xp),
         backgroundColor: board.map((p) => (p.is_optimiser_captain ? colors.neon : colors.purple)),
         borderRadius: 6,
       }],
     },
-    options: { indexAxis: "y", plugins: { legend: { display: false } }, scales: { x: { min: 0, title: { display: true, text: "Projected points (before doubling)" } }, y: { grid: { display: false }, ticks: { autoSkip: false } } } },
+    options: { indexAxis: "y", plugins: { legend: { display: false } }, scales: { x: { min: 0, title: { display: true, text: "xP (before doubling)" } }, y: { grid: { display: false }, ticks: { autoSkip: false } } } },
   }), [board]);
   const back: Raw[] = d.analytics?.backtest ?? [];
 
@@ -402,12 +403,12 @@ function Prescriptive({ d }: { d: Latest }) {
     <div className="an-grid">
       <ChartCard title="Transfer or hold: chances this week" explain="How often each option tops your league this gameweek in thousands of simulated weeks; the green bar is the recommendation." empty={pc.win_chance_transfer == null && pc.win_chance_hold == null && "No simulation in this update."}>
         <Chart config={winChart} height={150} />
-        <p className="an-foot">Recommendation follows {pc.rule === "win_chances" ? "win chances (you're chasing)" : "projected points over the next weeks"}.</p>
+        <p className="an-foot">Recommendation follows {pc.rule === "win_chances" ? "win chances (you're chasing)" : "expected points over the next weeks"}.</p>
       </ChartCard>
       <ChartCard title="Chances of being top by GW19" explain="Each manager's chance of leading your league at the halfway point, from their form so far." empty={!season.length && "No season simulation yet."}>
         <Chart config={seasonChart} height={Math.max(220, season.length * 26)} />
       </ChartCard>
-      <ChartCard title="Captain board" explain="Your starters' projected points next gameweek; green is the recommended captain (fewer rivals own him can tip a close call)." empty={!board.length && "No captain board yet."}>
+      <ChartCard title="Captain board" explain="Your starters' expected points this gameweek. Green is the recommended captain: when two are close, the one fewer rivals own gets the nod." empty={!board.length && "No captain board yet."}>
         <Chart config={capChart} height={Math.max(220, board.length * 24)} />
       </ChartCard>
       <OptionsCard o={d.analytics?.options} />

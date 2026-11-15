@@ -13,6 +13,7 @@ the fix is applied without hitting the API again.
 
 import argparse
 import json
+import os
 import time
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -66,9 +67,15 @@ def get(path: str, day_dir: Path) -> dict[str, Any] | None:
 
 
 def load_config() -> dict[str, Any]:
-    if not CONFIG_PATH.exists():
-        return {}
-    return json.loads(CONFIG_PATH.read_text())
+    """config.json, with the app's first-run setup on top: the desktop app
+    passes the team and league IDs entered there as FPL_TEAM_ID /
+    FPL_LEAGUE_ID, so someone else's XPert works with their own team."""
+    config = json.loads(CONFIG_PATH.read_text()) if CONFIG_PATH.exists() else {}
+    for env, key in (("FPL_TEAM_ID", "my_entry_id"), ("FPL_LEAGUE_ID", "league_id")):
+        value = (os.environ.get(env) or "").strip()
+        if value.isdigit():
+            config[key] = int(value)
+    return config
 
 
 def resolve_my_entry_id(config: dict[str, Any]) -> int | None:

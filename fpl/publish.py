@@ -951,16 +951,16 @@ def build_simulation(decision: dict[str, Any] | None = None) -> dict[str, Any]:
 
 STRATEGY_EXPLANATIONS = {
     "chasing": (
-        "You're trailing the leader by more than a typical week's swing per gameweek "
-        "remaining -- lean into upside (differentials, riskier captaincy) to close the gap."
+        "You're well behind the leader for the weeks left, so we lean towards players "
+        "your rivals don't own and bolder captain picks."
     ),
     "protecting": (
-        "You're ahead of second place by more than a typical week's swing per gameweek "
-        "remaining -- lean into safety (template picks, fewer hits) to protect the lead."
+        "You're well clear of second for the weeks left, so we stick with players your "
+        "rivals own and avoid hits."
     ),
     "balanced": (
-        "Your gap to first isn't large relative to the gameweeks left -- no strong lean "
-        "either way; play the straight xP picks."
+        "You're close to the top with plenty of season left, so we simply pick the "
+        "strongest team on expected points."
     ),
 }
 

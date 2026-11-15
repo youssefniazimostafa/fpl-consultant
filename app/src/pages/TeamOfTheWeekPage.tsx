@@ -16,7 +16,7 @@ export function TeamOfTheWeekPage({ data }: { data: Latest }) {
   if (!t?.available) {
     return (
       <Card title="Team of the week">
-        <p className="muted">{t?.reason ?? "No finished gameweek in this update yet. Press Refresh to run a fresh update."}</p>
+        <p className="muted">{t?.reason ?? "No finished gameweek yet. Press Refresh to load the latest data."}</p>
       </Card>
     );
   }
