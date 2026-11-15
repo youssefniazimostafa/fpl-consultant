@@ -1,25 +1,25 @@
 {
   "constraints_90": {
     "status": "ok",
-    "fetched_at": "2026-11-15T20:16:35+00:00",
+    "fetched_at": "2026-11-15T20:18:32+00:00",
     "error": null,
     "path": "constraints/constraints_90.json"
   },
   "fixtures_90": {
     "status": "ok",
-    "fetched_at": "2026-11-15T20:16:37+00:00",
+    "fetched_at": "2026-11-15T20:18:33+00:00",
     "error": null,
     "path": "fixtures/fixtures_90_en.json"
   },
   "players_90": {
     "status": "ok",
-    "fetched_at": "2026-11-15T20:16:38+00:00",
+    "fetched_at": "2026-11-15T20:18:35+00:00",
     "error": null,
     "path": "players/players_90_en_5.json"
   },
   "popupstats_90": {
     "status": "ok",
-    "fetched_at": "2026-11-15T20:16:38+00:00",
+    "fetched_at": "2026-11-15T20:18:35+00:00",
     "error": null,
     "fetched": 0
   },
