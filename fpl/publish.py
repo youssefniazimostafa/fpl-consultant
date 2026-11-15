@@ -965,7 +965,40 @@ STRATEGY_EXPLANATIONS = {
 }
 
 
-def build_strategy(league_strategy: pd.DataFrame) -> dict[str, Any]:
+MODE_REASONS = {
+    "protect your lead": "You're at or near the top: sticking with players your rivals own stops them gaining on you.",
+    "lean protective": "You're just ahead: leaning a little toward players your rivals own.",
+    "balanced": "Close to the top with plenty of season left: simply picking the strongest team.",
+    "lean toward differentials": "Behind with time running down: leaning a little toward players your rivals don't own.",
+    "chase with differentials": "Well behind with few weeks left: leaning toward players your rivals don't own.",
+}
+LEGACY_LABEL = {"protecting": "protect your lead", "chasing": "chase with differentials", "balanced": "balanced"}
+
+
+def mode_line(league_strategy: pd.DataFrame, team_id: int | None) -> dict[str, Any]:
+    """The plain "Mode: ..." line for the Recommended team page, the Live
+    consultant and the Your plan review: the risk dial when it's on (or
+    forced in the app's Settings), otherwise today's three modes."""
+    from fpl.optimise import DIAL_CAP_XP, current_dial
+
+    dial = current_dial({"league_strategy": league_strategy, "league_history": load_optional("league_history")}, team_id)
+    row = league_strategy.iloc[0].to_dict() if not league_strategy.empty else {}
+    label = dial["label"] if dial["active"] else LEGACY_LABEL.get(row.get("mode"), "balanced")
+    gap = dial.get("gap_to_first")
+    weeks = dial.get("weeks_left") or row.get("gameweeks_remaining")
+    where = ("level with the leader" if gap == 0 else f"{gap} behind" if gap and gap > 0
+             else f"leading by {-gap}" if gap is not None else None)
+    bits = [b for b in (where, f"{weeks} weeks left" if weeks else None) if b]
+    reason = MODE_REASONS.get(label, "")
+    if label in ("lean toward differentials", "chase with differentials", "lean protective", "protect your lead") and dial["active"]:
+        reason += f" It never gives up more than {DIAL_CAP_XP:g} expected points a week per player for it."
+    if dial["source"].startswith("forced"):
+        reason = f"Set by you in Settings. {reason}"
+    return {"label": label, "text": f"Mode: {label}" + (f" ({', '.join(bits)})" if bits else ""),
+            "reason": reason, "dial": dial["dial"], "dial_active": dial["active"], "source": dial["source"]}
+
+
+def build_strategy(league_strategy: pd.DataFrame, team_id: int | None = None) -> dict[str, Any]:
     """Step 12's "strategy dial" panel: chasing/protecting/balanced (see
     ``fpl.league.determine_strategy``), plus a plain-English explanation
     of *why* -- the dial is meaningless to a reader who hasn't memorised
@@ -976,7 +1009,8 @@ def build_strategy(league_strategy: pd.DataFrame) -> dict[str, Any]:
             "reason": "league_strategy.parquet not found -- set league_id and run fpl.league first.",
         }
     row = {k: _to_native(v) for k, v in league_strategy.iloc[0].to_dict().items()}
-    return {"available": True, **row, "explanation": STRATEGY_EXPLANATIONS.get(row.get("mode"), "")}
+    return {"available": True, **row, "explanation": STRATEGY_EXPLANATIONS.get(row.get("mode"), ""),
+            "mode_line": mode_line(league_strategy, team_id)}
 
 
 def build_free_transfers(league_free_transfers: pd.DataFrame) -> dict[str, Any]:
@@ -1209,7 +1243,7 @@ def main() -> None:
     if not league_chips_grid.empty and team_id is not None:
         match = league_chips_grid[league_chips_grid["manager_id"] == team_id]
         grid_row = records(match)[0] if not match.empty else None
-    strategy = build_strategy(league_strategy)
+    strategy = build_strategy(league_strategy, team_id)
     decision = build_decision(
         recommended_team,
         transfer_plan,

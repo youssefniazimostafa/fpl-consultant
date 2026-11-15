@@ -216,6 +216,32 @@ HIT_JUSTIFY_WINDOW = 3
 EO_CENTER = 0.5
 LAMBDA_BY_MODE = {"chasing": 0.15, "protecting": -0.15, "balanced": 0.02}
 
+# ---------------------------------------------------------------------------
+# Risk dial (Step 16): one number from -1 (protect) to +1 (chase), chosen
+# from your league position, replacing the three fixed modes when on.
+#   z = gap_to_first / (DIAL_SIGMA * sqrt(weeks_left)) + DIAL_PER_MANAGER * managers_between
+# (gap_to_first = minus your lead over 2nd when you're top). |z| <= DIAL_DEAD_ZONE
+# stays balanced; beyond it the dial ramps linearly to +-1 at DIAL_FULL.
+# Ownership then counts with lambda = balanced's 0.02 + dial * DIAL_LAMBDA_MAX,
+# and each player-week's ownership adjustment is capped at +-DIAL_CAP_XP
+# expected points, so a differential is never bought with more than that.
+# Calibrated by fpl/strategy_calibration.py (simulated 10-manager leagues, 64
+# per policy per season, paired). Tuned on 2025-26: lambda 0.15 / cap 1.0 was
+# best (P(first) +0.062 +-0.038, position -0.27, points +0.9 vs balanced).
+# Unseen: 2024-25 P(first) +0.016 +-0.042, position -0.19 +-0.16, points -1.0;
+# 2023-24 P(first) -0.094 +-0.058, position +0.20 +-0.10, points -11.8 +-4.1.
+# It doesn't improve on both unseen seasons, so Auto stays OFF (today's three
+# modes); a forced protect / balanced / chase in the app's Settings still uses
+# the dial's values below.
+USE_RISK_DIAL = False
+DIAL_SIGMA = 18.0  # SD of one week's points gap between two managers in your league (league_history, 432 pairs)
+DIAL_PER_MANAGER = 0.05
+DIAL_DEAD_ZONE = 0.25
+DIAL_FULL = 0.85
+DIAL_LAMBDA_MAX = 0.15
+DIAL_CAP_XP = 1.0
+FORCED_DIAL = {"protect": -1.0, "balanced": 0.0, "chase": 1.0}
+
 # First-half chips (GW1-19) get flagged "urgent" once this many gameweeks
 # remain before the CHIP_HALF_BOUNDARY cutoff.
 CHIP_URGENCY_WINDOW = 3
@@ -365,6 +391,75 @@ def lookup_weekly_xp(
             value = float(row[col]) if row is not None and col in row and pd.notna(row[col]) else 0.0
             weekly[(p, g)] = value
     return weekly
+
+
+def risk_dial(gap_to_first: float, weeks_left: int, managers_between: int = 0) -> tuple[float, float]:
+    """(dial, z): see the risk-dial block at the top of the file."""
+    z = gap_to_first / (DIAL_SIGMA * max(weeks_left, 1) ** 0.5) + DIAL_PER_MANAGER * max(managers_between, 0)
+    mag = min(max((abs(z) - DIAL_DEAD_ZONE) / (DIAL_FULL - DIAL_DEAD_ZONE), 0.0), 1.0)
+    return (mag if z > 0 else -mag), z
+
+
+def dial_label(dial: float) -> str:
+    if dial <= -0.5:
+        return "protect your lead"
+    if dial < -0.05:
+        return "lean protective"
+    if dial < 0.05:
+        return "balanced"
+    if dial < 0.5:
+        return "lean toward differentials"
+    return "chase with differentials"
+
+
+def dial_adjusted(
+    raw_weekly_xp: dict[tuple[int, int], float], league_eo: dict[int, float], dial: float,
+    lambda_max: float = DIAL_LAMBDA_MAX, cap: float = DIAL_CAP_XP,
+) -> dict[tuple[int, int], float]:
+    """xP plus the dial's ownership adjustment, capped per player-week at
+    +-``cap`` expected points: lambda = 0.02 (balanced) + dial * lambda_max."""
+    lam = LAMBDA_BY_MODE["balanced"] + dial * lambda_max
+    out = {}
+    for (p, g), xp in raw_weekly_xp.items():
+        adj = xp * lam * (EO_CENTER - league_eo.get(p, 0.0))
+        out[(p, g)] = xp + max(-cap, min(cap, adj))
+    return out
+
+
+def current_dial(tables: dict[str, pd.DataFrame] | None = None, team_id: int | None = None) -> dict[str, Any]:
+    """The dial for today: forced by FPL_STRATEGY (the app's Settings:
+    protect / balanced / chase), else from league_strategy + standings."""
+    import os
+
+    forced = (os.environ.get("FPL_STRATEGY") or "").strip().lower()
+    t = tables if tables is not None else {
+        n: pd.read_parquet(TABLES_DIR / f"{n}.parquet") if (TABLES_DIR / f"{n}.parquet").exists() else pd.DataFrame()
+        for n in ("league_strategy", "league_history")
+    }
+    st, lh = t.get("league_strategy", pd.DataFrame()), t.get("league_history", pd.DataFrame())
+    info: dict[str, Any] = {"source": "auto", "gap_to_first": None, "weeks_left": None, "managers_between": 0}
+    if not st.empty:
+        row = st.iloc[0]
+        gap = int(row.get("gap_to_first", 0) or 0)
+        weeks = int(row.get("gameweeks_remaining", 1) or 1)
+        if gap <= 0 and "second_points" in row and "your_points" in row:
+            gap = -int(row["your_points"] - row["second_points"])
+        between = 0
+        if not lh.empty and team_id is not None:
+            last = lh[lh["gameweek"] == lh["gameweek"].max()]
+            mine = last.loc[last["manager_id"] == team_id, "total_points"]
+            if not mine.empty:
+                between = max(int((last["total_points"] > mine.iloc[0]).sum()) - 1, 0)
+        dial, z = risk_dial(gap, weeks, between)
+        info.update({"gap_to_first": gap, "weeks_left": weeks, "managers_between": between, "z": round(z, 2)})
+    else:
+        dial = 0.0
+    if forced in FORCED_DIAL:
+        dial, info["source"] = FORCED_DIAL[forced], f"forced in Settings ({forced})"
+    info["dial"] = round(dial, 2)
+    info["label"] = dial_label(dial)
+    info["active"] = bool(USE_RISK_DIAL or forced in FORCED_DIAL)
+    return info
 
 
 def strategy_adjusted(
@@ -522,11 +617,19 @@ def solve_horizon(
             sell_price[p] * tout[(p, g)] - pool_info[p]["now_cost"] * tin[(p, g)] for p in pool_ids
         )
 
+        # FPL rule: after any hit you start next week with exactly 1 free
+        # transfer. Without this, "excess" hits (more than used - free) would
+        # bank extra free transfers through the rollover below -- a loophole a
+        # strongly ownership-weighted objective (e.g. a forced Chase) exploits.
+        any_hit = m.add_variable(f"anyhit_{g}", cat="Binary")
+        m += hits[g] <= UNLIMITED_FREE_TRANSFERS * any_hit
         if i < len(weeks) - 1:
             nxt = weeks[i + 1]
             m += ft[nxt] <= prev_ft - transfers_used + hits[g] + 1
+            m += ft[nxt] <= 1 + MAX_FREE_TRANSFERS * (1 - any_hit)
         elif ft_end is not None:
             m += ft_end <= prev_ft - transfers_used + hits[g] + 1
+            m += ft_end <= 1 + MAX_FREE_TRANSFERS * (1 - any_hit)
 
     for g, (ins, outs) in (fixed_moves or {}).items():
         if g not in weeks:
@@ -1198,6 +1301,9 @@ def build_captain_board(
         return board
 
     lam = LAMBDA_BY_MODE.get(mode, 0.0)
+    dial = current_dial()
+    if dial["active"]:
+        lam = LAMBDA_BY_MODE["balanced"] + dial["dial"] * DIAL_LAMBDA_MAX
     board["board_score"] = (board["xp"] * (1 + lam * (EO_CENTER - board["league_eo"]))).round(2)
     if mode == "protecting" and not board.empty:
         most_backed_eo = board["league_eo"].max()
@@ -1433,14 +1539,18 @@ def risk_sd_for(xp_rows: pd.DataFrame) -> dict[tuple[int, int], float]:
 
 
 def rule_inputs(
-    raw_weekly_xp: dict[tuple[int, int], float], league_eo: dict[int, float], mode: str, weeks: list[int]
+    raw_weekly_xp: dict[tuple[int, int], float], league_eo: dict[int, float], mode: str, weeks: list[int],
+    team_id: int | None = None,
 ) -> tuple[dict[tuple[int, int], float], dict[str, Any]]:
     """The objective values and Step 13 solver arguments every caller that
     reproduces the recommendation uses: strategy-adjusted xP with rule 4's
     no-odds weighting, plus ``rule_solve_kwargs`` (rules 1 and 3)."""
     xp_rows = load_xp_rows(weeks)
+    dial = current_dial(team_id=team_id)
+    adjusted = (dial_adjusted(raw_weekly_xp, league_eo, dial["dial"]) if dial["active"]
+                else strategy_adjusted(raw_weekly_xp, league_eo, mode))
     value = apply_no_odds_discount(
-        strategy_adjusted(raw_weekly_xp, league_eo, mode),
+        adjusted,
         no_odds_weeks(xp_rows), NO_ODDS_DISCOUNT if USE_NO_ODDS_DISCOUNT else 1.0,
     )
     return value, rule_solve_kwargs(mode, risk_sd_for(xp_rows) if USE_RELIABILITY else None)
@@ -1534,7 +1644,10 @@ def main() -> None:
     discount = {g: WEEKLY_DISCOUNT**i for i, g in enumerate(weeks)}
 
     raw_weekly_xp = lookup_weekly_xp(xp_by_gw, weeks, pool_ids)
-    adj_weekly_value, rules = rule_inputs(raw_weekly_xp, league_eo, mode, weeks)
+    adj_weekly_value, rules = rule_inputs(raw_weekly_xp, league_eo, mode, weeks, team_id=team_id)
+    dial = current_dial(team_id=team_id)
+    print(f"  risk dial: {dial['dial']:+.2f} ({dial['label']}, {dial['source']}"
+          f"{'' if dial['active'] else '; dial off, using the ' + mode + ' mode'})")
 
     effective_free = resolve_free_transfers(tables["league_free_transfers"], team_id)
 

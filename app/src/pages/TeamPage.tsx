@@ -185,6 +185,12 @@ export function TeamPage({ data }: { data: Latest }) {
       <div className="team-title page-title">
         <h1>Recommended team</h1>
         <span className="muted">Gameweek {d.gameweek} · copy this team</span>
+        {data.strategy?.mode_line?.text && (
+          <span className="mode-line" title={data.strategy.mode_line.reason}>
+            <b>{data.strategy.mode_line.text}</b>
+            <span className="muted"> · {data.strategy.mode_line.reason}</span>
+          </span>
+        )}
       </div>
       <div className="team-pitch">
         <Pitch players={d.xi} />

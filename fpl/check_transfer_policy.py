@@ -88,7 +88,7 @@ def run_check() -> bool:
     discount = {g: WEEKLY_DISCOUNT**i for i, g in enumerate(weeks)}
 
     raw_weekly_xp = lookup_weekly_xp(xp_by_gw, weeks, pool_ids)
-    adj_weekly_value, rules = rule_inputs(raw_weekly_xp, league_eo, mode, weeks)
+    adj_weekly_value, rules = rule_inputs(raw_weekly_xp, league_eo, mode, weeks, team_id=team_id)
     effective_free = resolve_free_transfers(tables["league_free_transfers"], team_id)
 
     print(f"Gameweek {weeks[0]}. Free transfers available: {effective_free}")

@@ -854,3 +854,8 @@ button.ra-line:hover { background: var(--lilac); }
 }
 .ucl-line { margin: 16px 0 0; color: var(--ucl-muted); font-size: 14px; line-height: 1.45; }
 :root[data-game="ucl"] .tabbar button { cursor: default; }
+
+/* Recommended team: the plain strategy mode line */
+.team-title { flex-wrap: wrap; }
+.mode-line { flex-basis: 100%; font-size: 13px; line-height: 1.4; margin-top: 2px; }
+.mode-line b { font-weight: 800; }

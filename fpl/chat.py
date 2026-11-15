@@ -79,7 +79,10 @@ def _summary() -> str:
     }
     return (f"Data generated {d.get('generated_at')}.\n\nThe app's recommendation for this gameweek (the ONE decision every page shows):\n"
             f"{json.dumps(keep, ensure_ascii=False)}\n\n\"Why this team\" text shown to the user:\n{' '.join(dec.get('why') or [])}\n\n"
-            f"Strategy mode: {mode}. {MODE_MEANING.get(mode, '')}")
+            f"Strategy mode: {mode}. {MODE_MEANING.get(mode, '')}\n"
+            f"Current mode shown to the user: {((d.get('strategy') or {}).get('mode_line') or {}).get('text', '')}. "
+            f"{((d.get('strategy') or {}).get('mode_line') or {}).get('reason', '')} "
+            "Mention the mode when it explains a choice (e.g. a captain or transfer few or many rivals own); otherwise leave it out.")
 
 
 def _tools() -> list[dict[str, Any]]:

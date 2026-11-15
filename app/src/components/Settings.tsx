@@ -87,6 +87,40 @@ function ModelRow() {
   );
 }
 
+const STRATEGIES: [string, string][] = [
+  ["auto", "Auto (from your league position)"],
+  ["protect", "Protect (stick with players your rivals own)"],
+  ["balanced", "Balanced (strongest team)"],
+  ["chase", "Chase (lean toward differentials)"],
+];
+
+function StrategyRow() {
+  const [strategy, setStrategy] = useState<string>("auto");
+  useEffect(() => {
+    invoke<string>("get_strategy").then(setStrategy).catch(() => {});
+  }, []);
+  return (
+    <div className="set-row">
+      <label className="small" htmlFor="strategy">Strategy</label>
+      <select
+        id="strategy"
+        value={strategy}
+        onChange={(e) => {
+          setStrategy(e.target.value);
+          invoke("set_strategy", { strategy: e.target.value }).catch(() => {});
+        }}
+      >
+        {STRATEGIES.map(([id, label]) => (
+          <option key={id} value={id}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <p className="small muted">Takes effect at your next Refresh. The published website always uses Auto.</p>
+    </div>
+  );
+}
+
 export function Settings({ onClose }: { onClose: () => void }) {
   const [saved, setSaved] = useState<boolean | null>(null);
   const [key, setKey] = useState("");
@@ -157,6 +191,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
             clearCmd="clear_anthropic_key"
           />
           <ModelRow />
+          <hr className="set-sep" />
+          <StrategyRow />
         </Card>
       </div>
     </div>

@@ -116,6 +116,11 @@ uv run python -m fpl.transfer_calibration --stage sens --sweep V --season 2024-2
 # form-change detection) on 2025-26 and the unseen 2024-25 / 2023-24 (~5 min):
 uv run python -m fpl.form_calibration
 
+# Test the league-position risk dial (protect <-> chase) in simulated 10-manager
+# leagues: tune on 2025-26, then check the chosen settings on 2024-25 / 2023-24:
+uv run python -m fpl.strategy_calibration --stage tune
+uv run python -m fpl.strategy_calibration --stage check --lam 0.15 --cap 1.0
+
 # Serve the site locally to view the result in a browser:
 cd site && python3 -m http.server 8000
 # then open http://localhost:8000

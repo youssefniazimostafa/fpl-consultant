@@ -84,7 +84,7 @@ def _ctx() -> dict[str, Any]:
     weeks = sorted(int(c[2:-3]) for c in xp_by_gw.columns if c.startswith("gw") and c.endswith("_xp"))
     weeks = weeks[: max(min(int(config.get("horizon", 5)), len(weeks)), 1)]
     raw = lookup_weekly_xp(xp_by_gw, weeks, pool)
-    adj, rules = rule_inputs(raw, eo, mode, weeks)
+    adj, rules = rule_inputs(raw, eo, mode, weeks, team_id=team_id)
     return {
         "t": t, "players": players, "xp_by_gw": xp_by_gw, "team_id": team_id, "my_squad": set(my_squad), "bank": bank,
         "mode": mode, "eo": eo, "sell": {p: sell_owned.get(p, info[p]["now_cost"]) for p in pool}, "pool": pool,

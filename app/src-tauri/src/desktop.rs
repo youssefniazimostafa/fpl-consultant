@@ -337,9 +337,43 @@ fn set_chat_model(model: String) -> Result<(), String> {
     if !CHAT_MODELS.contains(&model.as_str()) {
         return Err(format!("Unknown model {model}"));
     }
+    write_setting("chat_model", &model)
+}
+
+/// One key in settings.json, keeping the others (chat model, strategy).
+fn write_setting(key: &str, value: &str) -> Result<(), String> {
     let path = settings_path()?;
     std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
-    std::fs::write(&path, serde_json::json!({ "chat_model": model }).to_string()).map_err(|e| e.to_string())
+    let mut v = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .filter(|v| v.is_object())
+        .unwrap_or_else(|| serde_json::json!({}));
+    v[key] = serde_json::Value::String(value.to_string());
+    std::fs::write(&path, v.to_string()).map_err(|e| e.to_string())
+}
+
+const STRATEGIES: [&str; 4] = ["auto", "protect", "balanced", "chase"];
+
+/// The strategy chosen in Settings: "auto" (default) or a forced
+/// protect / balanced / chase, passed to the pipeline as FPL_STRATEGY.
+#[tauri::command]
+fn get_strategy() -> String {
+    settings_path()
+        .ok()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .and_then(|v| v.get("strategy").and_then(|m| m.as_str()).map(String::from))
+        .filter(|m| STRATEGIES.contains(&m.as_str()))
+        .unwrap_or_else(|| "auto".to_string())
+}
+
+#[tauri::command]
+fn set_strategy(strategy: String) -> Result<(), String> {
+    if !STRATEGIES.contains(&strategy.as_str()) {
+        return Err(format!("Unknown strategy {strategy}"));
+    }
+    write_setting("strategy", &strategy)
 }
 
 #[derive(serde::Deserialize, Serialize)]
@@ -683,6 +717,13 @@ fn run_refresh(app: &AppHandle) -> Result<(), String> {
         Some(key) => cmd.env("ODDS_API_KEY", key),
         None => cmd.env_remove("ODDS_API_KEY"),
     };
+    let strategy = get_strategy();
+    app_log(&format!("refresh: strategy {strategy}"));
+    if strategy == "auto" {
+        cmd.env_remove("FPL_STRATEGY");
+    } else {
+        cmd.env("FPL_STRATEGY", &strategy);
+    }
     let mut child = cmd.spawn().map_err(|e| format!("couldn't start the pipeline: {e}"))?;
 
     // merge stdout + stderr, line by line
@@ -762,6 +803,8 @@ pub fn run() {
             anthropic_key_saved,
             get_chat_model,
             set_chat_model,
+            get_strategy,
+            set_strategy,
             chat_send,
             plan_context,
             plan_load,
