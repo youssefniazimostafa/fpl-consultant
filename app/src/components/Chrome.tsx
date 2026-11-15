@@ -42,17 +42,16 @@ export function TopBar({
   source: string;
   sourceTitle?: string;
   refreshing: boolean;
-  onRefresh?: () => void; // absent in viewer mode (web / iPhone) and in UCL mode
+  onRefresh?: () => void; // absent in viewer mode (web / iPhone)
   onSettings?: () => void;
   onChat?: () => void;
 }) {
-  const pl = game === "pl";
   return (
     <header className="xbar">
       <span className="show-laptop-inline"><Wordmark /></span>
       <span className="show-phone-inline"><Wordmark compact /></span>
       <GameSwitch game={game} onChange={onGame} />
-      {pl && (
+      {(
         <>
           <div className="stat">
             <span className="label">{deadlineLabel}</span>
@@ -71,18 +70,18 @@ export function TopBar({
         </>
       )}
       <span className="xbar-tools">
-        {pl && onChat && (
+        {onChat && (
           <button className="chat-btn" onClick={onChat} title="Live consultant">
             <span className="chat-btn-long">Live consultant</span>
             <span className="chat-btn-short">Ask</span>
           </button>
         )}
-        {pl && onSettings && (
+        {onSettings && (
           <button className="settings-btn" onClick={onSettings} aria-label="Settings" title="Settings">
             ⚙
           </button>
         )}
-        {pl && onRefresh && (
+        {onRefresh && (
           <button className="refresh" onClick={onRefresh} disabled={refreshing} title="Refresh">
             <span className="refresh-long">{refreshing ? "Refreshing…" : "Refresh"}</span>
             <span className="refresh-short" aria-hidden>{refreshing ? "…" : "↻"}</span>

@@ -18,7 +18,17 @@ const STARTERS = ["Why this transfer?", "Why this captain?", "Compare two player
 
 const fmtCost = (c: number) => (c < 0.001 ? "under $0.001" : `about $${c.toFixed(c < 0.01 ? 3 : 2)}`);
 
-export function ChatPanel({ onClose, initialQuestion = null }: { onClose: () => void; initialQuestion?: string | null }) {
+export function ChatPanel({
+  onClose,
+  initialQuestion = null,
+  game = "pl",
+  starters = STARTERS,
+}: {
+  onClose: () => void;
+  initialQuestion?: string | null;
+  game?: "pl" | "ucl"; // UCL mode answers from ucl/chat.py
+  starters?: string[];
+}) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -37,7 +47,7 @@ export function ChatPanel({ onClose, initialQuestion = null }: { onClose: () => 
     setText("");
     setBusy(true);
     try {
-      const r = await invoke<Record<string, any>>("chat_send", { messages: history.map(({ role, content }) => ({ role, content })) });
+      const r = await invoke<Record<string, any>>("chat_send", { messages: history.map(({ role, content }) => ({ role, content })), game });
       setMsgs((m) => [
         ...m,
         r.ok ? { role: "assistant", content: r.answer, cost: r.cost_usd } : { role: "assistant", content: r.error, error: true },
@@ -74,7 +84,7 @@ export function ChatPanel({ onClose, initialQuestion = null }: { onClose: () => 
           <div className="chat-empty">
             <p className="muted small">Ask about this week's recommendation. Answers use only the app's own data.</p>
             <div className="chat-starters">
-              {STARTERS.map((s) => (
+              {starters.map((s) => (
                 <button key={s} className="chat-starter" onClick={() => send(s)}>
                   {s}
                 </button>

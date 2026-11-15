@@ -5,7 +5,7 @@ import { getPath, loadInitial, loadLocal, loadViewer, sourceLabel, type LoadedDa
 import { DESKTOP, VIEWER, inTauri } from "./platform";
 import { TABS } from "./tabs";
 import { Banner, BottomNav, TabBar, TopBar, type Game } from "./components/Chrome";
-import { UclPage } from "./pages/UclPage";
+import { UclApp } from "./ucl/UclApp";
 import { SETUP_KEY, Setup, TOUR_KEY, Tour, storageGet, storageSet } from "./components/Tour";
 import { Settings } from "./components/Settings";
 import { ChatPanel } from "./components/ChatPanel";
@@ -72,8 +72,8 @@ function countdown(deadlineIso: string | undefined, now: number): string {
   return `${d > 0 ? `${d}d ` : ""}${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
-// PL | UCL switch: remembered between launches (default PL). Only the PL
-// game exists so far; UCL shows a "to be continued" page and runs nothing.
+// PL | UCL switch: remembered between launches (default PL). UCL mode is
+// src/ucl/UclApp.tsx.
 const GAME_KEY = "xpert:game";
 function readGame(): Game {
   try {
@@ -268,6 +268,9 @@ export default function App() {
   const elapsed = startedAt.current ? Math.floor((now - startedAt.current) / 1000) : null;
   const current = TABS.find((t) => t.id === tab) ?? TABS[0];
 
+  // UCL mode is its own app (src/ucl/): own data, tabs, tour and tools
+  if (game === "ucl") return <UclApp game={game} onGame={setGame} now={now} />;
+
   return (
     <div className="app">
       <TopBar
@@ -284,11 +287,7 @@ export default function App() {
         onSettings={DESKTOP ? () => setShowSettings(true) : undefined}
         onChat={DESKTOP ? () => setShowChat(true) : undefined}
       />
-      {game === "pl" ? (
-        <TabBar tabs={TABS} active={tab} onSelect={setTab} />
-      ) : (
-        <TabBar tabs={[{ id: "ucl", name: "Champions League" }]} active="ucl" onSelect={() => {}} />
-      )}
+      <TabBar tabs={TABS} active={tab} onSelect={setTab} />
       {game === "pl" && VIEWER && loaded?.offlineReason && (
         <Banner tone="info">
           <strong>Offline: showing data from {fmtTime(loaded.generatedAt)}.</strong>
@@ -342,7 +341,6 @@ export default function App() {
       {game === "pl" && !refreshing && !refreshError && lastResult && <Banner tone="ok">{lastResult}</Banner>}
 
       <main className="content">
-        {game === "ucl" && <UclPage />}
         {game === "pl" && loadError && !data && <Banner tone="error">Couldn't load any data: {loadError}</Banner>}
         {game === "pl" && data &&
           (current.id === "team" ? (

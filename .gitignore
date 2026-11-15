@@ -29,3 +29,6 @@ site/data/*
 
 # Home-screen web app: built from app/ by the workflow at deploy time
 site/app/
+
+# UCL raw feed cache (regenerate with `uv run python -m ucl.backfill`)
+data/ucl/raw/

@@ -25,7 +25,7 @@ export function storageSet(key: string, value: string): void {
   }
 }
 
-interface Step {
+export interface Step {
   tab?: string;
   targets: string[]; // first visible match is highlighted (laptop, then phone)
   title: string;
@@ -37,7 +37,7 @@ const STEPS: Step[] = [
   {
     targets: [".xbar"],
     title: "Welcome to XPert",
-    text: "The top bar shows the countdown to the next deadline and when your data was last updated. The PL | UCL switch flips between the Premier League game and the Champions League one (coming later).",
+    text: "The top bar shows the countdown to the next deadline and when your data was last updated. The PL | UCL switch flips between the Premier League game and the Champions League one.",
   },
   {
     tab: "team",
@@ -89,8 +89,18 @@ function visible(el: Element | null): el is HTMLElement {
   return r.width > 0 && r.height > 0;
 }
 
-export function Tour({ onTab, onClose }: { onTab: (tab: string) => void; onClose: () => void }) {
-  const steps = STEPS.filter((s) => DESKTOP || !s.desktopOnly);
+export function Tour({
+  onTab,
+  onClose,
+  steps: custom,
+  doneKey = TOUR_KEY,
+}: {
+  onTab: (tab: string) => void;
+  onClose: () => void;
+  steps?: Step[]; // UCL mode has its own tour
+  doneKey?: string;
+}) {
+  const steps = (custom ?? STEPS).filter((s) => DESKTOP || !s.desktopOnly);
   const [i, setI] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const step = steps[i];
@@ -117,7 +127,7 @@ export function Tour({ onTab, onClose }: { onTab: (tab: string) => void; onClose
   useLayoutEffect(measure, [measure]);
 
   const finish = () => {
-    storageSet(TOUR_KEY, "1");
+    storageSet(doneKey, "1");
     onClose();
   };
   const pad = 6;

@@ -1,0 +1,91 @@
+name: UCL Fantasy data
+
+# The Champions League side of XPert (ucl/), separate from the PL workflow
+# (update.yml): it never deploys Pages and never touches the PL data. It
+# commits data/ucl/ (latest.json, history, frozen recommendations, run log),
+# and the app reads data/ucl/latest.json straight from the repo.
+on:
+  schedule:
+    # hourly check: runs only when a slot from data/ucl/schedule.json is due
+    # (evening before, 2 h before the deadline, after each match day, next
+    # morning -- see ucl/schedule.py and .github/scripts/ucl_gate.py)
+    - cron: "15 * * * *"
+    # full refresh twice a day (prices, news)
+    - cron: "0 6,18 * * *"
+  workflow_dispatch:
+    inputs:
+      slot_check:
+        description: "Only run if a UCL slot is due (used by the external hourly trigger)"
+        type: boolean
+        required: false
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - "ucl/**"
+      - ".github/workflows/ucl.yml"
+      - ".github/scripts/ucl_gate.py"
+
+permissions:
+  contents: write
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+      slot: ${{ steps.gate.outputs.slot }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Decide whether to run
+        id: gate
+        run: |
+          gated=false
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "15 * * * *" ]; then gated=true; fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.slot_check }}" = "true" ]; then gated=true; fi
+          if [ "$gated" != "true" ]; then
+            echo "Not the hourly slot check -- full run."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "slot=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git fetch --depth=1 origin main:refs/remotes/origin/main
+          python3 .github/scripts/ucl_gate.py
+
+  update:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: "ucl"
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - name: Sync to the latest main
+        run: |
+          git fetch --depth=1 origin main
+          git reset --hard FETCH_HEAD
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Rules self-test
+        run: uv run python -m ucl.rules
+      - name: Run the UCL pipeline
+        run: uv run python -m ucl.pipeline
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          UCL_SLOT: ${{ needs.gate.outputs.slot }}
+      - name: Consistency self-test
+        run: uv run python -m ucl.check_consistency --self-test
+      - name: Commit data/ucl
+        run: |
+          git config user.name "fpl-bot"
+          git config user.email "fpl-bot@users.noreply.github.com"
+          git add data/ucl
+          if git diff --cached --quiet; then echo "No UCL data changes."; exit 0; fi
+          git commit -m "UCL data: ${{ needs.gate.outputs.slot || 'refresh' }}"
+          for attempt in 1 2 3; do
+            if git pull --rebase -X theirs origin main && git push origin HEAD:main; then echo "Pushed (attempt $attempt)."; exit 0; fi
+            git rebase --abort >/dev/null 2>&1 || true
+            sleep $((attempt * 5))
+          done
+          echo "::error::Could not push the UCL data after 3 attempts."
+          exit 1

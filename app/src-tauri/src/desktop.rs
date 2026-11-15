@@ -122,7 +122,17 @@ fn autorefresh_requested() -> u8 {
 
 #[tauri::command]
 fn load_local_data() -> Result<Option<LocalData>, String> {
-    let path = engine_dir()?.join("site/data/latest.json");
+    read_local_json("site/data/latest.json")
+}
+
+/// UCL mode: data/ucl/latest.json from the last local UCL refresh.
+#[tauri::command]
+fn load_local_ucl() -> Result<Option<LocalData>, String> {
+    read_local_json("data/ucl/latest.json")
+}
+
+fn read_local_json(rel: &str) -> Result<Option<LocalData>, String> {
+    let path = engine_dir()?.join(rel);
     if !path.exists() {
         return Ok(None);
     }
@@ -366,7 +376,18 @@ fn read_settings() -> serde_json::Value {
 #[tauri::command]
 fn get_setup() -> serde_json::Value {
     let v = read_settings();
-    serde_json::json!({ "team_id": v.get("team_id"), "league_id": v.get("league_id") })
+    serde_json::json!({ "team_id": v.get("team_id"), "league_id": v.get("league_id"), "ucl_team_id": v.get("ucl_team_id") })
+}
+
+/// UCL mode: the UCL Fantasy team ID (not secret). Stored for later; UEFA's
+/// team endpoints need a login, so nothing reads the team with it yet.
+#[tauri::command]
+fn set_ucl_team(team_id: String) -> Result<(), String> {
+    let t = team_id.trim();
+    if !t.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Err("The UCL team ID is letters, numbers and dashes only.".into());
+    }
+    write_setting("ucl_team_id", t)
 }
 
 #[tauri::command]
@@ -432,17 +453,19 @@ struct ChatMessage {
 /// One chat turn. The conversation (text only) lives in the page's memory
 /// and is sent each time; nothing about it is written to disk or logged.
 #[tauri::command]
-async fn chat_send(messages: Vec<ChatMessage>) -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(move || chat_send_blocking(messages))
+async fn chat_send(messages: Vec<ChatMessage>, game: Option<String>) -> Result<serde_json::Value, String> {
+    let ucl = game.as_deref() == Some("ucl");
+    tauri::async_runtime::spawn_blocking(move || chat_send_blocking(messages, ucl))
         .await
         .map_err(|e| e.to_string())?
 }
 
-fn chat_send_blocking(messages: Vec<ChatMessage>) -> Result<serde_json::Value, String> {
+fn chat_send_blocking(messages: Vec<ChatMessage>, ucl: bool) -> Result<serde_json::Value, String> {
     let key = keychain_anthropic_key()
         .ok_or("Add your Anthropic API key in Settings (the gear in the status bar) to use the Live consultant.")?;
     let engine = engine_dir()?;
-    if !engine.join("fpl/chat.py").exists() {
+    let module = if ucl { "ucl.chat" } else { "fpl.chat" };
+    if !engine.join(if ucl { "ucl/chat.py" } else { "fpl/chat.py" }).exists() {
         return Err("The app's engine copy isn't set up yet (or is out of date). Press Refresh once, then try again.".into());
     }
     let env = shell_env();
@@ -450,7 +473,7 @@ fn chat_send_blocking(messages: Vec<ChatMessage>) -> Result<serde_json::Value, S
     let mut chat_cmd = Command::new(&uv_bin);
     setup_env(&mut chat_cmd);
     let mut child = chat_cmd
-        .args(["run", "python", "-m", "fpl.chat"])
+        .args(["run", "python", "-m", module])
         .current_dir(&engine)
         .env("PATH", &env.path)
         .env("ANTHROPIC_API_KEY", key)
@@ -601,7 +624,8 @@ fn acquire_engine_lock() -> Result<std::fs::File, String> {
 }
 
 #[tauri::command]
-fn start_refresh(app: AppHandle, lock: State<'_, RefreshLock>) -> Result<(), String> {
+fn start_refresh(app: AppHandle, lock: State<'_, RefreshLock>, game: Option<String>) -> Result<(), String> {
+    let ucl = game.as_deref() == Some("ucl");
     if lock.0.swap(true, Ordering::SeqCst) {
         return Err("A refresh is already running.".into());
     }
@@ -617,8 +641,8 @@ fn start_refresh(app: AppHandle, lock: State<'_, RefreshLock>) -> Result<(), Str
         let _guard = LockGuard(&lock.0);
         let _engine_lock = engine_lock; // held until this thread ends
         let started = Instant::now();
-        app_log("refresh: started");
-        let result = run_refresh(&app);
+        app_log(if ucl { "refresh: started (UCL)" } else { "refresh: started" });
+        let result = run_refresh(&app, ucl);
         match &result {
             Ok(()) => app_log(&format!("refresh: OK in {:.0}s", started.elapsed().as_secs_f64())),
             Err(e) => app_log(&format!("refresh: FAILED after {:.0}s: {e}", started.elapsed().as_secs_f64())),
@@ -713,7 +737,7 @@ fn git(git: &Path, cwd: &Path, args: &[&str], env_path: &str) -> Result<(), Stri
     Ok(())
 }
 
-fn run_refresh(app: &AppHandle) -> Result<(), String> {
+fn run_refresh(app: &AppHandle, ucl: bool) -> Result<(), String> {
     emit_stage(app, "preparing");
     let env = shell_env();
     let git_bin = find_program("git", &env.path)?;
@@ -749,7 +773,7 @@ fn run_refresh(app: &AppHandle) -> Result<(), String> {
     if std::env::var("FPL_CONSULTANT_TEST_FAIL").as_deref() == Ok("1") {
         cmd.args(["run", "python", "-c", "import sys; print('=== fetch ==='); print('test failure (FPL_CONSULTANT_TEST_FAIL)'); sys.exit(3)"]);
     } else {
-        cmd.args(["run", "python", "-m", "fpl.pipeline"]);
+        cmd.args(["run", "python", "-m", if ucl { "ucl.pipeline" } else { "fpl.pipeline" }]);
     }
     cmd
         .current_dir(&engine)
@@ -819,7 +843,11 @@ fn run_refresh(app: &AppHandle) -> Result<(), String> {
         let tail_text = tail.into_iter().collect::<Vec<_>>().join("\n");
         return Err(format!("Pipeline failed during \"{stage}\" ({code}).\nLast output:\n{tail_text}"));
     }
-    if load_local_data()?.is_none() {
+    if ucl {
+        if load_local_ucl()?.is_none() {
+            return Err("UCL pipeline finished but data/ucl/latest.json wasn't written.".into());
+        }
+    } else if load_local_data()?.is_none() {
         return Err("Pipeline finished but site/data/latest.json wasn't written.".into());
     }
     Ok(())
@@ -843,6 +871,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             load_local_data,
+            load_local_ucl,
+            set_ucl_team,
             save_published_cache,
             load_published_cache,
             shirt_image,

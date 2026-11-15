@@ -656,7 +656,6 @@ button.ra-line:hover { background: var(--lilac); }
   .refresh-long { display: none; }
   .refresh-short { display: inline; }
   .xbar .refresh { padding: 6px 11px; font-size: 15px; }
-  :root[data-game="ucl"] .tabbar { display: flex; }
   .statusbar { gap: 14px; padding: 8px 14px; }
   .hide-phone { display: none; }
   .value { font-size: 13px; }
@@ -853,7 +852,6 @@ button.ra-line:hover { background: var(--lilac); }
   background: var(--game-accent); color: var(--game-accent-text); font-weight: 800; font-size: 14px;
 }
 .ucl-line { margin: 16px 0 0; color: var(--ucl-muted); font-size: 14px; line-height: 1.45; }
-:root[data-game="ucl"] .tabbar button { cursor: default; }
 
 /* Recommended team: the plain strategy mode line */
 .team-title { flex-wrap: wrap; }

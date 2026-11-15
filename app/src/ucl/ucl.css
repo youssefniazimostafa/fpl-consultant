@@ -1,0 +1,96 @@
+/* UCL mode: our own theme -- midnight navy pages, royal-blue tab bar, a
+   bright cyan accent. No UEFA marks, fonts or club crests: clubs are drawn as
+   coloured discs with their code. Everything is scoped under .ucl. */
+.ucl { --u-card: #121a46; --u-card-2: #19235c; --u-line: rgba(255, 255, 255, 0.1); --u-text: #ffffff;
+  --u-muted: #b5b4d6; --u-cyan: #2be4ff; --u-royal: #1d47d6; color: var(--u-text); }
+.ucl .content { background: #0a0f2e; }
+.ucl .umuted, .ucl .footnote { color: var(--u-muted); }
+.ucl .upad { padding: 20px; }
+.ucl .small { font-size: 12px; }
+
+.upage { display: flex; flex-direction: column; gap: 14px; max-width: 1180px; margin: 0 auto; }
+.ugrid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.ugrid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.ucol { display: flex; flex-direction: column; gap: 14px; }
+.uscout { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+
+.ucl .card.ucard { background: var(--u-card); color: var(--u-text); border: 1px solid var(--u-line); }
+.ucl .card.ucard .card-head h2 { color: var(--u-text); }
+.ucl .card.ucard .card-head h2::before { background: var(--u-cyan); }
+.ucl .card.ucard .card-aside { color: var(--u-muted); }
+.ucl .help-btn { color: var(--u-muted); border-color: var(--u-muted); background: none; }
+.ucl .help-btn:hover, .ucl .help-btn.open { background: var(--u-cyan); border-color: var(--u-cyan); color: #0a0f2e; }
+.ucl .help-pop { background: #1d2a78; }
+.ucl .ubig { font-size: 16px; font-weight: 800; margin: 0 0 6px; }
+
+.ustrip { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; color: var(--u-muted); font-size: 13px; font-weight: 600; }
+.ustrip-md { background: var(--u-cyan); color: #0a0f2e; font-weight: 800; border-radius: 999px; padding: 2px 10px; }
+.unote { background: #13235f; border-left: 4px solid var(--u-cyan); border-radius: 10px; padding: 10px 14px; line-height: 1.45; }
+
+.club-badge { display: inline-grid; place-items: center; border-radius: 50%; border: 2px solid; color: #fff; font-weight: 800;
+  letter-spacing: 0.02em; flex: none; vertical-align: middle; line-height: 1; }
+
+/* pitch */
+.upitch { position: relative; border-radius: 14px; padding: 14px 6px 26px;
+  background: repeating-linear-gradient(180deg, #123a8f 0 44px, #0f3380 44px 88px); border: 1px solid rgba(43, 228, 255, 0.25); }
+.upitch-row { display: flex; justify-content: center; gap: 6px; margin: 10px 0; }
+.upitch-legend { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center; font-size: 11px; color: #cfe8ff; opacity: 0.8; }
+.utile { width: 92px; text-align: center; display: flex; flex-direction: column; align-items: center; }
+.utile-badge { position: relative; }
+.utile-name { margin-top: 4px; background: #ffffff; color: #0a0f2e; font-weight: 800; font-size: 11.5px; border-radius: 6px 6px 0 0;
+  padding: 2px 4px; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.utile-meta { display: flex; justify-content: space-between; gap: 4px; width: 100%; background: #0a0f2e; color: var(--u-muted);
+  font-size: 10.5px; border-radius: 0 0 6px 6px; padding: 2px 4px; }
+.utile-meta b { color: var(--u-cyan); }
+.utile-label { font-size: 10px; color: var(--u-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 2px; }
+.ubadge { position: absolute; top: -4px; right: -10px; width: 18px; height: 18px; border-radius: 50%; font-size: 10px; font-weight: 800;
+  display: grid; place-items: center; }
+.ubadge-c { background: var(--u-cyan); color: #0a0f2e; }
+.ubadge-v { background: #ffffff; color: #0a0f2e; }
+.ubadge-flag { left: -10px; right: auto; background: #ffb020; color: #0a0f2e; }
+.ubench { display: flex; justify-content: center; gap: 6px; margin-top: 10px; padding: 10px 6px; border-radius: 12px; background: var(--u-card-2); }
+
+/* tables and lists */
+.utable { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.utable th { text-align: left; color: var(--u-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; padding: 4px 6px; }
+.utable td { padding: 6px; border-top: 1px solid var(--u-line); vertical-align: top; }
+.utable tr.on td { color: var(--u-cyan); font-weight: 700; }
+.utable.ko td, .utable.ko th { padding: 3px 6px; font-size: 12px; }
+.ulist { margin: 8px 0 0; padding-left: 18px; line-height: 1.5; }
+.ulist li { margin: 4px 0; }
+.ureasons { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 8px 18px; }
+.ureasons li { padding: 6px 0; border-top: 1px solid var(--u-line); line-height: 1.4; }
+.ureasons li div { color: #dfe2ff; font-size: 13px; margin-top: 2px; }
+.uday { padding: 6px 0; border-top: 1px solid var(--u-line); }
+.uday:first-of-type { border-top: 0; }
+.uday-names { font-size: 13px; color: #dfe2ff; margin-top: 2px; }
+.utop { list-style: none; margin: 0; padding: 0; counter-reset: u; }
+.utop li { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-top: 1px solid var(--u-line); font-size: 13px; }
+.utop li:first-child { border-top: 0; }
+.utop-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.utop b { color: var(--u-cyan); white-space: nowrap; }
+.ustats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ustats div { background: var(--u-card); border: 1px solid var(--u-line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; }
+.ustats span { color: var(--u-muted); font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; }
+.ustats b { font-size: 30px; font-weight: 800; color: var(--u-cyan); }
+.ucl .chart-box { background: var(--u-card-2); }
+.ucl .footnote .link { color: var(--u-cyan); }
+.ucl .bottom-nav { background: #0a0f2e; border-top: 1px solid var(--u-line); }
+.ucl .bottom-nav button { color: var(--u-muted); }
+.ucl .bottom-nav button.active { color: var(--u-cyan); }
+.ucl .bottom-nav button.active .dot { background: var(--u-cyan); }
+.ucl .banner { color: #0a0f2e; }
+.ucl .tour-spot { outline-color: var(--u-cyan); }
+
+@media (max-width: 719px) {
+  .ugrid, .ugrid2 { grid-template-columns: minmax(0, 1fr); }
+  .uscout { grid-template-columns: minmax(0, 1fr); }
+  .utile { width: 64px; }
+  .utile-name { font-size: 10px; }
+  .utile-meta { font-size: 9px; padding: 1px 2px; }
+  .upitch-row { gap: 3px; }
+  .ubench { gap: 3px; }
+  .ureasons { grid-template-columns: minmax(0, 1fr); }
+  .ustats b { font-size: 22px; }
+  .utable { font-size: 12px; }
+}

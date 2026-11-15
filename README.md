@@ -451,3 +451,37 @@ or the app's front end (`app/src/`, ...). Each run:
    web app (`app/`, `npm run build:web`) into `site/app/`, so it's
    published at `/fpl-consultant/app/` (if that build fails, the site still
    deploys and the run is marked failed).
+
+## Champions League mode (UCL Fantasy 2026/27)
+
+The PL | UCL switch opens XPert's Champions League mode. It is kept apart
+from the PL game: code in `ucl/`, data in `data/ucl/`, its own workflow
+(`.github/workflows/ucl.yml`, which only commits `data/ucl/` and never
+deploys Pages). The app reads `data/ucl/latest.json` straight from the
+repo on GitHub.
+
+- `ucl/rules.py`: every game rule (squad, budget, club limits by stage,
+  free transfers, chips, between-days changes, auto-subs, scoring) with a
+  self-test (`uv run python -m ucl.rules`), which also checks the scoring
+  against UEFA's own points for every stored appearance.
+- `ucl/feed.py`, `ucl/backfill.py`: UEFA's public feeds (no login), polite
+  (one request at a time, 1.5 s apart), with last-good fallbacks.
+- `ucl/model.py`, `ucl/knockout.py`, `ucl/backtest.py`: expected points,
+  league-table/knockout simulation, and a no-lookahead backtest.
+- `ucl/optimise.py`, `ucl/between_days.py`, `ucl/pipeline.py`: squad and
+  plan, between-days advice, the published file.
+- `uv run python -m ucl.pipeline` runs everything;
+  `uv run python -m ucl.check_consistency [--self-test]` checks the output.
+
+Runs are timed from the fixture list (`ucl/schedule.py`): the evening
+before a deadline, 2 hours before it (this run freezes the recommendation),
+3.5 hours after each match day but the last, and 08:00 the next morning.
+The hourly check (`15 * * * *`) only runs when a slot is due; a full
+refresh runs at 06:00 and 18:00 UTC. cron-job.org backups (same token as
+the PL jobs): "XPert UCL slot check", hourly at :15, `workflow_dispatch` of
+`ucl.yml` with input `slot_check` = true; "XPert UCL full refresh", 06:00
+and 18:00, no inputs.
+
+Reading your own UCL team needs a UEFA login, so XPert recommends the squad
+to create and gives its advice for that squad. The game average is an
+estimate from ownership for the same reason.
