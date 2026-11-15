@@ -267,6 +267,7 @@ def main() -> None:
     schedule.write(sched)
 
     stage("publish")
+    feed.RAW.mkdir(parents=True, exist_ok=True)  # git-ignored, so absent on a fresh CI checkout
     xp.to_parquet(feed.RAW / "xp_latest.parquet", index=False)  # for ucl.my_plan (git-ignored)
     payload = build_payload(now, cons, md, deadline, matches, players, xp, xp_md, team, cap, step0, base, chip_values,
                             flex, bd, frozen, per_md, last, ko, bt, sched, apps, team_model)
