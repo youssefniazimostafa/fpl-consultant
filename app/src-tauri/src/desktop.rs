@@ -509,19 +509,24 @@ fn chat_send_blocking(messages: Vec<ChatMessage>, ucl: bool) -> Result<serde_jso
 // next to app.log, outside the engine's git checkout), never in the repo,
 // the engine copy or latest.json, and the pipeline never reads it.
 
-fn plan_path() -> Result<PathBuf, String> {
-    Ok(support_dir()?.join("my_plan.json"))
+fn plan_path(ucl: bool) -> Result<PathBuf, String> {
+    // UCL mode keeps its own plan file, also only in the app's data folder
+    Ok(support_dir()?.join(if ucl { "ucl_plan.json" } else { "my_plan.json" }))
 }
 
-fn run_plan_module(mode: &str, body: Option<String>, key: Option<String>) -> Result<serde_json::Value, String> {
+fn is_ucl(game: &Option<String>) -> bool {
+    game.as_deref() == Some("ucl")
+}
+
+fn run_plan_module(mode: &str, body: Option<String>, key: Option<String>, ucl: bool) -> Result<serde_json::Value, String> {
     let engine = engine_dir()?;
-    if !engine.join("fpl/my_plan.py").exists() {
+    if !engine.join(if ucl { "ucl/my_plan.py" } else { "fpl/my_plan.py" }).exists() {
         return Err("The app's engine copy isn't set up yet (or is out of date). Press Refresh once, then try again.".into());
     }
     let env = shell_env();
     let uv_bin = find_program("uv", &env.path)?;
     let mut cmd = Command::new(&uv_bin);
-    cmd.args(["run", "python", "-m", "fpl.my_plan", mode])
+    cmd.args(["run", "python", "-m", if ucl { "ucl.my_plan" } else { "fpl.my_plan" }, mode])
         .current_dir(&engine)
         .env("PATH", &env.path)
         .env_remove("ANTHROPIC_API_KEY")
@@ -548,16 +553,17 @@ fn run_plan_module(mode: &str, body: Option<String>, key: Option<String>) -> Res
 }
 
 #[tauri::command]
-async fn plan_context() -> Result<serde_json::Value, String> {
-    tauri::async_runtime::spawn_blocking(|| run_plan_module("context", None, None))
+async fn plan_context(game: Option<String>) -> Result<serde_json::Value, String> {
+    let ucl = is_ucl(&game);
+    tauri::async_runtime::spawn_blocking(move || run_plan_module("context", None, None, ucl))
         .await
         .map_err(|e| e.to_string())?
 }
 
 /// The saved plan (and its last review), or null.
 #[tauri::command]
-fn plan_load() -> Result<Option<serde_json::Value>, String> {
-    let path = plan_path()?;
+fn plan_load(game: Option<String>) -> Result<Option<serde_json::Value>, String> {
+    let path = plan_path(is_ucl(&game))?;
     if !path.exists() {
         return Ok(None);
     }
@@ -566,8 +572,8 @@ fn plan_load() -> Result<Option<serde_json::Value>, String> {
 }
 
 #[tauri::command]
-fn plan_save(saved: serde_json::Value) -> Result<(), String> {
-    let path = plan_path()?;
+fn plan_save(saved: serde_json::Value, game: Option<String>) -> Result<(), String> {
+    let path = plan_path(is_ucl(&game))?;
     std::fs::create_dir_all(path.parent().ok_or("bad path")?).map_err(|e| e.to_string())?;
     std::fs::write(&path, saved.to_string()).map_err(|e| e.to_string())?;
     app_log("plan: saved");
@@ -577,12 +583,13 @@ fn plan_save(saved: serde_json::Value) -> Result<(), String> {
 /// Checks the plan and compares it with the recommendation; with an
 /// Anthropic key saved, also writes the consultant's review.
 #[tauri::command]
-async fn plan_review(plan: serde_json::Value) -> Result<serde_json::Value, String> {
+async fn plan_review(plan: serde_json::Value, game: Option<String>) -> Result<serde_json::Value, String> {
+    let ucl = is_ucl(&game);
     tauri::async_runtime::spawn_blocking(move || {
         let key = keychain_anthropic_key();
         let with_ai = key.is_some();
         let body = serde_json::json!({ "plan": plan, "model": get_chat_model(), "with_ai": with_ai }).to_string();
-        let v = run_plan_module("review", Some(body), key)?;
+        let v = run_plan_module("review", Some(body), key, ucl)?;
         app_log(&format!(
             "plan: reviewed ok={} ai={} cost=${:.4}",
             v.get("ok").and_then(|b| b.as_bool()).unwrap_or(false),

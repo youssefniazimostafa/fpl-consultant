@@ -122,9 +122,13 @@ SCHEMAS = [
 ]
 
 
-def answer(messages: list[dict[str, str]], model: str = DEFAULT_MODEL) -> dict[str, Any]:
+def answer(messages: list[dict[str, str]], model: str = DEFAULT_MODEL, extra_rules: str | None = None) -> dict[str, Any]:
+    """``extra_rules``: task instructions added after the grounding rules and
+    the data (ucl.my_plan's plan review)."""
     client = anthropic.Anthropic(max_retries=1, timeout=120.0)
     system = [{"type": "text", "text": RULES}, {"type": "text", "text": _summary(), "cache_control": {"type": "ephemeral"}}]
+    if extra_rules:
+        system.append({"type": "text", "text": extra_rules})
     tools = [dict(t, strict=True) for t in SCHEMAS]
     tools[-1]["cache_control"] = {"type": "ephemeral"}
     convo: list[dict[str, Any]] = [{"role": m["role"], "content": m["content"]} for m in messages if m.get("content")]

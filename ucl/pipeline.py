@@ -267,8 +267,9 @@ def main() -> None:
     schedule.write(sched)
 
     stage("publish")
+    xp.to_parquet(feed.RAW / "xp_latest.parquet", index=False)  # for ucl.my_plan (git-ignored)
     payload = build_payload(now, cons, md, deadline, matches, players, xp, xp_md, team, cap, step0, base, chip_values,
-                            flex, bd, frozen, per_md, last, ko, bt, sched, apps)
+                            flex, bd, frozen, per_md, last, ko, bt, sched, apps, team_model)
     payload = feed.clean(payload)
     OUT.write_text(json.dumps(payload, indent=None, separators=(",", ":"), default=str, allow_nan=False))
     feed.write_health()
@@ -286,6 +287,73 @@ def main() -> None:
     if os.environ.get("UCL_SLOT"):
         schedule.mark_done(os.environ["UCL_SLOT"], now)
     print("Pipeline complete.")
+
+
+def planner_view(md: int, matches: pd.DataFrame, base: dict, xp: pd.DataFrame, pl: pd.DataFrame, team_model, ko) -> dict:
+    """The UCL Planner tab: the matchday calendar with each stage's rules,
+    every club's coming fixtures (day and difficulty), and each planned move's
+    gain against the bar the optimiser applies."""
+    plan_ft = {st["md"]: st["ft"] for st in base["plan"]}
+    calendar = []
+    for m in range(1, rules.N_MATCHDAYS + 1):
+        g = matches[matches["md"] == m]
+        days = []
+        for gd, gg in g.sort_values("kickoff").groupby("gd"):
+            days.append(day_label(gg["kickoff"].min()))
+        ft = rules.FREE_TRANSFERS[m]
+        played = bool(len(g)) and bool(g["finished"].all())
+        calendar.append({
+            "md": m, "stage": rules.STAGE_LABEL[rules.STAGE[m]], "days": days, "matches": int(len(g)),
+            "free_transfers": "unlimited" if ft is None else ft,
+            "available": plan_ft.get(m) if m in plan_ft and m != md else None,
+            "carry": ("unused: up to 1 carries over" if rules.STAGE[m] == "league" else "no carry-over") if ft is not None else "",
+            "club_limit": rules.club_limit(m), "budget": rules.budget(m),
+            "chips_allowed": m not in rules.CHIP_BANNED_MDS, "between_days": rules.between_days_allowed(m),
+            "status": "played" if played else "current" if m == md else "upcoming",
+        })
+    # difficulty 1-5 from the opponent's strength in the team model (attack + defence), by quintile
+    strength = {}
+    if team_model is not None:
+        for t in team_model.pot_of:
+            a, d = team_model.rating(t)
+            strength[t] = a + d
+    order = sorted(strength, key=strength.get)
+    diff = {t: 1 + min(4, int(5 * i / max(len(order), 1))) for i, t in enumerate(order)}
+    fixtures = {}
+    names = {}
+    upcoming = matches[(matches["md"] >= md) & ~matches["finished"]].sort_values("kickoff")
+    for r in upcoming.itertuples():
+        for tid, code, name, opp, opp_code, home in ((r.home_id, r.home_code, r.home, r.away_id, r.away_code, True),
+                                                     (r.away_id, r.away_code, r.away, r.home_id, r.home_code, False)):
+            names[code] = name
+            fixtures.setdefault(code, []).append({"md": int(r.md), "opp": opp_code, "home": home, "day": day_label(r.kickoff),
+                                                  "diff": diff.get(int(opp), 3)})
+    club_rows = [{"code": c, "club": names[c], "fixtures": f,
+                  "ease": round(sum(6 - x["diff"] for x in f) / max(len(f), 1), 2),
+                  "p_top8": float(ko.loc[ko["code"] == c, "p_top8"].iloc[0]) if (ko["code"] == c).any() else None}
+                 for c, f in fixtures.items()]
+    club_rows.sort(key=lambda r: -r["ease"])
+    # each planned move's gain over the rest of the horizon, against the bar
+    xpm = xp.groupby(["pid", "md"])["xp"].sum()
+    mds = base["mds"]
+    moves = []
+    for st in base["plan"][1:]:
+        rest = [m for m in mds if m >= st["md"]]
+        outs = sorted(st["out"], key=lambda p: int(pl.loc[p, "pos"]))
+        ins = sorted(st["in"], key=lambda p: int(pl.loc[p, "pos"]))
+        for i, (o, n) in enumerate(zip(outs, ins)):
+            gain = sum(float(xpm.get((n, m), 0.0)) - float(xpm.get((o, m), 0.0)) for m in rest)
+            hit = i >= (st["ft"] or 99)
+            bar = optimise.TRANSFER_FRICTION + (rules.HIT_COST if hit else 0)
+            moves.append({"md": st["md"], "out": pl.loc[o, "name"], "in": pl.loc[n, "name"],
+                          "out_code": pl.loc[o, "team_code"], "in_code": pl.loc[n, "team_code"],
+                          "pos": rules.POS_NAME[int(pl.loc[n, "pos"])], "gain": round(gain, 2), "bar": bar, "hit": hit,
+                          "over": f"MD{rest[0]}-{rest[-1]}" if len(rest) > 1 else f"MD{rest[0]}"})
+    return {"calendar": calendar, "clubs": club_rows, "moves": moves,
+            "bar_note": (f"The optimiser makes a move only when it gains more than {optimise.TRANSFER_FRICTION} expected "
+                         f"points over the rest of the plan ({optimise.TRANSFER_FRICTION + rules.HIT_COST:g} if it costs a "
+                         "-4 hit), so it doesn't churn on small differences."),
+            "chip_banned": sorted(rules.CHIP_BANNED_MDS)}
 
 
 def chip_plan(md: int, chip_values: dict) -> dict:
@@ -317,7 +385,7 @@ def chip_plan(md: int, chip_values: dict) -> dict:
 
 
 def build_payload(now, cons, md, deadline, matches, players, xp, xp_md, team, cap, step0, base, chip_values, flex, bd,
-                  frozen, per_md, last, ko, bt, sched, apps) -> dict:
+                  frozen, per_md, last, ko, bt, sched, apps, team_model=None) -> dict:
     pl = players.set_index("pid")
     rows_md = xp_md.groupby("pid").agg({"xp": "sum", "opp": "first", "home": "first", "kickoff": "first", "gd": "first",
                                         "p_app": "first", "p60": "first", "goals": "sum", "assists": "sum",
@@ -361,8 +429,9 @@ def build_payload(now, cons, md, deadline, matches, players, xp, xp_md, team, ca
     plan_rows = []
     for st in base["plan"]:
         plan_rows.append({"md": st["md"], "xp": st["xp"], "ft": st["ft"], "hits": st["hits"], "chip": st["chip"],
-                          "in": [view(p) | {"md_note": f"MD{st['md']}"} for p in st["in"]],
-                          "out": [view(p) for p in st["out"]], "cost": st["cost"],
+                          # sorted by position so in[k] replaces out[k]
+                          "in": [view(p) | {"md_note": f"MD{st['md']}"} for p in sorted(st["in"], key=lambda q: int(pl.loc[q, "pos"]))],
+                          "out": [view(p) for p in sorted(st["out"], key=lambda q: int(pl.loc[q, "pos"]))], "cost": st["cost"],
                           "captain": pl.loc[st["captain"], "name"]})
     last_view = None
     if last:
@@ -383,10 +452,14 @@ def build_payload(now, cons, md, deadline, matches, players, xp, xp_md, team, ca
                 "p_win": round(r.p_win, 3), "exp_matches": round(r.exp_matches, 2)} for r in ko.itertuples()]
     bd_view = dict(bd)
     for k in ("subs",):
-        bd_view[k] = [s | {"out_name": pl.loc[s["out"], "name"], "in_name": pl.loc[s["in"], "name"]} for s in bd.get(k, [])]
+        bd_view[k] = [s | {"out_name": pl.loc[s["out"], "name"], "in_name": pl.loc[s["in"], "name"],
+                           "out_code": pl.loc[s["out"], "team_code"], "in_code": pl.loc[s["in"], "team_code"],
+                           "out_gk": int(pl.loc[s["out"], "pos"]) == 1, "in_gk": int(pl.loc[s["in"], "pos"]) == 1}
+                      for s in bd.get(k, [])]
     if bd.get("captain_switch"):
         cs = bd["captain_switch"]
-        bd_view["captain_switch"] = cs | {"from_name": pl.loc[cs["from"], "name"], "to_name": pl.loc[cs["to"], "name"]}
+        bd_view["captain_switch"] = cs | {"from_name": pl.loc[cs["from"], "name"], "to_name": pl.loc[cs["to"], "name"],
+                                          "from_code": pl.loc[cs["from"], "team_code"], "to_code": pl.loc[cs["to"], "team_code"]}
     cost = round(sum(float(pl.loc[p, "price"]) for p in team["squad"]), 1)
     return {
         "game": "ucl", "season": "2026/27", "tour": feed.TOUR,
@@ -407,6 +480,7 @@ def build_payload(now, cons, md, deadline, matches, players, xp, xp_md, team, ca
             "frozen": frozen and {"frozen_at": frozen["frozen_at"]},
         },
         "plan": plan_rows,
+        "planner": planner_view(md, matches, base, xp, pl, team_model, ko),
         "chips": chip_plan(md, chip_values),
         "between_days": bd_view,
         "last_md": last_view,

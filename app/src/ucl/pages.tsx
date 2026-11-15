@@ -6,6 +6,7 @@ import type { ChartConfiguration } from "chart.js";
 import { Card } from "../components/Card";
 import { Chart } from "../components/Chart";
 import { uclHelp } from "./help";
+import { UclShirt } from "./UclShirt";
 import type { Ucl } from "./data";
 
 type P = Record<string, any>;
@@ -22,25 +23,6 @@ export function UCard({ title, aside, children, className = "" }: { title: strin
   );
 }
 
-function hue(code: string): number {
-  let h = 0;
-  for (const c of code) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return h;
-}
-
-export function ClubBadge({ code, size = 40 }: { code: string; size?: number }) {
-  const h = hue(code || "?");
-  return (
-    <span
-      className="club-badge"
-      style={{ width: size, height: size, fontSize: Math.max(9, size / 4), background: `hsl(${h} 62% 38%)`, borderColor: `hsl(${h} 70% 62%)` }}
-      aria-hidden
-    >
-      {(code || "?").slice(0, 4)}
-    </span>
-  );
-}
-
 const dayShort = (d?: string | null) => (d ? d.split(" ")[0] : "–");
 
 function Tile({ p, label, points }: { p: P; label?: string; points?: number }) {
@@ -48,7 +30,7 @@ function Tile({ p, label, points }: { p: P; label?: string; points?: number }) {
     <div className={`utile${p.status === "I" || p.status === "D" ? " flagged" : ""}`} title={p.news ?? p.name}>
       {label && <div className="utile-label">{label}</div>}
       <div className="utile-badge">
-        <ClubBadge code={p.club_code} size={42} />
+        <UclShirt code={p.club_code} goalkeeper={p.pos === "GK"} size={46} title={`${p.club} · ${p.name}`} />
         {p.captain && <span className="ubadge ubadge-c">C</span>}
         {p.vice && <span className="ubadge ubadge-v">V</span>}
         {(p.status === "I" || p.status === "D") && <span className="ubadge ubadge-flag">!</span>}
@@ -190,7 +172,7 @@ export function UclTeamPage({ d, teamSaved }: { d: Ucl; teamSaved: boolean }) {
         <ul className="ureasons">
           {ps.map((p) => (
             <li key={p.id}>
-              <ClubBadge code={p.club_code} size={22} /> <b>{p.name}</b> <span className="umuted">{p.pos} · €{p.price}m · {p.day ?? "no match"}</span>
+              <UclShirt code={p.club_code} goalkeeper={p.pos === "GK"} size={26} /> <b>{p.name}</b> <span className="umuted">{p.pos} · €{p.price}m · {p.day ?? "no match"}</span>
               <div>{p.reason}</div>
             </li>
           ))}
@@ -284,17 +266,20 @@ export function UclBetweenPage({ d }: { d: Ucl }) {
             {b.recommend ? (
               <ul className="ulist">
                 {b.subs.map((s: P) => (
-                  <li key={s.out}>
+                  <li key={s.out} className="ushirt-line">
+                    <UclShirt code={s.out_code} goalkeeper={s.out_gk} size={26} />
                     <b>
                       {s.out_name} → {s.in_name}
                     </b>{" "}
+                    <UclShirt code={s.in_code} goalkeeper={s.in_gk} size={26} />{" "}
                     <span className="umuted">
                       ({s.out_played ? `${s.out_name} scored ${s.out_value}` : `${s.out_value} xP`}, {s.in_name} {s.in_value} xP: +{s.gain})
                     </span>
                   </li>
                 ))}
                 {b.captain_switch && (
-                  <li>
+                  <li className="ushirt-line">
+                    <UclShirt code={b.captain_switch.from_code} size={26} />
                     <b>
                       Captain: {b.captain_switch.from_name} → {b.captain_switch.to_name}
                     </b>{" "}
@@ -388,8 +373,8 @@ export function UclLastPage({ d }: { d: Ucl }) {
           </p>
           <ul className="ulist">
             {(l.best_team ?? []).map((p: P) => (
-              <li key={p.id}>
-                {p.name}
+              <li key={p.id} className="ushirt-line">
+                <UclShirt code={p.club_code} goalkeeper={p.pos === "GK"} size={26} /> {p.name}
                 {p.captain ? " (C)" : ""} <span className="umuted">{p.club}</span>
               </li>
             ))}
@@ -424,7 +409,7 @@ export function UclScoutPage({ d }: { d: Ucl }) {
             <ol className="utop">
               {(d.scout?.[key] ?? []).map((p: P) => (
                 <li key={p.id}>
-                  <ClubBadge code={p.club_code} size={22} />
+                  <UclShirt code={p.club_code} goalkeeper={p.pos === "GK"} size={26} />
                   <span className="utop-name">
                     {p.name} <span className="umuted">{p.pos} · €{p.price}m{p.day ? ` · ${dayShort(p.day)}` : ""}</span>
                   </span>
@@ -524,7 +509,9 @@ export function UclAnalyticsPage({ d }: { d: Ucl }) {
               {ko.map((r) => (
                 <tr key={r.code}>
                   <td>{r.rank}</td>
-                  <td>{r.team}</td>
+                  <td className="ko-club">
+                    <UclShirt code={r.code} size={20} label={false} /> {r.team}
+                  </td>
                   <td>{r.pts}</td>
                   <td>{Math.round(r.p_top8 * 100)}%</td>
                   <td>{Math.round(r.p_playoff * 100)}%</td>

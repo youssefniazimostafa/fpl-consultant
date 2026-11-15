@@ -11,6 +11,7 @@ import { Tour, storageGet, storageSet, type Step } from "../components/Tour";
 import type { TabDef } from "../tabs";
 import { loadUcl, type UclLoaded } from "./data";
 import { UclAnalyticsPage, UclBetweenPage, UclLastPage, UclScoutPage, UclTeamPage } from "./pages";
+import { UclPlannerPage } from "./planner";
 import "./ucl.css";
 
 export const UCL_TABS: TabDef[] = [
@@ -18,6 +19,7 @@ export const UCL_TABS: TabDef[] = [
   { id: "between", name: "Between days", short: "Days", fields: [] },
   { id: "last", name: "Last matchday", short: "Last", fields: [] },
   { id: "scout", name: "Scout", short: "Scout", fields: [] },
+  { id: "planner", name: "Planner", short: "Plan", fields: [] },
   { id: "analytics", name: "Analytics", short: "Stats", fields: [] },
 ];
 
@@ -54,6 +56,12 @@ const STEPS: Step[] = [
     targets: [".uscout", ".content"],
     title: "Scout",
     text: "Top-10 lists: expected points, captains, value, form, differentials, most selected and injury news.",
+  },
+  {
+    tab: "planner",
+    targets: [".uplan", ".content"],
+    title: "Planner",
+    text: "The plan up to the next unlimited-transfer window: transfers each matchday against the bar, free transfers, club limit and budget per stage, the chips and every club's fixtures. On the Mac, Your plan lets you enter your own and get it reviewed.",
   },
   {
     tab: "analytics",
@@ -235,6 +243,8 @@ export function UclApp({ game, onGame, now }: { game: Game; onGame: (g: Game) =>
             <UclLastPage d={d} />
           ) : tab === "scout" ? (
             <UclScoutPage d={d} />
+          ) : tab === "planner" ? (
+            <UclPlannerPage d={d} />
           ) : (
             <UclAnalyticsPage d={d} />
           ))}
