@@ -84,15 +84,57 @@ def fetch_odds(day_dir: Path, api_key: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def devig(prices: dict) -> dict:
+# How decimal odds become probabilities (Step 17). "normalise": divide each
+# 1/price by the market's total (removes the margin evenly). "shin": Shin's
+# method, which takes more of the margin off longshots, correcting the
+# favourite-longshot bias. OFF until tested: fpl/odds_check.py scores both
+# versions (log loss, Brier) against finished matches from data/odds_log/,
+# which every run fills with both versions; as of 2026-11-15 no logged match
+# has been played yet, so there's nothing to test it on.
+ODDS_METHOD = "normalise"
+ODDS_LOG_DIR = Path(__file__).resolve().parent.parent / "data" / "odds_log"
+
+
+def odds_method() -> str:
+    """ODDS_METHOD, or FPL_ODDS_METHOD=shin|normalise to try the other one."""
+    m = (os.environ.get("FPL_ODDS_METHOD") or ODDS_METHOD).strip().lower()
+    return m if m in ("normalise", "shin") else "normalise"
+
+
+def devig(prices: dict, method: str = "normalise") -> dict:
     """Convert a market's decimal odds to probabilities that sum to 1,
-    removing the bookmaker's overround."""
+    removing the bookmaker's overround (``method``: see ODDS_METHOD)."""
     implied = {outcome: 1.0 / price for outcome, price in prices.items()}
     total = sum(implied.values())
+    if method == "shin" and total > 1.0:
+        return devig_shin(implied)
     return {outcome: p / total for outcome, p in implied.items()}
 
 
-def consensus_probabilities(event: dict) -> dict | None:
+def devig_shin(implied: dict) -> dict:
+    """Shin (1993): p_i = (sqrt(z^2 + 4 (1 - z) q_i^2 / B) - z) / (2 (1 - z)),
+    with q_i = 1/price, B = sum(q), and z (the share of "insider" money) found
+    by bisection so the p_i sum to 1. Longshots lose more of the margin than
+    favourites."""
+    q = implied
+    b = sum(q.values())
+
+    def probs(z: float) -> dict:
+        return {k: ((z * z + 4 * (1 - z) * v * v / b) ** 0.5 - z) / (2 * (1 - z)) for k, v in q.items()}
+
+    lo, hi = 0.0, 0.5
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        if sum(probs(mid).values()) > 1:
+            lo = mid
+        else:
+            hi = mid
+    p = probs((lo + hi) / 2)
+    total = sum(p.values())
+    return {k: v / total for k, v in p.items()}
+
+
+def consensus_probabilities(event: dict, method: str = "normalise") -> dict | None:
     """Average de-vigged h2h and totals-2.5 probabilities across every
     bookmaker that offers both markets for this event."""
     home, away = event["home_team"], event["away_team"]
@@ -105,7 +147,7 @@ def consensus_probabilities(event: dict) -> dict | None:
         if h2h:
             prices = {o["name"]: o["price"] for o in h2h["outcomes"]}
             if home in prices and away in prices and "Draw" in prices:
-                probs = devig({home: prices[home], away: prices[away], "Draw": prices["Draw"]})
+                probs = devig({home: prices[home], away: prices[away], "Draw": prices["Draw"]}, method)
                 h2h_rows.append(probs)
 
         totals = markets.get("totals")
@@ -114,7 +156,7 @@ def consensus_probabilities(event: dict) -> dict | None:
             over = next((p for (name, point), p in prices.items() if name == "Over" and point == 2.5), None)
             under = next((p for (name, point), p in prices.items() if name == "Under" and point == 2.5), None)
             if over and under:
-                probs = devig({"Over": over, "Under": under})
+                probs = devig({"Over": over, "Under": under}, method)
                 totals_rows.append(probs)
 
     if not h2h_rows or not totals_rows:
@@ -187,9 +229,11 @@ def build_odds_table(events: list[dict], aliases: pd.DataFrame) -> pd.DataFrame:
             unmapped.update({t for t in (home, away) if t not in team_lookup.index})
             continue
 
-        target = consensus_probabilities(event)
+        method = odds_method()
+        target = consensus_probabilities(event, method)
         if target is None:
             continue  # no bookmaker offered both h2h and totals-2.5 for this match yet
+        both = {m: (target if m == method else consensus_probabilities(event, m)) for m in ("normalise", "shin")}
 
         lam_home, lam_away = fit_lambdas(target)
         rows.append(
@@ -210,6 +254,9 @@ def build_odds_table(events: list[dict], aliases: pd.DataFrame) -> pd.DataFrame:
                 "lambda_away": lam_away,
                 "home_clean_sheet_prob": float(np.exp(-lam_away)),
                 "away_clean_sheet_prob": float(np.exp(-lam_home)),
+                "devig_method": method,
+                **{f"{k}_{m}": both[m][k] for m in both if both[m] for k in
+                   ("p_home_win", "p_draw", "p_away_win", "p_over_2_5")},
             }
         )
 
@@ -219,6 +266,22 @@ def build_odds_table(events: list[dict], aliases: pd.DataFrame) -> pd.DataFrame:
             f"team_aliases.csv's odds_api_name column (add them by hand): {sorted(unmapped)}"
         )
     return pd.DataFrame(rows)
+
+
+def log_both_versions(odds_goals: pd.DataFrame) -> None:
+    """data/odds_log/odds_<date>.parquet: both de-vig versions for every match
+    fetched today (committed by the bot), so fpl/odds_check.py can score them
+    once the matches are played."""
+    cols = [c for c in odds_goals.columns if c.endswith(("_normalise", "_shin"))]
+    if not cols:
+        return
+    ODDS_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    out = odds_goals[["event_id", "commence_time", "home_team_id", "home_team", "away_team_id", "away_team",
+                      "n_bookmakers", *cols]].copy()
+    out["logged_at"] = pd.Timestamp.now("UTC").isoformat()
+    path = ODDS_LOG_DIR / f"odds_{date.today().isoformat()}.parquet"
+    out.to_parquet(path, index=False)
+    print(f"  logged both de-vig versions for {len(out)} matches to {path.name}")
 
 
 def main() -> None:
@@ -266,6 +329,8 @@ def main() -> None:
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
     path = TABLES_DIR / "odds_goals.parquet"
     used.to_parquet(path, index=False)
+    if health["status"] == "ok" and not odds_goals.empty:
+        log_both_versions(odds_goals)
     print(f"  wrote {path} ({len(used)} fixtures)")
 
 
