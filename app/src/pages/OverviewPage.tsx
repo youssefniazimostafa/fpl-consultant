@@ -4,6 +4,7 @@ import { HelpButton, Pill } from "../components/Card";
 import { helpFor } from "../help";
 import { Shirt } from "../components/Shirt";
 import { chanceClass } from "../theme/theme";
+import { PlayerLookup } from "../components/PlayerLookup";
 
 // Scout (the old FPL overview): FPL as a whole, not your league. Everything comes from
 // latest.json's `overview` section (fpl/overview.py); this page only
@@ -202,6 +203,8 @@ export function OverviewPage({ data }: { data: Latest }) {
             <p className="muted">No new injury or team news in the last week.</p>
           )}
         </Bubble>
+
+        {o.lookup?.available && <PlayerLookup lookup={o.lookup} />}
       </div>
     </div>
   );

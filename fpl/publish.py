@@ -72,7 +72,7 @@ from fpl.decision import ROLL, build_decision, choose_plan, rival_captaincy
 from fpl.fetch import RAW_DIR, get, load_config
 from fpl.league import resolve_team_id
 from fpl.league_page import build_league_page
-from fpl.overview import build_overview
+from fpl.overview import build_lookup, build_overview
 from fpl.planner import build_planner
 from fpl.analytics import build_analytics
 from fpl.last_gameweek import build_last_gameweek
@@ -1160,7 +1160,9 @@ def _to_native(value: Any) -> Any:
 def write_json(payload: dict[str, Any]) -> Path:
     SITE_DATA_DIR.mkdir(parents=True, exist_ok=True)
     path = SITE_DATA_DIR / "latest.json"
-    path.write_text(json.dumps(payload, indent=2, allow_nan=False))
+    # compact: the Scout page's Player lookup (every player) would triple the
+    # file with indentation, and the iPhone/web viewer downloads all of it
+    path.write_text(json.dumps(payload, separators=(",", ":"), allow_nan=False))
     return path
 
 
@@ -1365,6 +1367,14 @@ def main() -> None:
         team_id=team_id,
         predictions_dir=ROOT / "data" / "predictions",
     )
+    if payload["overview"].get("available"):
+        from fpl.optimise import TRANSFER_THRESHOLD_XP
+
+        payload["overview"]["lookup"] = build_lookup(
+            players=players, xp=load_optional("xp"), features=features, fixtures=load_optional("fixtures"),
+            matches=load_optional("player_matches"), league_picks=league_picks, league_history=league_history,
+            team_id=team_id, transfer_bar=TRANSFER_THRESHOLD_XP,
+        )
     payload["league_page"] = build_league_page(
         team_id=team_id,
         league_id=config.get("league_id"),

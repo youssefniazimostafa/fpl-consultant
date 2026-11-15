@@ -905,3 +905,82 @@ button.ra-line:hover { background: var(--lilac); }
 .setup-note code { font-size: 11.5px; }
 .setup-keys { margin: 14px 0 12px; }
 .setup-keys summary { cursor: pointer; font-size: 13px; font-weight: 700; }
+
+/* ---------------------------------------------------------------- Scout: Player lookup */
+/* spans two columns of the Scout grid; contain: size lets the row height come
+   from the cards beside it, and the list and report scroll inside it */
+.sc-lookup { grid-column: span 2; align-self: stretch; contain: size; display: flex; flex-direction: column; min-height: 520px; }
+.lk-controls { align-items: center; }
+.lk-controls input, .lk-controls select {
+  font: inherit; font-size: 12px; padding: 4px 8px; border-radius: var(--radius-pill); border: 1.5px solid var(--lilac-deep);
+  background: var(--white); color: var(--purple);
+}
+.lk-search { width: 150px; }
+.lk-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 12px; }
+.lk-list { display: flex; flex-direction: column; min-height: 0; }
+.lk-scroll { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 3px; padding: 2px; }
+.lk-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) 50px 38px 38px 48px; gap: 6px; align-items: center;
+  padding: 5px 8px; border: 0; border-radius: var(--radius-sm); background: var(--white); font: inherit; color: var(--purple);
+  text-align: left; cursor: pointer;
+}
+.lk-row:hover { outline: 2px solid var(--lilac-deep); }
+.lk-row.you { background: var(--neon-soft); }
+.lk-row.selected { outline: 2px solid var(--purple); }
+.lk-row .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 12px; }
+.lk-row .total { font-weight: 800; }
+.lk-headrow { background: transparent; cursor: default; padding-top: 0; padding-bottom: 2px; }
+.lk-headrow:hover { outline: none; }
+.lk-sort { border: 0; background: none; font: inherit; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); cursor: pointer; padding: 0; }
+.lk-sort.num { text-align: right; }
+.lk-sort.lk-player { text-align: left; }
+.lk-sort.on { color: var(--purple); }
+.lk-player { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lk-player .st-name b { font-size: 13px; }
+.lk-own { margin-left: 6px; }
+.lk-empty { padding: 10px; }
+.lk-report { min-height: 0; overflow: auto; background: var(--white); border-radius: var(--radius-sm); padding: 10px 12px; }
+.lk-rep h3 { margin: 0; font-size: 17px; font-weight: 800; }
+.lk-rep h4 { margin: 12px 0 4px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.lk-rep p { margin: 2px 0; line-height: 1.4; }
+.lk-rep-head { display: flex; gap: 12px; align-items: flex-start; }
+.lk-rep-head p { margin: 2px 0 4px; }
+.lk-notown { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.lk-avail { font-size: 12.5px; }
+.lk-fx { width: 100%; border-collapse: separate; border-spacing: 3px; table-layout: fixed; }
+.lk-fx td { border-radius: 6px; padding: 4px 2px; text-align: center; font-size: 11px; line-height: 1.25; }
+.lk-fx td small, .lk-fx td b, .lk-fx td span { display: block; }
+.lk-fx td.d1, .lk-fx td.d2 { background: #c9f7dd; color: #075e33; }
+.lk-fx td.d3 { background: var(--lilac-deep); color: var(--purple); }
+.lk-fx td.d4 { background: #ffc8da; color: #8a0030; }
+.lk-fx td.d5 { background: var(--pink); color: var(--white); }
+.lk-fx td.d0 { background: var(--lilac); color: var(--text-muted); }
+.lk-facts { grid-template-columns: 90px minmax(0, 1fr); }
+.lk-rep .chart-box { padding: 4px; }
+.lk-recent { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.lk-recent th, .lk-recent td { text-align: right; padding: 2px 4px; }
+.lk-recent th { color: var(--text-muted); font-weight: 700; }
+.lk-recent td:first-child { text-align: left; color: var(--text-muted); font-weight: 600; }
+.lk-ok { color: #087a43; font-weight: 700; }
+.lk-no { color: var(--text-muted); }
+
+@media (max-width: 719px) {
+  .sc-lookup { grid-column: auto; contain: none; min-height: 0; }
+  .lk-body { grid-template-columns: minmax(0, 1fr); }
+  .lk-scroll { max-height: 420px; }
+  .lk-report { overflow: visible; }
+  .lk-search { width: 100%; }
+}
+/* Scout grid: four columns on a laptop (top row = four top-10 lists; second
+   row = Cheap high scorers, Injury and team news, then Player lookup over two
+   columns), two on a narrow window, one on a phone */
+@media (min-width: 1100px) { .sc-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 720px) and (max-width: 1099px) { .sc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.lk-player .st-name b, .lk-player .st-name small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lk-player .st-name { flex: 1 1 auto; }
+.lk-own { flex: none; margin-left: 0; }
+.lk-player .st-name small { overflow: visible; }
+.lk-own { margin-left: 6px; font-size: 9px; padding: 0 6px; }
+.lk-body { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+.lk-row { grid-template-columns: minmax(0, 1fr) 44px 32px 36px 44px; gap: 5px; }
+@media (max-width: 719px) { .lk-body { grid-template-columns: minmax(0, 1fr); } }

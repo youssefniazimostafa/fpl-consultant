@@ -34,6 +34,7 @@ export const HELP: Record<string, string> = {
   "Slept-on players": "Players who scored far more than we expected last gameweek. Doing it week after week can mean a player is finding form.",
   "In form lately": "Players scoring clearly more per game over the last few gameweeks than earlier in the season.",
   "Cheap high scorers": "Points scored for every £1m of price: the best value in the game right now.",
+  "Player lookup": "Find any FPL player and open his full report: his next five fixtures and expected points, what drives them, recent form, value and, if you don't own him, the best like-for-like swap from your team against the transfer bar. Form is points per game over the last 4 gameweeks.",
   "Injury and team news": "FPL's own injury and suspension news from the last week, newest first, with the chance of playing.",
   // Planner
   "Your plan": "Pick your own transfers, captain and chip. It's checked against FPL's rules as you go, saved only on this Mac, and the consultant compares it with its own plan.",

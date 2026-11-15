@@ -61,7 +61,7 @@ const STEPS: Step[] = [
     tab: "overview",
     targets: [".sc-grid", ".content"],
     title: "Scout",
-    text: "All of FPL in short lists: the most expected points, captain picks, players in form, cheap scorers and injury news.",
+    text: "All of FPL in short lists: the most expected points, captain picks, players in form, cheap scorers and injury news. Player lookup finds any player and opens his full report.",
   },
   {
     tab: "planner",
