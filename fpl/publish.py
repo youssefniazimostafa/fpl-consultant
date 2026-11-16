@@ -1373,7 +1373,8 @@ def main() -> None:
         payload["overview"]["lookup"] = build_lookup(
             players=players, xp=load_optional("xp"), features=features, fixtures=load_optional("fixtures"),
             matches=load_optional("player_matches"), league_picks=league_picks, league_history=league_history,
-            team_id=team_id, transfer_bar=TRANSFER_THRESHOLD_XP,
+            team_id=team_id, transfer_bar=TRANSFER_THRESHOLD_XP, my_transfers=load_optional("my_transfers"),
+            free_transfers=int(((payload.get("decision") or {}).get("free_transfers") or {}).get("available") or 1),
         )
     payload["league_page"] = build_league_page(
         team_id=team_id,

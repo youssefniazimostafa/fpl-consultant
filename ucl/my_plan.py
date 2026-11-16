@@ -36,7 +36,7 @@ import pandas as pd
 from ucl import feed, model, rules
 
 CHIP_LABELS = {"wildcard": "Wildcard", "limitless": "Limitless"}
-MAX_REVIEW_WORDS = 180
+MAX_REVIEW_WORDS = 150  # aim "about 130"; longer gets one rewrite (the same one-retry check as fpl.my_plan)
 
 REVIEW_RULES = """THIS REQUEST IS A PLAN REVIEW. It overrides the "How to answer" shape above (the grounding rules still apply in full).
 
@@ -46,8 +46,9 @@ Write the review in plain football language, in exactly this order, as five shor
 1. One line summing up the plan.
 2. Its strengths and weaknesses.
 3. The points comparison with XPert's plan, this matchday and over the horizon. Say plainly when a gap is tiny ("about half a point, basically level").
-4. The risks, as two short paragraphs that start exactly "Risks for your plan:" and "Risks for XPert's plan:", each using only the risk facts given for that plan (players who may not play, how many play on each day of the matchday, the captain's day and switch option, club concentration, a chip used now).
+4. The risks, as two short paragraphs that start exactly "Risks for your plan:" and "Risks for XPert's plan:". Each names the two or three biggest real risks of that plan from its "risk_facts", every one with its number: points given up over the horizon, the chance a starter doesn't play (and the expected number of starters who won't), players or clubs the model has seen in only a few UCL matches ("based on 4 matches"), the captain's chance of playing and whether he can be switched, and how much the between-days flexibility is worth. Never present something that isn't a risk as one (not "all starters should play"); if a plan has little risk of a kind, leave that kind out.
 5. One closing line that leaves the decision to the user, without telling them what to do.
+Aim for about 130 words in total.
 If the plan breaks a rule say so first and keep the rest short. Never argue for a different recommendation than XPert's."""
 
 
@@ -163,24 +164,65 @@ def _score(squad: list[int], captain: int, c: dict[str, Any], hits: int) -> dict
     return {"this_md": round(this, 2), "horizon": round(total, 2), "xi": xi}
 
 
-def _risks(squad: list[int], xi: list[int], captain: int, c: dict[str, Any], chip: str | None) -> dict[str, Any]:
+def _evidence() -> tuple[dict[str, int], dict[int, int]]:
+    """UCL matches behind the model's view: per club (finished matches in
+    2025/26 and 2026/27) and per player (appearances with minutes)."""
+    clubs: dict[str, int] = {}
+    apps: dict[int, int] = {}
+    for tour in (feed.PREV_TOUR, feed.TOUR):
+        try:
+            m, _, a = model.load(tour)
+        except FileNotFoundError:
+            continue
+        fin = m[m["finished"]]
+        for code in list(fin["home_code"]) + list(fin["away_code"]):
+            clubs[code] = clubs.get(code, 0) + 1
+        if len(a):
+            for pid, n in a[a["oF"] > 0].groupby("pid").size().items():
+                apps[int(pid)] = apps.get(int(pid), 0) + int(n)
+    return clubs, apps
+
+
+def _risks(squad: list[int], xi: list[int], captain: int, c: dict[str, Any], chip: str | None,
+           horizon_gap: float, flex: dict[str, Any], evidence: tuple[dict[str, int], dict[int, int]]) -> dict[str, Any]:
     info = {p["id"]: p for p in c["players"]}
-    doubtful = [f"{info[p]['name']} ({round(info[p]['p_play'] * 100)}% to play)" for p in xi if info[p]["p_play"] < 0.75]
-    per_day = {}
-    for dd in c["days"]:
-        per_day[dd["label"]] = sum(1 for p in xi if info[p]["gd"] == dd["gd"])
+    club_n, app_n = evidence
+    may_miss = sorted(((info[p]["name"], round((1 - info[p]["p_play"]) * 100)) for p in xi if info[p]["p_play"] < 0.9),
+                      key=lambda x: -x[1])
+    expected_missing = round(sum(1 - info[p]["p_play"] for p in xi), 1)
+    per_day = {dd["label"]: sum(1 for p in xi if info[p]["gd"] == dd["gd"]) for dd in c["days"]}
     clubs = pd.Series([info[p]["club"] for p in squad]).value_counts()
+    thin = sorted({info[p]["club"] for p in xi if club_n.get(info[p]["club"], 0) < 8},
+                  key=lambda k: club_n.get(k, 0))
     cap_day = next((dd["label"] for dd in c["days"] if dd["gd"] == info[captain]["gd"]), None)
     last = c["days"][-1]["label"] if c["days"] else None
     return {
-        "starters_who_may_not_play": doubtful or "none",
+        "points_given_up_over_horizon": round(max(0.0, -horizon_gap), 1),
+        "starters_who_might_not_play": [f"{n}: {pct}% chance he doesn't play" for n, pct in may_miss[:4]] or "every starter is 90%+ to play",
+        "expected_starters_missing": expected_missing,
         "starters_per_day": per_day,
-        "captain": f"{info[captain]['name']} plays on {cap_day}" + (
-            "; if he scores little he can be switched to a later-day starter" if cap_day and cap_day != last else
-            "; he plays on the last day, so there's no captain switch to fall back on"),
-        "clubs_with_3_or_more": {k: int(v) for k, v in clubs.items() if v >= 3} or "none",
+        "little_ucl_evidence": [f"{k}: the model's view rests on {club_n.get(k, 0)} UCL matches" for k in thin] or "none",
+        "captain": (f"{info[captain]['name']}: {round(info[captain]['p_play'] * 100)}% to play, plays {cap_day}, "
+                    f"{app_n.get(captain, 0)} UCL appearances behind his numbers; "
+                    + ("can be switched to a later-day starter if he scores little" if cap_day and cap_day != last
+                       else "plays on the last day, so no captain switch to fall back on")),
+        "between_days_flexibility_points": flex.get("value", 0.0),
+        "clubs_with_3": {k: int(v) for k, v in clubs.items() if v >= 3} or "none",
         "chip": f"uses {CHIP_LABELS[chip]} now, so it's gone for the knockouts" if chip else "keeps both chips",
     }
+
+
+def _flex(squad: list[int], xi: list[int], captain: int, c: dict[str, Any]) -> dict[str, Any]:
+    from ucl import between_days
+
+    info = {p["id"]: p for p in c["players"]}
+    pos = {p: {"GK": 1, "DEF": 2, "MID": 3, "FWD": 4}[info[p]["pos"]] for p in squad}
+    bench = [p for p in squad if p not in xi]
+    bench = [p for p in bench if pos[p] == 1] + sorted([p for p in bench if pos[p] != 1], key=lambda p: -info[p]["xp_next"])
+    xp = _xp()
+    xp_md = xp[xp["md"] == c["md"]].copy()
+    xp_md["pos"] = xp_md["pid"].map(pos)
+    return between_days.flexibility_value({"xi": xi, "bench": bench, "captain": captain}, xp_md, pos, n=800)
 
 
 def review(plan: dict[str, Any], model_name: str | None, with_ai: bool) -> dict[str, Any]:
@@ -200,8 +242,14 @@ def review(plan: dict[str, Any], model_name: str | None, with_ai: bool) -> dict[
         "horizon": {"yours": yours["horizon"], "xpert": theirs["horizon"],
                     "label": f"MD{c['horizon'][0]}-{c['horizon'][-1]}, each squad kept as it is"},
     }
-    out["risks"] = {"yours": _risks(check["squad"], yours["xi"], plan["captain"], c, plan.get("chip")),
-                    "xpert": _risks(c["squad"], theirs["xi"], rec["captain"], c, None)}
+    ev = _evidence()
+    gap = yours["horizon"] - theirs["horizon"]
+    out["risks"] = {
+        "yours": _risks(check["squad"], yours["xi"], plan["captain"], c, plan.get("chip"), gap,
+                        _flex(check["squad"], yours["xi"], plan["captain"], c), ev),
+        "xpert": _risks(c["squad"], theirs["xi"], rec["captain"], c, None, -gap,
+                        _flex(c["squad"], theirs["xi"], rec["captain"], c), ev),
+    }
     if with_ai:
         from ucl.chat import DEFAULT_MODEL, answer
 
@@ -225,14 +273,18 @@ def review(plan: dict[str, Any], model_name: str | None, with_ai: bool) -> dict[
         cost = res.get("cost_usd", 0.0)
         text = res.get("answer") or ""
         missing = [h for h in ("Risks for your plan:", "Risks for XPert's plan:") if h not in text]
-        if missing or len(text.split()) > MAX_REVIEW_WORDS:  # one corrected retry
+        n_words = len(text.split())
+        retried = False
+        if missing or n_words > MAX_REVIEW_WORDS:  # one corrected retry
+            retried = True
             fix = ("Rewrite the review: " + ("include the paragraphs starting " + " and ".join(f'"{m}"' for m in missing) + "; " if missing else "")
-                   + f"keep it under {MAX_REVIEW_WORDS - 40} words; same facts and five-part shape.")
+                   + (f"it is {n_words} words, keep it under 130; " if n_words > MAX_REVIEW_WORDS else "")
+                   + "same facts, numbers and five-part shape.")
             with contextlib.redirect_stdout(io.StringIO()):
                 res = answer(convo + [{"role": "assistant", "content": text}, {"role": "user", "content": fix}], use, extra_rules=REVIEW_RULES)
             cost += res.get("cost_usd", 0.0)
             text = res.get("answer") or text
-        out.update({"review": text, "cost_usd": cost, "model": use})
+        out.update({"review": text, "cost_usd": cost, "model": use, "words": len(text.split()), "retried": retried})
     return out
 
 

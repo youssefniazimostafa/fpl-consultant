@@ -984,3 +984,15 @@ button.ra-line:hover { background: var(--lilac); }
 .lk-body { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
 .lk-row { grid-template-columns: minmax(0, 1fr) 44px 32px 36px 44px; gap: 5px; }
 @media (max-width: 719px) { .lk-body { grid-template-columns: minmax(0, 1fr); } }
+/* Scout top cards: the club · position · price · fixture line wraps onto a
+   second line instead of being cut off with "…" in the 4-column laptop grid */
+.sc-name small { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.sc-row { gap: 6px; padding: 4px 7px; }
+@media (min-width: 1100px) { .sc-own { padding: 1px 5px; font-size: 9.5px; } }
+/* "You own" sits under the key number, so the name and its sub-line get the width */
+.sc-row { grid-template-columns: 18px 26px minmax(0, 1fr) auto; }
+.sc-key { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.sc-key .sc-own { font-size: 9.5px; padding: 0 6px; }
+/* Player lookup: the tag drops under the club line when the list is narrow */
+.lk-player .st-name small { white-space: normal; display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; row-gap: 1px; }
+.lk-own { margin-left: 0; }

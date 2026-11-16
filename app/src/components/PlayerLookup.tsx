@@ -298,18 +298,22 @@ function Report({ row, rep, lookup }: { row: Row; rep: Raw; lookup: Raw }) {
         <>
           <h4>Best swap from your team</h4>
           {swap ? (
-            <p className="small lk-swap">
-              <b>
-                {swap.out_name} → {row.name}
-              </b>{" "}
-              ({row.pos}, leaves £{swap.bank_after.toFixed(1)}m in the bank): {swap.gain5 >= 0 ? "+" : ""}
-              {swap.gain5.toFixed(1)} expected points over {(rep.fx ?? []).length} gameweeks.{" "}
-              {swap.clears_bar ? (
-                <span className="lk-ok">That clears the {lookup.transfer_bar} point bar a transfer has to beat.</span>
-              ) : (
-                <span className="lk-no">Below the {lookup.transfer_bar} point bar a transfer has to beat, so not worth a transfer on its own.</span>
-              )}
-            </p>
+            <>
+              <p className="small lk-swap">
+                <b>
+                  {swap.out_name} → {row.name}: {swap.week_gain >= 0 ? "+" : ""}
+                  {swap.week_gain.toFixed(1)} xP this week,{" "}
+                  {swap.clears_bar ? <span className="lk-ok">clears the bar</span> : <span className="lk-no">below the bar</span>}
+                </b>
+              </p>
+              <p className="small muted">
+                Judged like the optimiser: making it now rather than next week is worth {swap.gain >= 0 ? "+" : ""}
+                {swap.gain.toFixed(1)} against the {lookup.transfer_bar} bar ({swap.horizon_gain >= 0 ? "+" : ""}
+                {swap.horizon_gain.toFixed(1)} over {(rep.fx ?? []).length} gameweeks, best XI re-picked each week)
+                {swap.hit ? `, after a ${swap.hit}-point hit` : ""}. Sells {swap.out_name} for £{swap.out_sell.toFixed(1)}m, leaving £
+                {swap.bank_after.toFixed(1)}m.
+              </p>
+            </>
           ) : (
             <p className="muted small">No {row.pos} in your team can be swapped for him within your budget and the 3-per-club limit.</p>
           )}

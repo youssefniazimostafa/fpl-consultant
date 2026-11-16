@@ -54,7 +54,7 @@ export const UCL_KITS: Record<string, UclKit> = {
   RBL: { body: "#FFFFFF", trim: "#DD0741", sleeves: "#FFFFFF", pattern: "plain", gk: GK_GREEN }, // Leipzig: white, red trim
   RMA: { body: "#FFFFFF", trim: "#C9A227", pattern: "plain", gk: GK_GREEN }, // Real Madrid: all white
   ROM: { body: "#8E1F2F", trim: "#F0BC42", pattern: "plain", gk: GK_GREEN }, // Roma: dark red, gold trim
-  SAB: { body: "#F26522", trim: "#111111", pattern: "plain", gk: GK_GREEN }, // Sabah: orange, black trim (please check)
+  SAB: { body: "#111111", sleeves: "#111111", trim: "#F0509A", pattern: "plain", gk: GK_GREEN }, // Sabah: black with pink accents
   SBR: { body: "#5DADE2", trim: "#FFFFFF", pattern: "plain", gk: GK_ORANGE }, // Slovan Bratislava: sky blue
   SHK: { body: "#F58220", sleeves: "#111111", trim: "#111111", pattern: "plain", gk: GK_GREEN }, // Shakhtar: orange, black sleeves
   SLA: { body: "#FFFFFF", second: "#D7141A", trim: "#D7141A", pattern: "halves", gk: GK_GREEN }, // Slavia Praha: white and red halves

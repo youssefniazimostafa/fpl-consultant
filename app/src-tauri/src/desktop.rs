@@ -937,7 +937,7 @@ mod tests {
             eprintln!("skipped: a real Anthropic key is saved, and this test never touches it");
             return;
         }
-        let err = chat_send_blocking(vec![ChatMessage { role: "user".into(), content: "hi".into() }]).unwrap_err();
+        let err = chat_send_blocking(vec![ChatMessage { role: "user".into(), content: "hi".into() }], false).unwrap_err();
         assert!(err.contains("Add your Anthropic API key in Settings"), "{err}");
         let fake = "FPLTEST-anthropic-roundtrip-not-a-real-key-9031";
         set_anthropic_key(fake.into()).unwrap();

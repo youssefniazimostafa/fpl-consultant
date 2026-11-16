@@ -28,7 +28,8 @@ from ucl import rules
 DISCOUNT = 0.92
 BENCH_WEIGHT = 0.08
 LATER_DAY_BENCH_WEIGHT = 0.2
-TRANSFER_FRICTION = 0.5
+TRANSFER_FRICTION = 0.5  # the bar per move (xP); kept after the season replay in ucl/transfer_calibration.py
+FT_VALUE = 0.0  # value of a free transfer carried to the next matchday (league phase); kept at 0, same replay
 CANDIDATES_PER_POS = 45
 TIME_LIMIT = 60
 
@@ -57,10 +58,13 @@ def candidates(xp: pd.DataFrame, players: pd.DataFrame, keep: set[int]) -> pd.Da
 
 def solve(xp: pd.DataFrame, players: pd.DataFrame, md: int, squad: list[int] | None = None,
           free_transfers: int | None = None, bank: float | None = None, wildcard_md: int | None = None,
-          limitless_md: int | None = None, mds: list[int] | None = None) -> dict:
+          limitless_md: int | None = None, mds: list[int] | None = None, friction: float | None = None,
+          ft_value: float | None = None) -> dict:
     """xp: rows (pid, md, xp, gd) from ucl.model.predict. With no `squad`, the
     first matchday builds a new team (free, within the budget)."""
     mds = mds or horizon(md)
+    friction = TRANSFER_FRICTION if friction is None else friction
+    ft_value = FT_VALUE if ft_value is None else ft_value
     keep = set(squad or [])
     cand = candidates(xp[xp["md"].isin(mds)], players, keep)
     P = list(cand["pid"].astype(int))
@@ -153,7 +157,7 @@ def solve(xp: pd.DataFrame, players: pd.DataFrame, md: int, squad: list[int] | N
                 nxt = mds[i + 1]
                 base = rules.FREE_TRANSFERS[nxt] or 15
                 prob += ft[nxt] == base + (carry[m] if rules.STAGE[nxt] == "league" else 0)
-            obj.append(-rules.HIT_COST * hits[m] - TRANSFER_FRICTION * w * n_in)
+            obj.append(-rules.HIT_COST * hits[m] - friction * w * n_in + ft_value * w * carry[m])
     prob += pulp.lpSum(obj)
     stats = prob.solve(pulp.HiGHS(msg=False, timeLimit=TIME_LIMIT))
     if not stats.has_solution:

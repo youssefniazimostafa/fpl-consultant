@@ -66,8 +66,10 @@ const row = (i: number, p: Raw, keyNumber: ReactNode, sub?: ReactNode, extra?: R
       </small>
       {extra ? <span className="sc-extra">{extra}</span> : null}
     </span>
-    {p.you_own && <span className="sc-own">You own</span>}
-    <span className="sc-key">{keyNumber}</span>
+    <span className="sc-key">
+      {keyNumber}
+      {p.you_own && <span className="sc-own">You own</span>}
+    </span>
   </li>
 );
 

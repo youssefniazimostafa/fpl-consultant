@@ -234,6 +234,8 @@ def build_lookup(
     league_history: pd.DataFrame,
     team_id: int | None,
     transfer_bar: float,
+    my_transfers: pd.DataFrame | None = None,
+    free_transfers: int = 1,
 ) -> dict[str, Any]:
     """Every FPL player for the Scout page's Player lookup: one short row each
     for the list, and one compact report each (fixtures, what drives his
@@ -305,23 +307,85 @@ def build_lookup(
     for p in squad:
         club_count[int(info.loc[p, "team"])] = club_count.get(int(info.loc[p, "team"]), 0) + 1
 
+    # --- best like-for-like swap, judged like the optimiser's transfer gate ---
+    # The team's value each gameweek is the optimiser's objective for a fixed
+    # squad: best valid XI + the captain's extra + BENCH_VALUE_WEIGHT x bench,
+    # discounted by WEEKLY_DISCOUNT per week. As in the optimiser's per-week
+    # gate (fpl.optimise.gate_planned_weeks), the move is compared with
+    # holding this week while keeping the option to make the same move next
+    # week with the banked free transfer: gain = its value over the horizon
+    # minus the best of (0, its value from next week on), minus any hit.
+    # It clears the bar when that reaches TRANSFER_THRESHOLD_XP. (The real
+    # gate re-solves the whole plan; this checks only this one move.)
+    # Budget: your real selling prices.
+    from fpl.optimise import BENCH_VALUE_WEIGHT, HIT_COST, WEEKLY_DISCOUNT, estimate_selling_prices
+
+    sell = estimate_selling_prices(set(squad), players, my_transfers if my_transfers is not None else pd.DataFrame()) if squad else {}
+    pos_of = {int(p): info.loc[p, "position"] for p in info.index}
+    disc = {g: WEEKLY_DISCOUNT ** k for k, g in enumerate(gws)}
+    wxp = {(int(p), int(g)): float(v) for (p, g), v in xp_pg.stack().items()} if not xp_pg.empty else {}
+    bounds = {"GKP": (1, 1), "DEF": (3, 5), "MID": (2, 5), "FWD": (1, 3)}
+
+    def week_value(ids: list[int], g: int) -> tuple[float, float]:
+        """(objective, XI + captain) for one gameweek."""
+        by = {q: sorted((wxp.get((p, g), 0.0) for p in ids if pos_of[p] == q), reverse=True) for q in bounds}
+        best_xi = None
+        for nd in range(3, 6):
+            for nm in range(2, 6):
+                nf = 10 - nd - nm
+                if not 1 <= nf <= 3 or len(by["DEF"]) < nd or len(by["MID"]) < nm or len(by["FWD"]) < nf:
+                    continue
+                xi = by["GKP"][:1] + by["DEF"][:nd] + by["MID"][:nm] + by["FWD"][:nf]
+                if best_xi is None or sum(xi) > sum(best_xi):
+                    best_xi = xi
+        if best_xi is None:
+            return 0.0, 0.0
+        total = sum(sum(v) for v in by.values())
+        xi_cap = sum(best_xi) + max(best_xi)
+        return xi_cap + BENCH_VALUE_WEIGHT * (total - sum(best_xi)), xi_cap
+
+    def squad_value(ids: list[int]) -> tuple[float, float, float]:
+        """(objective over the horizon, objective from next week on, XI + captain this week)"""
+        obj, later, week0 = 0.0, 0.0, 0.0
+        for g in gws:
+            o, x = week_value(ids, g)
+            obj += disc[g] * o
+            if g == next_gw:
+                week0 = x
+            else:
+                later += disc[g] * o
+        return obj, later, week0
+
+    base_obj, base_later, base_w0 = squad_value(squad) if squad else (0.0, 0.0, 0.0)
+    # The saved-transfer value (FT_VALUE_XP) cancels out here: holding banks
+    # the free transfer and then spends it on the same move next week, so
+    # both branches end the horizon with the same free transfers. A hit
+    # applies only when there's no free transfer this week.
+    ft_cost = 0.0
+    hit = HIT_COST if free_transfers < 1 else 0
+
     def swap(pid: int, pos: str, price: float, club: int) -> dict[str, Any] | None:
         best = None
         for s_id in squad:
-            if info.loc[s_id, "position"] != pos:
+            if pos_of[s_id] != pos:
                 continue
-            s_price = float(info.loc[s_id, "now_cost"]) / 10
-            if price > s_price + bank + 1e-9:
+            s_sell = sell.get(s_id, int(info.loc[s_id, "now_cost"])) / 10
+            if price > s_sell + bank + 1e-9:
                 continue
             clubs_after = club_count.get(club, 0) - (1 if int(info.loc[s_id, "team"]) == club else 0) + 1
             if clubs_after > 3:
                 continue
-            gain = float(xp5.get(pid, 0.0)) - float(xp5.get(s_id, 0.0))
-            if best is None or gain > best["gain5"]:
-                best = {"out_id": int(s_id), "out_name": info.loc[s_id, "web_name"], "out_price": s_price,
-                        "gain5": round(gain, 2), "bank_after": round(s_price + bank - price, 1)}
+            obj, later, w0 = squad_value([p for p in squad if p != s_id] + [pid])
+            horizon = obj - base_obj
+            gain = horizon - max(0.0, later - base_later) - hit
+            if best is None or gain > best["gain"]:
+                best = {"out_id": int(s_id), "out_name": info.loc[s_id, "web_name"], "out_sell": round(s_sell, 1),
+                        "gain": round(gain, 2), "week_gain": round(w0 - base_w0, 2), "horizon_gain": round(horizon, 2),
+                        "bank_after": round(s_sell + bank - price, 1)}
         if best:
-            best["clears_bar"] = best["gain5"] >= transfer_bar
+            best["clears_bar"] = best["gain"] >= transfer_bar
+            best["ft_cost"] = round(ft_cost, 2)
+            best["hit"] = hit
         return best
 
     rows, reports = [], {}
@@ -376,6 +440,7 @@ def build_lookup(
     return {
         "available": True, "next_gameweek": next_gw, "gameweeks": gws, "last_gameweek": last_gw,
         "rivals": n_rivals, "bank": round(bank, 1), "transfer_bar": transfer_bar, "owned": len(mine),
+        "free_transfers": free_transfers,
         "columns": ["id", "name", "club", "team_code", "pos", "price", "xp", "form", "sel", "own"],
         "rows": rows, "reports": reports,
     }
