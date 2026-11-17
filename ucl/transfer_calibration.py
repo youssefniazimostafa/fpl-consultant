@@ -38,6 +38,19 @@ on 2026/27 -> rule says keep bar 0.5, FT value 0. The two seasons point
 opposite ways (high bars best on the 4 unseen matchdays, worst on 2025/26),
 so neither direction is established.
 
+Re-run 2026-11-17 with the refined model (ucl.model.CFG: Elo team-strength
+prior; predictions are cached per model setting in data/ucl/raw/calib/):
+                2025/26 (FT value 0 / 1 / 2)    2026/27 MD1-4 (0 / 1 / 2)
+  bar 0.5        1082 / 1116 / 1114               265 / 229 / 224
+  bar 1.0        1089 / 1117 / 1112               262 / 268 / 254
+  bar 1.5        1084 / 1103 / 1103               262 / 268 / 256
+  bar 2.0        1068 / 1069 / 1072               268 / 256 / 256
+  bar 3.0        1061 / 1069 / 1054               258 / 249 / 256
+  bar 4.0        1030 / 1046 / 1028               246 / 246 / 241
+Best on 2025/26: bar 1.0 + FT value 1 (1117, +35 on 0.5/0), and 268 vs 265
+on 2026/27 -> rule says adopt bar 1.0, FT value 1 (now in ucl.optimise).
+The unseen margin is only 3 points over four matchdays.
+
 Run with ``uv run python -m ucl.transfer_calibration``; writes
 data/ucl/transfer_calibration.json.
 """
@@ -70,7 +83,10 @@ def known_mds(tour: int, md: int, matches: pd.DataFrame) -> list[int]:
 
 def predictions(tour: int, md: int) -> pd.DataFrame:
     CACHE.mkdir(parents=True, exist_ok=True)
-    f = CACHE / f"xp_{tour}_{md}.parquet"
+    import hashlib  # the cache is per model setting, so a model change can't reuse old predictions
+
+    tag = hashlib.sha1(json.dumps(model.CFG, sort_keys=True).encode()).hexdigest()[:8]
+    f = CACHE / f"xp_{tour}_{md}_{tag}.parquet"
     if f.exists():
         return pd.read_parquet(f)
     m, _, _ = model.load(tour)

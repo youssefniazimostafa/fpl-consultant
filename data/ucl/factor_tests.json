@@ -278,5 +278,414 @@
    "0.5": true,
    "1.0": false
   }
+ },
+ "phase2": {
+  "rule": "* each factor is added on its own, on top of the factors already kept,\n  and is switchable (ucl.model.CFG);\n* it is backtested with no lookahead on 2025/26 MD2-17 (tuning) and\n  2026/27 MD1 onwards (unseen; MD1 is predicted from 2025/26 and the\n  domestic results alone);\n* metrics: rank of the players who started (Spearman), top-10 hits,\n  real points of the predicted top 10, captain points, and the average\n  miss |xP - points| (lower is better);\n* KEPT when, on 2026/27, it improves at least 3 of the 5 metrics, and on\n  2025/26 it doesn't clearly hurt: no drop of 0.02+ in starter ranking,\n  0.3+ in top-10 points, 0.5+ in captain points, and no rise of 0.05+\n  in the average miss;\n* simple, round values only.",
+  "tests": [
+   {
+    "factor": "starting point",
+    "cfg": {
+     "elo_weight": 0.0,
+     "shrink_90s": 3.0,
+     "prior_price": 0.0,
+     "prior_team": 1.0,
+     "prior_team_elo": true,
+     "elo_weight_knockout": 0.5,
+     "rotation_short": 1.0,
+     "rotation_big": 1.0,
+     "prior_br_team": 0.0
+    },
+    "scores": {
+     "80": {
+      "matchdays": 16,
+      "rank_starters": 0.183,
+      "top10_hits": 2.0,
+      "top10_points": 5.031,
+      "captain_points": 7.438,
+      "avg_miss": 1.223
+     },
+     "90": {
+      "matchdays": 4,
+      "rank_starters": 0.259,
+      "top10_hits": 1.0,
+      "top10_points": 6.975,
+      "captain_points": 4.75,
+      "avg_miss": 1.339
+     }
+    },
+    "kept": true,
+    "why": ""
+   },
+   {
+    "factor": "Rotation: x0.95 when the next domestic match is within 3 days",
+    "cfg": {
+     "rotation_short": 0.95
+    },
+    "scores": {
+     "80": {
+      "matchdays": 16,
+      "rank_starters": 0.187,
+      "top10_hits": 1.938,
+      "top10_points": 4.875,
+      "captain_points": 6.062,
+      "avg_miss": 1.217
+     },
+     "90": {
+      "matchdays": 4,
+      "rank_starters": 0.259,
+      "top10_hits": 1.0,
+      "top10_points": 6.875,
+      "captain_points": 4.75,
+      "avg_miss": 1.337
+     }
+    },
+    "kept": false,
+    "why": "2026/27 better on 1/5 (avg_miss); 2025/26 clearly worse on captain_points"
+   },
+   {
+    "factor": "Rotation: x0.95 when the next domestic opponent is top 4",
+    "cfg": {
+     "rotation_big": 0.95
+    },
+    "scores": {
+     "80": {
+      "matchdays": 16,
+      "rank_starters": 0.182,
+      "top10_hits": 2.0,
+      "top10_points": 4.987,
+      "captain_points": 5.75,
+      "avg_miss": 1.221
+     },
+     "90": {
+      "matchdays": 4,
+      "rank_starters": 0.257,
+      "top10_hits": 1.0,
+      "top10_points": 7.05,
+      "captain_points": 4.75,
+      "avg_miss": 1.337
+     }
+    },
+    "kept": false,
+    "why": "2026/27 better on 2/5 (top10_points, avg_miss); 2025/26 clearly worse on captain_points"
+   },
+   {
+    "factor": "Balls-recovered prior from team style",
+    "cfg": {
+     "prior_br_team": 1.0
+    },
+    "scores": {
+     "80": {
+      "matchdays": 16,
+      "rank_starters": 0.182,
+      "top10_hits": 2.0,
+      "top10_points": 5.031,
+      "captain_points": 7.438,
+      "avg_miss": 1.222
+     },
+     "90": {
+      "matchdays": 4,
+      "rank_starters": 0.258,
+      "top10_hits": 1.0,
+      "top10_points": 6.975,
+      "captain_points": 4.75,
+      "avg_miss": 1.339
+     }
+    },
+    "kept": false,
+    "why": "2026/27 better on 0/5 (none); 2025/26 not clearly worse"
+   }
+  ],
+  "final_cfg": {
+   "elo_weight": 0.0,
+   "shrink_90s": 3.0,
+   "prior_price": 0.0,
+   "prior_team": 1.0,
+   "prior_team_elo": true,
+   "elo_weight_knockout": 0.5,
+   "rotation_short": 1.0,
+   "rotation_big": 1.0,
+   "prior_br_team": 0.0
+  }
+ },
+ "scoring_check": {
+  "80": {
+   "balls_rec": {
+    "GK": {
+     "predicted": 0.0,
+     "actual": 0.0,
+     "ratio": null
+    },
+    "DEF": {
+     "predicted": 1469.6,
+     "actual": 1856.0,
+     "ratio": 1.26
+    },
+    "MID": {
+     "predicted": 980.2,
+     "actual": 1191.0,
+     "ratio": 1.22
+    },
+    "FWD": {
+     "predicted": 55.6,
+     "actual": 75.0,
+     "ratio": 1.35
+    }
+   },
+   "potm": {
+    "GK": {
+     "predicted": 15.6,
+     "actual": 27.0,
+     "ratio": 1.73
+    },
+    "DEF": {
+     "predicted": 71.6,
+     "actual": 84.0,
+     "ratio": 1.17
+    },
+    "MID": {
+     "predicted": 239.6,
+     "actual": 255.0,
+     "ratio": 1.06
+    },
+    "FWD": {
+     "predicted": 184.5,
+     "actual": 144.0,
+     "ratio": 0.78
+    }
+   },
+   "pens": {
+    "GK": {
+     "predicted": -7.0,
+     "actual": -8.0,
+     "ratio": null
+    },
+    "DEF": {
+     "predicted": 0.5,
+     "actual": -19.0,
+     "ratio": -35.24
+    },
+    "MID": {
+     "predicted": 3.0,
+     "actual": 30.0,
+     "ratio": 9.88
+    },
+    "FWD": {
+     "predicted": 15.5,
+     "actual": 9.0,
+     "ratio": 0.58
+    }
+   },
+   "outside_box": {
+    "GK": {
+     "predicted": 0.0,
+     "actual": 0.0,
+     "ratio": null
+    },
+    "DEF": {
+     "predicted": 5.2,
+     "actual": 4.0,
+     "ratio": 0.76
+    },
+    "MID": {
+     "predicted": 50.1,
+     "actual": 49.0,
+     "ratio": 0.98
+    },
+    "FWD": {
+     "predicted": 18.0,
+     "actual": 21.0,
+     "ratio": 1.17
+    }
+   }
+  },
+  "90": {
+   "balls_rec": {
+    "GK": {
+     "predicted": 0.0,
+     "actual": 0.0,
+     "ratio": null
+    },
+    "MID": {
+     "predicted": 317.0,
+     "actual": 488.0,
+     "ratio": 1.54
+    },
+    "DEF": {
+     "predicted": 414.7,
+     "actual": 769.0,
+     "ratio": 1.85
+    },
+    "FWD": {
+     "predicted": 18.3,
+     "actual": 21.0,
+     "ratio": 1.15
+    }
+   },
+   "potm": {
+    "GK": {
+     "predicted": 4.6,
+     "actual": 0.0,
+     "ratio": 0.0
+    },
+    "MID": {
+     "predicted": 101.0,
+     "actual": 123.0,
+     "ratio": 1.22
+    },
+    "DEF": {
+     "predicted": 24.5,
+     "actual": 48.0,
+     "ratio": 1.96
+    },
+    "FWD": {
+     "predicted": 52.1,
+     "actual": 45.0,
+     "ratio": 0.86
+    }
+   },
+   "pens": {
+    "GK": {
+     "predicted": -1.0,
+     "actual": 0.0,
+     "ratio": null
+    },
+    "MID": {
+     "predicted": 8.6,
+     "actual": 6.0,
+     "ratio": 0.7
+    },
+    "DEF": {
+     "predicted": -3.2,
+     "actual": -3.0,
+     "ratio": null
+    },
+    "FWD": {
+     "predicted": 3.7,
+     "actual": 4.0,
+     "ratio": 1.09
+    }
+   },
+   "outside_box": {
+    "GK": {
+     "predicted": 0.0,
+     "actual": 0.0,
+     "ratio": null
+    },
+    "MID": {
+     "predicted": 20.9,
+     "actual": 25.0,
+     "ratio": 1.2
+    },
+    "DEF": {
+     "predicted": 1.3,
+     "actual": 3.0,
+     "ratio": 2.28
+    },
+    "FWD": {
+     "predicted": 8.4,
+     "actual": 7.0,
+     "ratio": 0.83
+    }
+   }
+  }
+ },
+ "phase2_measured": {
+  "measured_on": "2026-11-17 (one-off measurements, numbers below)",
+  "domestic_player_form": {
+   "status": "blocked",
+   "why": "understat.com is down site-wide ('We will come back soon'; the PL pipeline's Understat source has been stale since 2026-11-13). FBref is behind a Cloudflare challenge (not bypassed); Sofascore returns 403; FotMob's API moved. No free per-match player source for the other leagues was found."
+  },
+  "rotation_signal": {
+   "data": "regular starters (60+ in each of their last 2-3 UCL matches), 2025/26 + 2026/27, n=1897; share playing 60+",
+   "base": 0.781,
+   "next_domestic_within_3_days": 0.755,
+   "next_domestic_4_6_days": "0.767-0.804",
+   "next_domestic_opponent_top4": 0.741,
+   "not_top4": 0.792,
+   "backtest": "x0.95 versions tested under the rule (see phase2): both dropped"
+  },
+  "fatigue": {
+   "data": "every domestic and UCL match 2025/26-2026/27, goals vs the Elo expectation before the match",
+   "rest_le3_after_hard_match": {
+    "n": 210,
+    "scored_vs_expected": 1.012,
+    "conceded_vs_expected": 1.03,
+    "se": 0.05
+   },
+   "rest_gt3": {
+    "n": 8032,
+    "scored_vs_expected": 1.012,
+    "conceded_vs_expected": 1.006
+   },
+   "ucl_only_rest_le3": {
+    "n": 214,
+    "scored_vs_expected": 1.078
+   },
+   "verdict": "no effect beyond noise, so no non-zero value to switch on; not built"
+  },
+  "stakes": {
+   "data": "2025/26, regular starters' share playing 60+, teams with p(top 8) or p(out) > 0.95 from the knockout simulation as of that matchday",
+   "MD6": {
+    "decided": [
+     0.657,
+     35
+    ],
+    "undecided": [
+     0.786,
+     154
+    ]
+   },
+   "MD7": {
+    "decided": [
+     0.774,
+     31
+    ],
+    "undecided": [
+     0.748,
+     159
+    ]
+   },
+   "MD8": {
+    "decided": [
+     0.655,
+     29
+    ],
+    "undecided": [
+     0.807,
+     150
+    ]
+   },
+   "verdict": "a signal on MD6 and MD8, not MD7; small samples. No unseen 2026/27 matchday has decided teams yet (MD1-4), so the rule can't keep it; re-test after MD6-8."
+  },
+  "penalty_takers": {
+   "status": "not possible from this data",
+   "why": "UEFA's per-match stats record penalties won/missed/conceded/saved but not penalty goals, so takers can't be identified."
+  },
+  "minutes_calibration": {
+   "finding": "the minutes model under-predicts how much players play, so every per-appearance part (balls recovered, Player of the Match, appearance points) comes out low by about the same share",
+   "2025/26": {
+    "appearances_predicted": 4668,
+    "actual": 5234,
+    "minutes_predicted": 292380,
+    "actual_minutes": 338819
+   },
+   "2026/27_MD1-4": {
+    "appearances_predicted": 1666,
+    "actual": 2241,
+    "minutes_predicted": 97715,
+    "actual_minutes": 141998
+   },
+   "recoveries_per_played_appearance": {
+    "2025/26": [
+     12978,
+     13502
+    ],
+    "2026/27": [
+     4806,
+     5567
+    ]
+   },
+   "status": "found, not changed (a new factor; recommended next)"
+  }
  }
 }

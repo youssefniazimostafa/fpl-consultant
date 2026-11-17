@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 
-from ucl import elo, feed, rules
+from ucl import congestion, elo, feed, rules
 
 HIST = feed.DATA / "history"
 PREV_SEASON_WEIGHT = 0.5
@@ -57,6 +57,9 @@ CFG: dict = {
     "prior_team": 1.0,  # attacking prior x (team's expected goals / average) ** this
     "prior_team_elo": True,  # ... with the team's expected goals from the Elo ratings (all matches) only
     "elo_weight_knockout": 0.5,  # share of Elo in the knockout simulation's expected goals
+    "rotation_short": 1.0,  # x chance of starting / 60+ when the next domestic match is within 3 days
+    "rotation_big": 1.0,  # x the same when the next domestic opponent is in that league's top 4
+    "prior_br_team": 0.0,  # balls-recovered prior x (team's recoveries per 90 vs its positions' average) ** this
 }
 ATTACK_COLS = ("gS", "gA", "gOB", "mom")
 
@@ -176,7 +179,8 @@ DEFAULT_PRIOR = {
 
 
 def player_rates(apps: pd.DataFrame, pos_of: dict[int, int], shrink: float = SHRINK_90S,
-                 mult: dict[int, float] | None = None) -> tuple[pd.DataFrame, dict]:
+                 mult: dict[int, float] | None = None, br_mult: dict[int, float] | None = None
+                 ) -> tuple[pd.DataFrame, dict]:
     """Shrunk per-90 rates per player (apps carry a 'w' weight column).
 
     Each rate is pulled towards its position's average with the weight of
@@ -203,6 +207,8 @@ def player_rates(apps: pd.DataFrame, pos_of: dict[int, int], shrink: float = SHR
         pr = g["pos"].map(lambda p: prior.get(p, prior.get(rules.MID, {})).get(c, 0.0))
         if c in ATTACK_COLS:
             pr = pr * mlt
+        if c == "bR" and br_mult:
+            pr = pr * pd.Series([float(br_mult.get(int(p), 1.0)) for p in g.index], index=g.index)
         out[c] = (g[c] + shrink * pr) / (g["n90"] + shrink)
     pr = g["pos"].map(lambda p: prior.get(p, {}).get("mom", 0.03)) * mlt
     out["mom"] = (g["mom"] + shrink * pr) / (g["napp"] + shrink)
@@ -233,6 +239,23 @@ def prior_mult(players: pd.DataFrame, apps: pd.DataFrame, team_goals: dict[int, 
         norm = float(m[sub["pid"].isin(ref["pid"])].mean()) or 1.0
         out.update({int(p): float(v / norm) for p, v in zip(sub["pid"], m)})
     return out
+
+
+def team_br_mult(apps: pd.DataFrame, players: pd.DataFrame, power: float) -> dict[int, float]:
+    """pid -> factor on his balls-recovered prior from his team's style: the team's
+    recoveries per 90 against what its players' positions would average."""
+    if not power or not len(apps):
+        return {}
+    a = apps[apps["oF"] > 0].copy()
+    a["n90"] = a["w"] * a["oF"] / 90.0
+    a["brw"] = a["w"] * a["bR"]
+    pos_rate = a.groupby("pos").apply(lambda g: g["brw"].sum() / max(g["n90"].sum(), 1e-6))
+    a["exp"] = a["pos"].map(pos_rate) * a["n90"]
+    t = a.groupby("team_id").agg(br=("brw", "sum"), exp=("exp", "sum"), n90=("n90", "sum"))
+    t["f"] = ((t["br"] + 11 * 3 * 1.0 * t["exp"] / t["n90"].clip(lower=1e-6))  # pulled towards 1 by ~3 team matches
+              / (t["exp"] + 11 * 3 * 1.0 * t["exp"] / t["n90"].clip(lower=1e-6))) ** power
+    f = t["f"].to_dict()
+    return {int(p): float(f.get(int(tid), 1.0)) for p, tid in zip(players["pid"], players["team_id"])}
 
 
 class BlendTeams:
@@ -399,7 +422,8 @@ def predict(tour: int = feed.TOUR, as_of_md: int | None = None, mds: list[int] |
     tgoals = {t: (elo_teams if c["prior_team_elo"] else team).avg_for(t)[0] for t in pot_of}
     mult = prior_mult(players, apps[apps["tour"] == tour] if len(apps) else apps, tgoals,
                       c["prior_price"], c["prior_team"])
-    rates, prior = player_rates(apps, pos_of, c["shrink_90s"], mult) if len(apps) else (pd.DataFrame(), {})
+    br_mult = team_br_mult(apps, players, c["prior_br_team"])
+    rates, prior = player_rates(apps, pos_of, c["shrink_90s"], mult, br_mult) if len(apps) else (pd.DataFrame(), {})
     cur_apps = apps[apps["tour"] == tour] if len(apps) else apps
     mm = minutes_model(players, m_now, cur_apps)
     if mds is None:
@@ -407,6 +431,7 @@ def predict(tour: int = feed.TOUR, as_of_md: int | None = None, mds: list[int] |
     first = min(mds) if mds else 0
     fx = m_now[m_now["md"].isin(mds)]
     avg = {t: team.avg_for(t) for t in pot_of}
+    cal = congestion.features(fx) if (c["rotation_short"] != 1 or c["rotation_big"] != 1) and len(fx) else {}
     rows = []
     for g in fx.itertuples():
         neutral = rules.STAGE.get(int(g.md)) == "final"
@@ -427,6 +452,7 @@ def predict(tour: int = feed.TOUR, as_of_md: int | None = None, mds: list[int] |
                     r = dict(prior.get(pos) or DEFAULT_PRIOR[pos])
                     for col in ATTACK_COLS:
                         r[col] = r.get(col, 0.0) * mult.get(pid, 1.0)
+                    r["bR"] = r.get("bR", 0.0) * br_mult.get(pid, 1.0)
                 if not r:
                     continue
                 mrow = mm.loc[pid] if pid in mm.index else None
@@ -434,6 +460,7 @@ def predict(tour: int = feed.TOUR, as_of_md: int | None = None, mds: list[int] |
                 p60 = float(mrow["p60"]) if mrow is not None else 0.05
                 m_app = float(mrow["m_app"]) if mrow is not None else 45.0
                 f = status_factor(p, int(g.md) - first) if use_status else 1.0
+                f *= congestion.rotation_factor(cal.get((int(g.mid), tid)), c["rotation_short"], c["rotation_big"])
                 if use_status and not int(getattr(p, "active", 1)):
                     f = 0.0
                 comp = xp_components(pos, p_app * f, p60 * f, m_app, r, lf, lag, lf / af, lag / aa)

@@ -28,8 +28,8 @@ from ucl import rules
 DISCOUNT = 0.92
 BENCH_WEIGHT = 0.08
 LATER_DAY_BENCH_WEIGHT = 0.2
-TRANSFER_FRICTION = 0.5  # the bar per move (xP); kept after the season replay in ucl/transfer_calibration.py
-FT_VALUE = 0.0  # value of a free transfer carried to the next matchday (league phase); kept at 0, same replay
+TRANSFER_FRICTION = 1.0  # the bar per move (xP); set by the season replay in ucl/transfer_calibration.py (2026-11-17)
+FT_VALUE = 1.0  # value of a free transfer carried to the next matchday (league phase); same replay
 CANDIDATES_PER_POS = 45
 TIME_LIMIT = 60
 

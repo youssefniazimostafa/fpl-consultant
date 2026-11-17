@@ -45,6 +45,13 @@ PHASE1 = [
 ]
 
 
+PHASE2 = [
+    ("Rotation: x0.95 when the next domestic match is within 3 days", {"rotation_short": 0.95}),
+    ("Rotation: x0.95 when the next domestic opponent is top 4", {"rotation_big": 0.95}),
+    ("Balls-recovered prior from team style", {"prior_br_team": 1.0}),
+]
+
+
 def season_scores(cfg: dict) -> dict:
     out = {}
     for tour, first in ((feed.PREV_TOUR, 2), (feed.TOUR, 1)):
@@ -108,6 +115,45 @@ def team_test(weights=(0.0, 0.5, 1.0)) -> dict:
     return prev["knockout_team_test"]
 
 
+def scoring_check() -> dict:
+    """Item 8: each UCL-specific scoring part, predicted (no lookahead, as in
+    the backtest) against the points UEFA actually gave, by position:
+    balls recovered, Player of the Match, penalties won/missed/conceded and
+    goals from outside the box. Ratio = actual / predicted (1 = calibrated)."""
+    from ucl import rules
+
+    comp = {"balls_rec": lambda r: rules.BALLS_RECOVERED_PER_3 * (r.bR // 3),
+            "potm": lambda r: rules.PLAYER_OF_MATCH * r.mOM,
+            "pens": lambda r: rules.PEN_WON * r.pE + rules.PEN_MISSED * r.pM + rules.PEN_CONCEDED * r.pC,
+            "outside_box": lambda r: rules.GOAL_OUTSIDE_BOX * r.gOB}
+    out = {}
+    for tour, first in ((feed.PREV_TOUR, 2), (feed.TOUR, 1)):
+        _, players, a = model.load(tour)
+        pos_all = dict(zip(players["pid"].astype(int), players["pos"].astype(int)))
+        tot: dict = {}
+        for md in sorted(set(a["md"])):
+            if md < first:
+                continue
+            xp, _ = model.predict(tour, as_of_md=int(md), mds=[int(md)], use_status=False)
+            pred = xp.groupby("pid")[list(comp)].sum()
+            real = a[(a["md"] == md) & (a["oF"] > 0)]
+            for pid, row in pred.iterrows():  # every player's prediction, played or not
+                ps = rules.POS_NAME.get(int(pos_all.get(int(pid), 0))) or "unknown"
+                for k in comp:
+                    t = tot.setdefault(k, {}).setdefault(ps, [0.0, 0.0])
+                    t[0] += float(row[k])
+            for r in real.itertuples():
+                for k, f in comp.items():
+                    tot.setdefault(k, {}).setdefault(rules.POS_NAME[int(r.pos)], [0.0, 0.0])[1] += float(f(r))
+        out[tour] = {k: {ps: {"predicted": round(v[0], 1), "actual": round(v[1], 1),
+                              "ratio": round(v[1] / v[0], 2) if v[0] > 0.5 else None}
+                         for ps, v in d.items() if ps != "unknown"} for k, d in tot.items()}
+    prev = json.loads(OUT.read_text()) if OUT.exists() else {}
+    prev["scoring_check"] = out
+    OUT.write_text(json.dumps(feed.clean(prev), indent=1))
+    return out
+
+
 def run(factors=PHASE1, base: dict | None = None, label: str = "phase1") -> dict:
     kept = dict(base or {})
     cur = season_scores(kept)
@@ -134,6 +180,11 @@ if __name__ == "__main__":
 
     if "--team" in sys.argv:
         print(team_test())
+    elif "--scoring" in sys.argv:
+        print(json.dumps(scoring_check(), indent=1))
+    elif "--phase2" in sys.argv:
+        res = run(PHASE2, base=dict(model.CFG), label="phase2")
+        print("final:", res["final_cfg"])
     else:
         res = run(base={k: 0.0 if isinstance(v, float) and k.startswith(("elo", "prior")) else v
                         for k, v in model.CFG.items()} | {"prior_team_elo": False, "shrink_90s": model.SHRINK_90S})
