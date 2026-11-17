@@ -8,6 +8,7 @@ export const UCL_HELP: Record<string, string> = {
   "Transfers and plan": "The plan up to the next unlimited-transfer window: transfers each matchday, free transfers, any -4 hits. Only this matchday's moves are final.",
   "Chips": "Wildcard (unlimited transfers, kept) and Limitless (one matchday with no budget limit, then your team returns). Each once, not on MD1, MD9 or MD11.",
   "Match days": "Every matchday is played over two or three days. Players who play later can still be brought in between days.",
+  "How the model works": "What XPert's expected points are built from, in plain words. Every part was tested on past matchdays before it was switched on.",
   "Why these players": "One plain reason per pick: the fixture, the day, how likely he is to start and where his points should come from.",
   "Between days": "After the first match day you may make up to 4 substitutions and switch the captain. Any change turns off the automatic substitutions, so we only suggest it when it clearly gains points.",
   "Value of flexibility": "How many points, on average, the chance to change things between days adds to this squad. Players on later days make it bigger.",

@@ -174,6 +174,7 @@ export function UclTeamPage({ d, teamSaved }: { d: Ucl; teamSaved: boolean }) {
             <li key={p.id}>
               <UclShirt code={p.club_code} goalkeeper={p.pos === "GK"} size={26} /> <b>{p.name}</b> <span className="umuted">{p.pos} · €{p.price}m · {p.day ?? "no match"}</span>
               <div>{p.reason}</div>
+              {p.basis && <div className="umuted small">{p.basis}</div>}
             </li>
           ))}
         </ul>
@@ -446,6 +447,15 @@ export function UclAnalyticsPage({ d }: { d: Ucl }) {
   const ko: P[] = d.knockout ?? [];
   return (
     <div className="upage">
+      {(d.analytics?.how_it_works ?? []).length > 0 && (
+        <UCard title="How the model works">
+          <ul className="ulist">
+            {(d.analytics?.how_it_works ?? []).map((line: string) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </UCard>
+      )}
       <UCard title="Points vs the average" aside="* replay: picked from the data before that matchday">
         <Chart config={config} height={240} />
         <p className="umuted small">{d.notes?.average}</p>

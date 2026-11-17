@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
 
-from ucl import backfill, backtest, between_days, feed, knockout, model, odds, optimise, rules, schedule, sim
+from ucl import backfill, backtest, between_days, domestic, explain, feed, knockout, model, odds, optimise, rules, schedule, sim
 
 OUT = feed.DATA / "latest.json"
 RECS = feed.DATA / "recommendations"
@@ -193,6 +193,12 @@ def main() -> None:
     pl = players.set_index("pid")
     pos = dict(zip(players["pid"].astype(int), players["pos"].astype(int)))
 
+    stage("domestic results")
+    try:  # team ratings (ucl.elo) use them; on failure the stored copy is used and source health says so
+        domestic.update()
+    except Exception as e:  # noqa: BLE001
+        feed.note_health("domestic", "stale", str(e)[:200])
+
     stage("odds")
     ol = odds.lambdas(matches, now)
     print(f"odds for {len(ol)} match(es)")
@@ -204,7 +210,7 @@ def main() -> None:
     xpm = xp_md.groupby("pid")["xp"].sum().to_dict()
 
     stage("knockout simulation")
-    ko = knockout.simulate(matches, team_model)
+    ko = knockout.simulate(matches, getattr(team_model, "knockout", team_model))
 
     stage("optimise")
     base = optimise.solve(xp, players, md)
@@ -393,11 +399,14 @@ def build_payload(now, cons, md, deadline, matches, players, xp, xp_md, team, ca
                                         "clean_sheet": "sum", "balls_rec": "sum", "potm": "sum",
                                         "saves": "sum"})
     mm = matches[matches["md"] == md]
+    prev_apps = model.load(feed.PREV_TOUR)[2] if (model.HIST / f"appearances_{feed.PREV_TOUR}.parquet").exists() else pd.DataFrame()
+    basis = explain.Basis(apps, prev_apps, getattr(team_model, "elo", None))
 
     def view(pid: int, **extra) -> dict:
         r = rows_md.loc[pid] if pid in rows_md.index else None
         v = player_view(pid, pl, r, mm)
         v["reason"] = reason(pl.loc[pid], r, v.get("day") or "")
+        v["basis"] = basis(pid, int(pl.loc[pid, "team_id"]))
         v.update(extra)
         return v
 
@@ -485,7 +494,8 @@ def build_payload(now, cons, md, deadline, matches, players, xp, xp_md, team, ca
         "chips": chip_plan(md, chip_values),
         "between_days": bd_view,
         "last_md": last_view,
-        "analytics": {"per_md": [{k: r[k] for k in ("md", "kind", "points", "xp", "average_est", "best")} for r in per_md],
+        "analytics": {"how_it_works": explain.how_it_works(),
+                      "per_md": [{k: r[k] for k in ("md", "kind", "points", "xp", "average_est", "best")} for r in per_md],
                       "backtest": {"summary": (bt or {}).get("summary"), "plain": backtest.plain_words(bt or {}),
                                    "method": (bt or {}).get("method"),
                                    "rows": [{"tour": r["tour"], "md": r["md"], "model": r["model"], "ppg": r["ppg"]}

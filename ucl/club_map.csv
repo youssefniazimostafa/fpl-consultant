@@ -1,0 +1,55 @@
+team_code,uefa_name,league,source_name
+ARS,Arsenal,ENG,Arsenal
+AVL,Aston Villa,ENG,Aston Villa
+CHE,Chelsea,ENG,Chelsea
+LIV,Liverpool,ENG,Liverpool
+MCI,Man City,ENG,Man City
+MUN,Man Utd,ENG,Man United
+NEW,Newcastle,ENG,Newcastle
+TOT,Tottenham,ENG,Tottenham
+ATH,Athletic Club,ESP,Ath Bilbao
+ATM,Atleti,ESP,Ath Madrid
+BAR,Barcelona,ESP,Barcelona
+BET,Real Betis,ESP,Betis
+RMA,Real Madrid,ESP,Real Madrid
+VIL,Villarreal,ESP,Villarreal
+BAY,Bayern München,GER,Bayern Munich
+BVB,B. Dortmund,GER,Dortmund
+FRA,Frankfurt,GER,Ein Frankfurt
+LEV,Leverkusen,GER,Leverkusen
+RBL,Leipzig,GER,RB Leipzig
+STU,Stuttgart,GER,Stuttgart
+ATA,Atalanta,ITA,Atalanta
+COM,Como,ITA,Como
+INT,Inter,ITA,Inter
+JUV,Juventus,ITA,Juventus
+NAP,Napoli,ITA,Napoli
+ROM,Roma,ITA,Roma
+LEN,Lens,FRA,Lens
+LIL,Lille,FRA,Lille
+MAR,Marseille,FRA,Marseille
+MON,Monaco,FRA,Monaco
+PSG,Paris,FRA,Paris SG
+BEN,Benfica,POR,Benfica
+POR,Porto,POR,Porto
+SPO,Sporting CP,POR,Sp Lisbon
+AJX,Ajax,NED,Ajax
+FEY,Feyenoord,NED,Feyenoord
+PSV,PSV,NED,PSV Eindhoven
+BRU,Club Brugge,BEL,Club Brugge
+USG,Union SG,BEL,St. Gilloise
+FEN,Fenerbahçe,TUR,Fenerbahce
+GAL,Galatasaray,TUR,Galatasaray
+AEK,AEK Athens,GRE,AEK
+OLY,Olympiacos,GRE,Olympiakos
+LASK,LASK,AUT,LASK
+CPH,Copenhagen,DEN,FC Copenhagen
+BOD,Bodø/Glimt,NOR,Bodo/Glimt
+VFK,Viking,NOR,Viking
+SLA,Slavia Praha,CZE,
+SBR,S. Bratislava,SVK,
+SHK,Shakhtar,UKR,
+QAR,Qarabağ,AZE,
+SAB,Sabah,AZE,
+KAI,Kairat Almaty,KAZ,
+PAF,Pafos,CYP,

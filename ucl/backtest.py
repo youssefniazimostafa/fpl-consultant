@@ -55,8 +55,8 @@ def metrics(pred: pd.Series, actual: pd.Series, mins: pd.Series) -> dict:
     }
 
 
-def run_md(tour: int, md: int) -> dict | None:
-    xp, _ = model.predict(tour, as_of_md=md, mds=[md], use_status=False)
+def run_md(tour: int, md: int, cfg: dict | None = None) -> dict | None:
+    xp, _ = model.predict(tour, as_of_md=md, mds=[md], use_status=False, cfg=cfg)
     if xp.empty:
         return None
     _, _, a = model.load(tour)

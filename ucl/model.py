@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 
-from ucl import feed, rules
+from ucl import elo, feed, rules
 
 HIST = feed.DATA / "history"
 PREV_SEASON_WEIGHT = 0.5
@@ -46,6 +46,19 @@ STATUS_NEXT = {"I": 0.05, "S": 0.0, "NIS": 0.0, "D": 0.6}
 STATUS_LATER = {"I": 0.5, "S": 1.0, "NIS": 0.0, "D": 0.9}
 UNLIKELY_NEXT = 0.35  # "Unlikely to start next game"
 MAX_N = 25
+
+# Switchable refinements (ucl.factors backtests each one on its own; only
+# the ones that improved the unseen 2026/27 matchdays without clearly
+# hurting 2025/26 are on -- see data/ucl/factor_tests.json).
+CFG: dict = {
+    "elo_weight": 0.0,  # share of the Elo team ratings (ucl.elo) in each match's expected goals; rest = UCL-only Poisson fit
+    "shrink_90s": SHRINK_90S,  # prior strength for per-90 rates, in full matches (how slowly UCL minutes take over)
+    "prior_price": 0.0,  # attacking prior x (price / position's typical price) ** this
+    "prior_team": 1.0,  # attacking prior x (team's expected goals / average) ** this
+    "prior_team_elo": True,  # ... with the team's expected goals from the Elo ratings (all matches) only
+    "elo_weight_knockout": 0.5,  # share of Elo in the knockout simulation's expected goals
+}
+ATTACK_COLS = ("gS", "gA", "gOB", "mom")
 
 
 def load(tour: int) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -162,8 +175,14 @@ DEFAULT_PRIOR = {
 }
 
 
-def player_rates(apps: pd.DataFrame, pos_of: dict[int, int]) -> tuple[pd.DataFrame, dict]:
-    """Shrunk per-90 rates per player (apps carry a 'w' weight column)."""
+def player_rates(apps: pd.DataFrame, pos_of: dict[int, int], shrink: float = SHRINK_90S,
+                 mult: dict[int, float] | None = None) -> tuple[pd.DataFrame, dict]:
+    """Shrunk per-90 rates per player (apps carry a 'w' weight column).
+
+    Each rate is pulled towards its position's average with the weight of
+    `shrink` full matches; `mult` (pid -> factor) scales that average for
+    the attacking actions (ATTACK_COLS), so the pull is towards what this
+    player's price and team suggest rather than towards a generic player."""
     a = apps.copy()
     a["w90"] = a["w"] * a["oF"] / 90.0
     for c in RATE_COLS:
@@ -179,13 +198,61 @@ def player_rates(apps: pd.DataFrame, pos_of: dict[int, int]) -> tuple[pd.DataFra
         prior[pos] = {c: sub[c].sum() / tot90 for c in RATE_COLS}
         prior[pos]["mom"] = sub["mom"].sum() / max(sub["napp"].sum(), 1e-6)
     out = pd.DataFrame(index=g.index)
+    mlt = pd.Series([float((mult or {}).get(int(p), 1.0)) for p in g.index], index=g.index)
     for c in RATE_COLS:
         pr = g["pos"].map(lambda p: prior.get(p, prior.get(rules.MID, {})).get(c, 0.0))
-        out[c] = (g[c] + SHRINK_90S * pr) / (g["n90"] + SHRINK_90S)
-    pr = g["pos"].map(lambda p: prior.get(p, {}).get("mom", 0.03))
-    out["mom"] = (g["mom"] + 3.0 * pr) / (g["napp"] + 3.0)
+        if c in ATTACK_COLS:
+            pr = pr * mlt
+        out[c] = (g[c] + shrink * pr) / (g["n90"] + shrink)
+    pr = g["pos"].map(lambda p: prior.get(p, {}).get("mom", 0.03)) * mlt
+    out["mom"] = (g["mom"] + shrink * pr) / (g["napp"] + shrink)
     out["pos"] = g["pos"]
+    out["n90"] = g["n90"]
     return out, prior
+
+
+def prior_mult(players: pd.DataFrame, apps: pd.DataFrame, team_goals: dict[int, float],
+               price_pow: float, team_pow: float) -> dict[int, float]:
+    """pid -> factor on his position's attacking prior, from price and team strength.
+
+    Price: his latest price in a match before the cutoff, else the listed one.
+    Normalised so the factors average 1 per position over the players who play."""
+    if not price_pow and not team_pow:
+        return {}
+    last_price = apps.sort_values("md").groupby("pid")["price"].last().to_dict() if len(apps) and "price" in apps else {}
+    df = players[["pid", "team_id", "pos", "price"]].copy()
+    df["pid"] = df["pid"].astype(int)
+    df["price"] = [float(last_price.get(p, pr) or 4.5) for p, pr in zip(df["pid"], df["price"].fillna(4.5))]
+    tg = pd.Series(team_goals)
+    df["tgoal"] = df["team_id"].astype(int).map(tg).fillna(tg.mean() if len(tg) else 1.4)
+    played = set(apps.loc[apps["oF"] > 0, "pid"].astype(int)) if len(apps) else set()
+    out = {}
+    for _, sub in df.groupby("pos"):
+        ref = sub[sub["pid"].isin(played)] if sub["pid"].isin(played).sum() >= 10 else sub
+        m = (sub["price"] / ref["price"].median()) ** price_pow * (sub["tgoal"] / ref["tgoal"].mean()) ** team_pow
+        norm = float(m[sub["pid"].isin(ref["pid"])].mean()) or 1.0
+        out.update({int(p): float(v / norm) for p, v in zip(sub["pid"], m)})
+    return out
+
+
+class BlendTeams:
+    """Expected goals as a weighted mix of two team models (same interface)."""
+
+    def __init__(self, a, b, w_b: float):
+        self.a, self.b, self.w = a, b, w_b
+        self.pot_of = a.pot_of
+
+    def lambdas(self, home_id: int, away_id: int, neutral: bool = False) -> tuple[float, float]:
+        x, y = self.a.lambdas(home_id, away_id, neutral), self.b.lambdas(home_id, away_id, neutral)
+        return (1 - self.w) * x[0] + self.w * y[0], (1 - self.w) * x[1] + self.w * y[1]
+
+    def rating(self, tid: int) -> tuple[float, float]:
+        x, y = self.a.rating(tid), self.b.rating(tid)
+        return (1 - self.w) * x[0] + self.w * y[0], (1 - self.w) * x[1] + self.w * y[1]
+
+    def avg_for(self, tid: int) -> tuple[float, float]:
+        x, y = self.a.avg_for(tid), self.b.avg_for(tid)
+        return (1 - self.w) * x[0] + self.w * y[0], (1 - self.w) * x[1] + self.w * y[1]
 
 
 def minutes_model(players: pd.DataFrame, matches: pd.DataFrame, apps: pd.DataFrame) -> pd.DataFrame:
@@ -301,16 +368,38 @@ def pots(matches: pd.DataFrame) -> dict[int, int]:
     return out
 
 
+def cutoff_time(m_now: pd.DataFrame, as_of_md: int | None) -> pd.Timestamp:
+    """The moment the data must stop: the first kick-off of `as_of_md` (now, live)."""
+    if as_of_md:
+        k = m_now.loc[m_now["md"] >= as_of_md, "kickoff"]
+        if len(k):
+            return pd.Timestamp(k.min())
+    return pd.Timestamp.now(tz="UTC")
+
+
 def predict(tour: int = feed.TOUR, as_of_md: int | None = None, mds: list[int] | None = None,
-            odds_lambdas: dict[int, tuple[float, float]] | None = None, use_status: bool = True
-            ) -> tuple[pd.DataFrame, TeamModel]:
+            odds_lambdas: dict[int, tuple[float, float]] | None = None, use_status: bool = True,
+            cfg: dict | None = None) -> tuple[pd.DataFrame, TeamModel]:
     """xP for every player in every match of `mds` (default: the not-yet-played
-    matchdays of this season), using only data from before `as_of_md`."""
+    matchdays of this season), using only data from before `as_of_md`.
+    `cfg` overrides CFG (for ucl.factors)."""
+    c = {**CFG, **(cfg or {})}
     allm, m_now, players, apps = history(tour, as_of_md)
     pot_of = pots(allm[allm["tour"] == tour]) or pots(allm)
-    team = fit_teams(allm, pot_of)
+    poisson = team = fit_teams(allm, pot_of)
+    elo_teams = None
+    if c["elo_weight"] or c["prior_team_elo"] or c["elo_weight_knockout"]:
+        elo_teams = elo.teams_at(cutoff_time(m_now, as_of_md), allm[allm["tour"] == tour], pot_of)
+    if c["elo_weight"]:
+        team = BlendTeams(poisson, elo_teams, c["elo_weight"])
+    # the knockout simulation's team model (ucl.knockout), judged on match scores (ucl.factors.team_test)
+    team.knockout = BlendTeams(poisson, elo_teams, c["elo_weight_knockout"]) if c["elo_weight_knockout"] else team
+    team.elo = elo_teams
     pos_of = dict(zip(players["pid"].astype(int), players["pos"].astype(int)))
-    rates, prior = player_rates(apps, pos_of) if len(apps) else (pd.DataFrame(), {})
+    tgoals = {t: (elo_teams if c["prior_team_elo"] else team).avg_for(t)[0] for t in pot_of}
+    mult = prior_mult(players, apps[apps["tour"] == tour] if len(apps) else apps, tgoals,
+                      c["prior_price"], c["prior_team"])
+    rates, prior = player_rates(apps, pos_of, c["shrink_90s"], mult) if len(apps) else (pd.DataFrame(), {})
     cur_apps = apps[apps["tour"] == tour] if len(apps) else apps
     mm = minutes_model(players, m_now, cur_apps)
     if mds is None:
@@ -332,7 +421,12 @@ def predict(tour: int = feed.TOUR, as_of_md: int | None = None, mds: list[int] |
             for p in players[players["team_id"] == tid].itertuples():
                 pid = int(p.pid)
                 pos = int(p.pos)
-                r = rates.loc[pid].to_dict() if pid in rates.index else (prior.get(pos) or DEFAULT_PRIOR[pos])
+                if pid in rates.index:
+                    r = rates.loc[pid].to_dict()
+                else:  # no UCL minutes at all: his position's prior, scaled for price and team
+                    r = dict(prior.get(pos) or DEFAULT_PRIOR[pos])
+                    for col in ATTACK_COLS:
+                        r[col] = r.get(col, 0.0) * mult.get(pid, 1.0)
                 if not r:
                     continue
                 mrow = mm.loc[pid] if pid in mm.index else None
