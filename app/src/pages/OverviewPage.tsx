@@ -5,6 +5,7 @@ import { helpFor } from "../help";
 import { Shirt } from "../components/Shirt";
 import { chanceClass } from "../theme/theme";
 import { PlayerLookup } from "../components/PlayerLookup";
+import { CrashCard, ErrorBoundary } from "../components/ErrorBoundary";
 
 // Scout (the old FPL overview): FPL as a whole, not your league. Everything comes from
 // latest.json's `overview` section (fpl/overview.py); this page only
@@ -25,7 +26,17 @@ function ago(iso: string): string {
 
 const TOP_N = 10;
 
-function Bubble({ title, explain, controls, children }: { title: string; explain: string; controls?: ReactNode; children: ReactNode }) {
+type BubbleProps = { title: string; explain: string; controls?: ReactNode; children: ReactNode };
+
+function Bubble(props: BubbleProps) {
+  return (
+    <ErrorBoundary where={`Scout card ${props.title}`} fallback={<CrashCard className="sc-card" />}>
+      <BubbleInner {...props} />
+    </ErrorBoundary>
+  );
+}
+
+function BubbleInner({ title, explain, controls, children }: BubbleProps) {
   return (
     <section className="sc-card">
       <div className="sc-head">
@@ -206,7 +217,11 @@ export function OverviewPage({ data }: { data: Latest }) {
           )}
         </Bubble>
 
-        {o.lookup?.available && <PlayerLookup lookup={o.lookup} />}
+        {o.lookup?.available && (
+          <ErrorBoundary where="Player lookup" fallback={<CrashCard className="sc-card sc-lookup" />}>
+            <PlayerLookup lookup={o.lookup} />
+          </ErrorBoundary>
+        )}
       </div>
     </div>
   );

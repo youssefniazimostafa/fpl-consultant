@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { helpFor } from "../help";
+import { CrashCard, ErrorBoundary } from "./ErrorBoundary";
 
 /** The small "?" next to a card title: tap for two or three plain sentences. */
 export function HelpButton({ text }: { text: string }) {
@@ -24,20 +25,25 @@ export function HelpButton({ text }: { text: string }) {
   );
 }
 
-/** Lilac rounded card with a bold title bar -- the building block of every page. */
-export function Card({
-  title,
-  aside,
-  children,
-  className = "",
-  help,
-}: {
+/** Lilac rounded card with a bold title bar -- the building block of every page.
+ *  A crash inside one card only replaces that card (see ErrorBoundary). */
+export function Card(props: CardProps) {
+  return (
+    <ErrorBoundary where={`card ${typeof props.title === "string" ? props.title : ""}`} fallback={<CrashCard className={`card ${props.className ?? ""}`} />}>
+      <CardInner {...props} />
+    </ErrorBoundary>
+  );
+}
+
+interface CardProps {
   title?: ReactNode;
   aside?: ReactNode;
   children: ReactNode;
   className?: string;
   help?: string; // defaults to the HELP entry for the title (src/help.ts)
-}) {
+}
+
+function CardInner({ title, aside, children, className = "", help }: CardProps) {
   const helpText = help ?? helpFor(title);
   return (
     <section className={`card ${className}`}>

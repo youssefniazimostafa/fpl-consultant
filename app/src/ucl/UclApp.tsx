@@ -7,6 +7,7 @@ import { listen } from "@tauri-apps/api/event";
 import { DESKTOP } from "../platform";
 import { Banner, BottomNav, TabBar, TopBar, type Game } from "../components/Chrome";
 import { ChatPanel } from "../components/ChatPanel";
+import { DataVersion, ErrorBoundary } from "../components/ErrorBoundary";
 import { Tour, storageGet, storageSet, type Step } from "../components/Tour";
 import type { TabDef } from "../tabs";
 import { loadUcl, type UclLoaded } from "./data";
@@ -234,20 +235,25 @@ export function UclApp({ game, onGame, now }: { game: Game; onGame: (g: Game) =>
       <main className="content ucl-content">
         {error && !d && <Banner tone="error">{error}</Banner>}
         {!d && !error && <p className="umuted upad">Loading the Champions League data…</p>}
-        {d &&
-          (tab === "team" ? (
-            <UclTeamPage d={d} teamSaved={!!teamId} />
-          ) : tab === "between" ? (
-            <UclBetweenPage d={d} />
-          ) : tab === "last" ? (
-            <UclLastPage d={d} />
-          ) : tab === "scout" ? (
-            <UclScoutPage d={d} />
-          ) : tab === "planner" ? (
-            <UclPlannerPage d={d} />
-          ) : (
-            <UclAnalyticsPage d={d} />
-          ))}
+        {d && (
+          <DataVersion.Provider value={d}>
+            <ErrorBoundary where={`UCL page ${tab}`} resetKey={tab}>
+              {tab === "team" ? (
+                <UclTeamPage d={d} teamSaved={!!teamId} />
+              ) : tab === "between" ? (
+                <UclBetweenPage d={d} />
+              ) : tab === "last" ? (
+                <UclLastPage d={d} />
+              ) : tab === "scout" ? (
+                <UclScoutPage d={d} />
+              ) : tab === "planner" ? (
+                <UclPlannerPage d={d} />
+              ) : (
+                <UclAnalyticsPage d={d} />
+              )}
+            </ErrorBoundary>
+          </DataVersion.Provider>
+        )}
         {d && (
           <p className="footnote ufoot">
             UCL data updated {fmt(loaded!.generatedAt)} ·{" "}

@@ -9,6 +9,7 @@ import { UclApp } from "./ucl/UclApp";
 import { SETUP_KEY, Setup, TOUR_KEY, Tour, storageGet, storageSet } from "./components/Tour";
 import { Settings } from "./components/Settings";
 import { ChatPanel } from "./components/ChatPanel";
+import { DataVersion, ErrorBoundary } from "./components/ErrorBoundary";
 import { TeamPage } from "./pages/TeamPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { LeaguePage } from "./pages/LeaguePage";
@@ -342,24 +343,29 @@ export default function App() {
 
       <main className="content">
         {game === "pl" && loadError && !data && <Banner tone="error">Couldn't load any data: {loadError}</Banner>}
-        {game === "pl" && data &&
-          (current.id === "team" ? (
-            <TeamPage data={data} />
-          ) : current.id === "league" ? (
-            <LeaguePage key={startRival ?? "league"} data={data} startRival={startRival} />
-          ) : current.id === "lastgw" ? (
-            <LastGameweekPage data={data} />
-          ) : current.id === "totw" ? (
-            <TeamOfTheWeekPage data={data} />
-          ) : current.id === "planner" ? (
-            <PlannerPage data={data} />
-          ) : current.id === "analytics" ? (
-            <AnalyticsPage data={data} />
-          ) : current.id === "overview" ? (
-            <OverviewPage data={data} />
-          ) : (
-            <PlaceholderPage tab={current} data={data} />
-          ))}
+        {game === "pl" && data && (
+          <DataVersion.Provider value={data}>
+            <ErrorBoundary where={`page ${current.id}`} resetKey={current.id}>
+              {current.id === "team" ? (
+                <TeamPage data={data} />
+              ) : current.id === "league" ? (
+                <LeaguePage key={startRival ?? "league"} data={data} startRival={startRival} />
+              ) : current.id === "lastgw" ? (
+                <LastGameweekPage data={data} />
+              ) : current.id === "totw" ? (
+                <TeamOfTheWeekPage data={data} />
+              ) : current.id === "planner" ? (
+                <PlannerPage data={data} />
+              ) : current.id === "analytics" ? (
+                <AnalyticsPage data={data} />
+              ) : current.id === "overview" ? (
+                <OverviewPage data={data} />
+              ) : (
+                <PlaceholderPage tab={current} data={data} />
+              )}
+            </ErrorBoundary>
+          </DataVersion.Provider>
+        )}
         {game === "pl" && loaded && (
           <p className="footnote">
             Data: {sourceLabel(loaded.source)} · updated {fmtTime(loaded.generatedAt)}

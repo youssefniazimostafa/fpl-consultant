@@ -18,7 +18,7 @@ interface Row {
   club: string;
   team_code: number | null;
   pos: string;
-  price: number;
+  price: number | null;
   xp: number | null;
   form: number | null;
   sel: number | null;
@@ -33,6 +33,13 @@ const fold = (s: string) =>
     .replace(/ø/g, "o")
     .replace(/ß/g, "ss")
     .toLowerCase();
+// Every number in a report may be missing (older latest.json files, new or
+// unused players), so all formatting goes through these and shows "–".
+const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
+const fix = (x: unknown, d = 1) => (isNum(x) ? x.toFixed(d) : "–");
+const signed = (x: unknown, d = 1) => (isNum(x) ? `${x >= 0 ? "+" : ""}${x.toFixed(d)}` : "–");
+const val = (x: unknown) => (x == null || x === "" ? "–" : String(x));
+const arr = <T,>(x: unknown): T[] => (Array.isArray(x) ? (x as T[]) : []);
 const pct = (x: number | null | undefined) => (x == null ? "–" : `${Math.round(x * 100)}%`);
 const chanceWords = (x: number | null | undefined) =>
   x == null ? "–" : x >= 0.85 ? "very likely" : x >= 0.6 ? "likely" : x >= 0.35 ? "about even" : x >= 0.1 ? "unlikely" : "very unlikely";
@@ -47,12 +54,16 @@ const PRICE_CAPS: [string, number][] = [
   ["Up to £10m", 10],
 ];
 
+/** lookup.rows (arrays in lookup.columns order) as objects. */
+export const lookupRows = (lookup: Raw): Row[] =>
+  arr<any[]>(lookup.rows)
+    .filter(Array.isArray)
+    .map((r) => Object.fromEntries(arr<string>(lookup.columns).map((c, i) => [c, r[i]])) as unknown as Row)
+    .filter((r) => r.id != null)
+    .map((r) => ({ ...r, name: r.name ?? "?", club: r.club ?? "" }));
+
 export function PlayerLookup({ lookup, title = "Player lookup" }: { lookup: Raw; title?: string }) {
-  const rows: Row[] = useMemo(
-    () =>
-      (lookup.rows ?? []).map((r: any[]) => Object.fromEntries((lookup.columns as string[]).map((c, i) => [c, r[i]])) as unknown as Row),
-    [lookup],
-  );
+  const rows: Row[] = useMemo(() => lookupRows(lookup), [lookup]);
   const clubs = useMemo(() => [...new Set(rows.map((r) => r.club))].sort(), [rows]);
   const [q, setQ] = useState("");
   const [pos, setPos] = useState("ALL");
@@ -68,7 +79,7 @@ export function PlayerLookup({ lookup, title = "Player lookup" }: { lookup: Raw;
       (r) =>
         (pos === "ALL" || r.pos === pos) &&
         (club === "ALL" || r.club === club) &&
-        r.price <= max &&
+        (r.price ?? 0) <= max &&
         (!needle || fold(r.name).includes(needle) || fold(lookup.reports?.[r.id]?.full ?? "").includes(needle)),
     );
     const k = sort.key;
@@ -128,7 +139,7 @@ export function PlayerLookup({ lookup, title = "Player lookup" }: { lookup: Raw;
         </div>
       </div>
       <p className="sc-explain">
-        Every FPL player, by expected points for GW{lookup.next_gameweek}. Tap a column to sort, tap a player for his full report.
+        Every FPL player, by expected points for GW{val(lookup.next_gameweek)}. Tap a column to sort, tap a player for his full report.
       </p>
       <div className="lk-body">
         <div className="lk-list">
@@ -152,10 +163,10 @@ export function PlayerLookup({ lookup, title = "Player lookup" }: { lookup: Raw;
                     </small>
                   </span>
                 </span>
-                <span className="num">£{r.price.toFixed(1)}</span>
-                <span className="num total">{r.xp?.toFixed(1) ?? "–"}</span>
-                <span className="num">{r.form?.toFixed(1) ?? "–"}</span>
-                <span className="num">{r.sel != null ? `${r.sel.toFixed(1)}%` : "–"}</span>
+                <span className="num">{isNum(r.price) ? `£${r.price.toFixed(1)}` : "–"}</span>
+                <span className="num total">{fix(r.xp)}</span>
+                <span className="num">{fix(r.form)}</span>
+                <span className="num">{isNum(r.sel) ? `${r.sel.toFixed(1)}%` : "–"}</span>
               </button>
             ))}
             {!shown.length && <p className="muted lk-empty">No player matches.</p>}
@@ -169,20 +180,21 @@ export function PlayerLookup({ lookup, title = "Player lookup" }: { lookup: Raw;
   );
 }
 
-function Report({ row, rep, lookup }: { row: Row; rep: Raw; lookup: Raw }) {
+export function Report({ row, rep, lookup }: { row: Row; rep: Raw; lookup: Raw }) {
   const d = rep.drv ?? {};
-  const recent: number[][] = rep.recent ?? [];
+  const recent: number[][] = useMemo(() => arr<number[]>(rep.recent).filter(Array.isArray), [rep]);
+  const fx = arr<any[]>(rep.fx).filter(Array.isArray);
   const chart = useMemo<ChartConfiguration>(
     () => ({
       type: "bar",
       data: {
-        labels: recent.map((r) => `GW${r[0]}`),
-        datasets: [{ label: "Points", data: recent.map((r) => r[1]), backgroundColor: colors.purple, borderRadius: 4 }],
+        labels: recent.map((r) => `GW${val(r[0])}`),
+        datasets: [{ label: "Points", data: recent.map((r) => (isNum(r[1]) ? r[1] : 0)), backgroundColor: colors.purple, borderRadius: 4 }],
       },
       options: {
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { afterLabel: (c: any) => { const r = recent[c.dataIndex]; return `${r[2]} min · ${r[3]} G · ${r[4]} A`; } } },
+          tooltip: { callbacks: { afterLabel: (c: any) => { const r = recent[c.dataIndex]; return r ? `${val(r[2])} min · ${val(r[3])} G · ${val(r[4])} A` : "";  } } },
         },
         scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
       } as any,
@@ -190,7 +202,7 @@ function Report({ row, rep, lookup }: { row: Row; rep: Raw; lookup: Raw }) {
     [recent],
   );
   const s = rep.season ?? {};
-  const swap = rep.swap;
+  const swap = rep.swap && typeof rep.swap === "object" ? rep.swap : null;
   return (
     <div className="lk-rep">
       <div className="lk-rep-head">
@@ -198,7 +210,8 @@ function Report({ row, rep, lookup }: { row: Row; rep: Raw; lookup: Raw }) {
         <div>
           <h3>{rep.full || row.name}</h3>
           <p className="muted small">
-            {row.club} · {row.pos} · £{row.price.toFixed(1)}m · {row.sel?.toFixed(1)}% of all managers · {rep.rivals} of your {lookup.rivals} rivals
+            {row.club} · {row.pos} · {isNum(row.price) ? `£${row.price.toFixed(1)}m` : "price –"} · {fix(row.sel)}% of all managers
+            {isNum(rep.rivals) && isNum(lookup.rivals) ? ` · ${rep.rivals} of your ${lookup.rivals} rivals` : ""}
           </p>
           {row.own ? <span className="sc-own">You own</span> : <span className="lk-notown">Not in your team</span>}
         </div>
@@ -206,36 +219,42 @@ function Report({ row, rep, lookup }: { row: Row; rep: Raw; lookup: Raw }) {
 
       <h4>Availability</h4>
       <p className="lk-avail">
-        <span className={`cop-badge ${chanceClass(rep.chance ?? 100)}`}>{rep.chance == null ? "Fit" : `${rep.chance}%`}</span>{" "}
-        <span className={rep.chance === 0 ? "news-out" : ""}>{rep.news || "No injury or team news."}</span>
+        <span className={`cop-badge ${chanceClass(isNum(rep.chance) ? rep.chance : 100)}`}>{isNum(rep.chance) ? `${rep.chance}%` : "Fit"}</span>{" "}
+        <span className={rep.chance === 0 ? "news-out" : ""}>{typeof rep.news === "string" && rep.news ? rep.news : "No injury or team news."}</span>
       </p>
 
-      <h4>Next {(rep.fx ?? []).length} gameweeks</h4>
-      <table className="lk-fx">
-        <tbody>
-          <tr>
-            {(rep.fx ?? []).map((f: any[], i: number) => (
-              <td key={i} className={`d${f[3] ?? 0}`} title={`Difficulty ${f[3] ?? "?"}`}>
-                <small>GW{f[0]}</small>
-                <b>
-                  {f[1]} ({f[2]})
-                </b>
-                <span>{f[4]?.toFixed(1)} xP</span>
-              </td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
-      <p className="small">
-        <b>{rep.xp5?.toFixed(1)} expected points</b> over these {(rep.fx ?? []).length} gameweeks. Colours are FPL's own difficulty: green easy, pink hard.
-      </p>
+      <h4>Next {fx.length || ""} gameweeks</h4>
+      {fx.length ? (
+        <>
+          <table className="lk-fx">
+            <tbody>
+              <tr>
+                {fx.map((f, i) => (
+                  <td key={i} className={`d${f[3] ?? 0}`} title={`Difficulty ${f[3] ?? "?"}`}>
+                    <small>GW{val(f[0])}</small>
+                    <b>
+                      {val(f[1])} ({val(f[2])})
+                    </b>
+                    <span>{fix(f[4])} xP</span>
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+          <p className="small">
+            <b>{fix(rep.xp5)} expected points</b> over these {fx.length} gameweeks. Colours are FPL's own difficulty: green easy, pink hard.
+          </p>
+        </>
+      ) : (
+        <p className="muted small">No upcoming fixtures listed.</p>
+      )}
 
-      <h4>What drives his expected points (GW{lookup.next_gameweek}{d.opp ? ` v ${d.opp}` : ""})</h4>
-      {rep.drv ? (
+      <h4>What drives his expected points (GW{val(lookup.next_gameweek)}{d.opp ? ` v ${d.opp}` : ""})</h4>
+      {rep.drv && typeof rep.drv === "object" ? (
         <dl className="ra-facts lk-facts">
           <dt>Starting</dt>
           <dd>
-            {pct(d.start)} chance ({chanceWords(d.start)}), and {pct(d.p60)} to play 60+ minutes (about {d.mins ?? "–"} minutes expected)
+            {pct(d.start)} chance ({chanceWords(d.start)}), and {pct(d.p60)} to play 60+ minutes (about {val(d.mins)} minutes expected)
           </dd>
           <dt>Goal</dt>
           <dd>{pct(d.goal)} chance to score</dd>
@@ -248,9 +267,9 @@ function Report({ row, rep, lookup }: { row: Row; rep: Raw; lookup: Raw }) {
             </>
           )}
           <dt>Defending</dt>
-          <dd>{d.defcon != null ? `${d.defcon.toFixed(1)} expected points from defensive contributions` : "–"}</dd>
+          <dd>{isNum(d.defcon) ? `${d.defcon.toFixed(1)} expected points from defensive contributions` : "–"}</dd>
           <dt>Bonus</dt>
-          <dd>{d.bonus != null ? `${d.bonus.toFixed(1)} expected bonus points` : "–"}</dd>
+          <dd>{isNum(d.bonus) ? `${d.bonus.toFixed(1)} expected bonus points` : "–"}</dd>
         </dl>
       ) : (
         <p className="muted small">No fixture next gameweek.</p>
@@ -264,8 +283,8 @@ function Report({ row, rep, lookup }: { row: Row; rep: Raw; lookup: Raw }) {
             <thead>
               <tr>
                 <th />
-                {recent.map((r) => (
-                  <th key={r[0]}>GW{r[0]}</th>
+                {recent.map((r, i) => (
+                  <th key={i}>GW{val(r[0])}</th>
                 ))}
               </tr>
             </thead>
@@ -273,8 +292,8 @@ function Report({ row, rep, lookup }: { row: Row; rep: Raw; lookup: Raw }) {
               {(["Points", "Minutes", "Goals", "Assists"] as const).map((label, k) => (
                 <tr key={label}>
                   <td>{label}</td>
-                  {recent.map((r) => (
-                    <td key={r[0]}>{r[k + 1]}</td>
+                  {recent.map((r, i) => (
+                    <td key={i}>{val(r[k + 1])}</td>
                   ))}
                 </tr>
               ))}
@@ -285,13 +304,14 @@ function Report({ row, rep, lookup }: { row: Row; rep: Raw; lookup: Raw }) {
         <p className="muted small">No minutes in the last six gameweeks.</p>
       )}
       <p className="small">
-        Season: <b>{s.pts} points</b> in {s.mins} minutes ({s.starts} starts) · {s.g} goals · {s.a} assists · {s.cs} clean sheets · {s.bonus} bonus ·{" "}
-        {s.ppg} points per game
+        Season: <b>{val(s.pts)} points</b> in {val(s.mins)} minutes ({val(s.starts)} starts) · {val(s.g)} goals · {val(s.a)} assists · {val(s.cs)} clean sheets ·{" "}
+        {val(s.bonus)} bonus · {val(s.ppg)} points per game
       </p>
 
       <h4>Value</h4>
       <p className="small">
-        <b>{rep.ppm} points per £1m</b> this season · price {rep.change > 0 ? `up £${rep.change.toFixed(1)}m` : rep.change < 0 ? `down £${Math.abs(rep.change).toFixed(1)}m` : "unchanged"} since the start
+        <b>{val(rep.ppm)} points per £1m</b> this season · price{" "}
+        {!isNum(rep.change) ? "change –" : rep.change > 0 ? `up £${rep.change.toFixed(1)}m` : rep.change < 0 ? `down £${Math.abs(rep.change).toFixed(1)}m` : "unchanged"} since the start
       </p>
 
       {!row.own && (
@@ -301,17 +321,15 @@ function Report({ row, rep, lookup }: { row: Row; rep: Raw; lookup: Raw }) {
             <>
               <p className="small lk-swap">
                 <b>
-                  {swap.out_name} → {row.name}: {swap.week_gain >= 0 ? "+" : ""}
-                  {swap.week_gain.toFixed(1)} xP this week,{" "}
+                  {val(swap.out_name)} → {row.name}: {signed(swap.week_gain)} xP this week,{" "}
                   {swap.clears_bar ? <span className="lk-ok">clears the bar</span> : <span className="lk-no">below the bar</span>}
                 </b>
               </p>
               <p className="small muted">
-                Judged like the optimiser: making it now rather than next week is worth {swap.gain >= 0 ? "+" : ""}
-                {swap.gain.toFixed(1)} against the {lookup.transfer_bar} bar ({swap.horizon_gain >= 0 ? "+" : ""}
-                {swap.horizon_gain.toFixed(1)} over {(rep.fx ?? []).length} gameweeks, best XI re-picked each week)
-                {swap.hit ? `, after a ${swap.hit}-point hit` : ""}. Sells {swap.out_name} for £{swap.out_sell.toFixed(1)}m, leaving £
-                {swap.bank_after.toFixed(1)}m.
+                Judged like the optimiser: making it now rather than next week is worth {signed(swap.gain)} against the {val(lookup.transfer_bar)}{" "}
+                bar ({signed(swap.horizon_gain)} over {fx.length} gameweeks, best XI re-picked each week)
+                {swap.hit ? `, after a ${swap.hit}-point hit` : ""}. Sells {val(swap.out_name)} for £{fix(swap.out_sell ?? swap.out_price)}m, leaving £
+                {fix(swap.bank_after)}m.
               </p>
             </>
           ) : (
