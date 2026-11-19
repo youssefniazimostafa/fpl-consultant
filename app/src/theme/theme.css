@@ -996,3 +996,19 @@ button.ra-line:hover { background: var(--lilac); }
 /* Player lookup: the tag drops under the club line when the list is narrow */
 .lk-player .st-name small { white-space: normal; display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; row-gap: 1px; }
 .lk-own { margin-left: 0; }
+
+/* Settings: league goals */
+.goal-row { align-items: center; margin-bottom: 6px; }
+.goal-weight { display: inline-flex; align-items: center; gap: 6px; }
+.set-row .goal-weight input, .set-row input.goal-gw { flex: 0 0 auto; min-width: 0; width: 64px; padding: 6px 10px; }
+
+/* Close calls scored on your league goals (captain card, Planner) */
+.close-call { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--lilac-deep); }
+.close-call-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; opacity: .75; margin-bottom: 6px; }
+.close-call ul { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 4px; }
+.close-call li { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; line-height: 1.35; flex-wrap: wrap; }
+.close-call li b { font-weight: 800; }
+.close-call li .cc-tag { font-size: 11px; font-weight: 800; padding: 1px 8px; border-radius: var(--radius-pill); background: var(--neon); color: #1b1030; margin-left: 6px; }
+.close-call li .cc-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.close-call .note { margin: 0; }
+.pblock .close-call { border-top-color: currentColor; }

@@ -3,6 +3,7 @@ import { Card } from "../components/Card";
 import { Shirt } from "../components/Shirt";
 import { YourPlanCard } from "../components/YourPlan";
 import { DESKTOP } from "../platform";
+import { CaptainCloseCall, TransferCloseCall } from "../components/CloseCall";
 
 // Planner: the plan for the next few gameweeks at a glance. Everything
 // comes from latest.json's `planner` section (fpl/planner.py); its first
@@ -109,6 +110,16 @@ export function PlannerPage({ data }: { data: Latest }) {
         </span>
       </div>
       <p className="planner-note">{p.note}</p>
+      {(data.goal_calls?.captain?.close || data.goal_calls?.transfers?.close) && (
+        <Card title={`This week's close calls · GW${weeks[0].gameweek}`} className="planner-close-calls">
+          <p className="small muted">
+            When options are close on expected points, XPert compares their chances of your league goals
+            ({data.goal_calls.goals_text}).
+          </p>
+          <CaptainCloseCall data={data} />
+          <TransferCloseCall data={data} />
+        </Card>
+      )}
       {DESKTOP && <YourPlanCard />}
 
       {/* laptop: weeks across, a row per item */}

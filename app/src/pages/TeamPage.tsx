@@ -3,6 +3,7 @@ import { Card, Pill } from "../components/Card";
 import { Bench, Pitch } from "../components/Pitch";
 import { Shirt } from "../components/Shirt";
 import { readDecision, readTracker, type Decision, type PlayerView } from "../model/team";
+import { CaptainCloseCall } from "../components/CloseCall";
 
 // Every panel below renders `decision` (fpl/decision.py) as published --
 // none of them works out a recommendation of its own.
@@ -75,7 +76,7 @@ function TransfersCard({ d }: { d: Decision }) {
   );
 }
 
-function CaptainCard({ d }: { d: Decision }) {
+function CaptainCard({ d, data }: { d: Decision; data: Latest }) {
   const c = d.captain!;
   const card = d.xi.find((p) => p.id === c.id);
   return (
@@ -95,6 +96,7 @@ function CaptainCard({ d }: { d: Decision }) {
         </div>
       </div>
       {c.riskText && <p className="note">{c.riskText}</p>}
+      <CaptainCloseCall data={data} />
     </Card>
   );
 }
@@ -200,7 +202,7 @@ export function TeamPage({ data }: { data: Latest }) {
       </div>
       <aside className="team-side">
         <TransfersCard d={d} />
-        {d.captain && <CaptainCard d={d} />}
+        {d.captain && <CaptainCard d={d} data={data} />}
         <ChipsCard d={d} />
         <TrackerCard data={data} place="side" />
       </aside>

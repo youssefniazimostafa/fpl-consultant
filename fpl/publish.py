@@ -1048,6 +1048,34 @@ def build_rival_transfer_forecast(
     return {"available": True, "forecasts": records(merged)}
 
 
+def build_goal_calls(decision: dict[str, Any]) -> dict[str, Any]:
+    """Step 17 (fpl/goal_calls.py): today's close calls scored on your
+    league goals, for the decision's own plan (transfer or hold), so the
+    captain card and the Planner show the XI the decision recommends."""
+    from fpl.simulation import HOLD_LABEL, TRANSFER_LABEL
+
+    path = TABLES_DIR / "goal_calls.json"
+    if not path.exists():
+        return {"available": False, "reason": "goal_calls.json not found -- run fpl.simulation first."}
+    gc = json.loads(path.read_text())
+    if not gc.get("available") or not decision.get("available"):
+        return {"available": False, "reason": gc.get("reason") or "no recommendation this week"}
+    label = HOLD_LABEL if decision.get("action") == ROLL else TRANSFER_LABEL
+
+    def pick(t: dict[str, Any] | None) -> dict[str, Any] | None:
+        if not t:
+            return None
+        return {k: t.get(k) for k in ("target_gameweek", "target_note", "goals_text", "transfers")} | {
+            "captain": (t.get("captain") or {}).get(label)}
+
+    out = {k: gc.get(k) for k in ("gameweek", "goals", "goals_source", "close_sd", "noise_se", "auto_uses_rule", "test_result")}
+    out.update(pick(gc) or {})
+    out["other_target"] = pick(gc.get("other_target"))
+    if out.get("captain") is None:
+        return {"available": False, "reason": f"no close-call analysis for the {label}"}
+    return {"available": True, **out}
+
+
 def build_season_simulation() -> dict[str, Any]:
     """Step 12: ``fpl.simulation.simulate_season_standings``'s season-long
     P(finish 1st by GW``target_gameweek``) per manager -- a coarser,
@@ -1286,6 +1314,7 @@ def main() -> None:
         "transfer_plan": transfer_plan,
         "chips": chips,
         "strategy": strategy,
+        "goal_calls": build_goal_calls(decision),
         "free_transfers": build_free_transfers(league_free_transfers),
         "rival_transfer_forecast": build_rival_transfer_forecast(
             league_rival_transfer_forecast, league_rival_habits

@@ -121,6 +121,11 @@ uv run python -m fpl.form_calibration
 uv run python -m fpl.strategy_calibration --stage tune
 uv run python -m fpl.strategy_calibration --stage check --lam 0.15 --cap 1.0
 
+# Test the goal-aware close-call rule (fpl/goals.py) against today's balanced
+# mode in the same simulated leagues, 200 per season on 2025-26 / 2024-25 /
+# 2023-24 (~2 hours; nothing is tuned, the pass rule is in fpl/goals.py):
+uv run python -m fpl.goal_calibration
+
 # Serve the site locally to view the result in a browser:
 cd site && python3 -m http.server 8000
 # then open http://localhost:8000
@@ -128,6 +133,42 @@ cd site && python3 -m http.server 8000
 
 `fpl.odds` needs `ODDS_API_KEY` set in your environment (see below); every
 other stage works with just the public FPL API.
+
+## Close calls scored on your league goals
+
+When captain or transfer options are close on expected points, XPert
+compares each one's simulated chance of reaching your league goals
+(`fpl/goals.py`, `fpl/goal_calls.py`, latest.json's `goal_calls`).
+
+- **Goals**: set in the Mac app's Settings ("Your league goals"): finish 1st,
+  top 2 or top 3, each with a weight, and "by" the end of the season, GW19 or
+  another gameweek. Defaults (also what the published site uses): finish 1st
+  (weight 2) and top 2 (weight 1), by the end of the season. Saved in the
+  app's settings.json and passed to the pipeline, chat and plan review as
+  `FPL_GOALS`.
+- **Close call**: an option is close to the best one when its expected-points
+  gap is within one standard deviation of the points difference between them,
+  using the measured per-player projection errors (`RESIDUAL_SD`). Only close
+  options are simulated; a clear expected-points winner always wins.
+- **Simulation**: one shared draw per player (negative binomial with his xP as
+  mean and his measured error as SD) for you and every rival's last confirmed
+  XI and captain; the weeks after this one from each manager's weekly-score
+  history; transfer options also carry their own rest-of-horizon points and
+  saved-transfer value. 20,000 to 200,000 draws until the best option's lead is
+  more than 2 simulation SEs; otherwise "too close to call" and expected points
+  decide.
+- **Shown** on the Recommended team captain card and the Planner ("This
+  week's close calls"), and to the Live consultant and Your plan review
+  through the `get_goal_chances` tool. `check_consistency` rule 13 checks the
+  panel names the decision's own captain.
+- **Auto**: not switched on (`USE_GOAL_AWARE = False`). Tested by
+  `fpl.goal_calibration` against today's balanced mode in 200 simulated
+  10-manager leagues per season, rule fixed before running (better weighted
+  goal chance by more than 1 SE on every season, no goal or points loss beyond
+  1 SE). 2025-26: weighted goal chance +0.003 ± 0.020 (fails); 2024-25:
+  +0.263 ± 0.030, points +35 ± 3 (passes); 2023-24 didn't complete. So Auto
+  keeps the 0.02 ownership tie-breaker and the goal chances are shown, not
+  used for picks.
 
 ## How to run the app
 

@@ -121,6 +121,130 @@ function StrategyRow() {
   );
 }
 
+// League goals: used when two captain or transfer options are close on
+// expected points (fpl/goals.py). Saved in settings.json and passed to the
+// pipeline, chat and plan review as FPL_GOALS; the published site uses the
+// defaults below.
+type Goal = { kind: string; weight: number };
+type Goals = { goals: Goal[]; by: "end" | number };
+const GOAL_KINDS: [string, string][] = [
+  ["first", "Finish 1st"],
+  ["top2", "Stay in the top 2"],
+  ["top3", "Stay in the top 3"],
+];
+const DEFAULT_GOALS: Goals = { goals: [{ kind: "first", weight: 2 }, { kind: "top2", weight: 1 }], by: "end" };
+
+function GoalsRow() {
+  const [g, setG] = useState<Goals>(DEFAULT_GOALS);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    invoke<Goals>("get_goals").then(setG).catch(() => {});
+  }, []);
+  const update = (next: Goals) => {
+    setG(next);
+    setMsg(null);
+  };
+  const save = async (next: Goals) => {
+    try {
+      await invoke("set_goals", { goals: next });
+      setG(next);
+      setMsg("Saved. Takes effect at your next Refresh.");
+    } catch (e) {
+      setMsg(String(e));
+    }
+  };
+  const used = new Set(g.goals.map((x) => x.kind));
+  const byChoice = g.by === "end" ? "end" : g.by === 19 ? "19" : "other";
+  return (
+    <>
+      <h3 className="set-h">Your league goals</h3>
+      <p className="small muted">
+        When two captains or transfers are close on expected points, XPert compares their chances of reaching these goals.
+        A bigger weight counts for more.
+      </p>
+      {g.goals.map((x, i) => (
+        <div className="set-row goal-row" key={i}>
+          <select
+            aria-label={`Goal ${i + 1}`}
+            value={x.kind}
+            onChange={(e) => update({ ...g, goals: g.goals.map((y, j) => (j === i ? { ...y, kind: e.target.value } : y)) })}
+          >
+            {GOAL_KINDS.filter(([k]) => k === x.kind || !used.has(k)).map(([k, label]) => (
+              <option key={k} value={k}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <label className="small goal-weight">
+            weight
+            <input
+              type="number"
+              min={1}
+              max={10}
+              step={1}
+              value={x.weight}
+              onChange={(e) =>
+                update({ ...g, goals: g.goals.map((y, j) => (j === i ? { ...y, weight: Math.min(10, Math.max(1, Number(e.target.value) || 1)) } : y)) })
+              }
+            />
+          </label>
+          {g.goals.length > 1 && (
+            <button className="link" onClick={() => update({ ...g, goals: g.goals.filter((_, j) => j !== i) })}>
+              Remove
+            </button>
+          )}
+        </div>
+      ))}
+      <div className="set-row">
+        {g.goals.length < GOAL_KINDS.length && (
+          <button
+            className="refresh ghost"
+            onClick={() => {
+              const kind = GOAL_KINDS.map(([k]) => k).find((k) => !used.has(k))!;
+              update({ ...g, goals: [...g.goals, { kind, weight: 1 }] });
+            }}
+          >
+            Add a goal
+          </button>
+        )}
+        <label className="small" htmlFor="goal-by">
+          By
+        </label>
+        <select
+          id="goal-by"
+          value={byChoice}
+          onChange={(e) => update({ ...g, by: e.target.value === "end" ? "end" : e.target.value === "19" ? 19 : 30 })}
+        >
+          <option value="end">the end of the season</option>
+          <option value="19">GW19 (halfway)</option>
+          <option value="other">another gameweek…</option>
+        </select>
+        {byChoice === "other" && (
+          <input
+            className="goal-gw"
+            type="number"
+            min={1}
+            max={38}
+            aria-label="Gameweek"
+            value={g.by as number}
+            onChange={(e) => update({ ...g, by: Math.min(38, Math.max(1, Number(e.target.value) || 38)) })}
+          />
+        )}
+      </div>
+      <div className="set-row">
+        <button className="refresh" onClick={() => save(g)}>
+          Save goals
+        </button>
+        <button className="refresh ghost" onClick={() => save(DEFAULT_GOALS)}>
+          Reset to defaults
+        </button>
+      </div>
+      <p className="small muted">Defaults: finish 1st (weight 2) and stay in the top 2 (weight 1), by the end of the season. The published website always uses the defaults.</p>
+      {msg && <p className="small">{msg}</p>}
+    </>
+  );
+}
+
 export function Settings({ onClose, onTour }: { onClose: () => void; onTour?: () => void }) {
   const [saved, setSaved] = useState<boolean | null>(null);
   const [key, setKey] = useState("");
@@ -193,6 +317,8 @@ export function Settings({ onClose, onTour }: { onClose: () => void; onTour?: ()
           <ModelRow />
           <hr className="set-sep" />
           <StrategyRow />
+          <hr className="set-sep" />
+          <GoalsRow />
           {onTour && (
             <>
               <hr className="set-sep" />

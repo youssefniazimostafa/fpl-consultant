@@ -72,6 +72,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from fpl import goal_calls
 from fpl.fetch import load_config
 from fpl.league import resolve_team_id
 from fpl.optimise import (
@@ -367,6 +368,7 @@ def build_options(
     league_history: pd.DataFrame,
     league_managers: pd.DataFrame,
     team_id: int,
+    keep: list | None = None,
 ) -> dict[str, Any]:
     """Analytics' "Your options this week": the top captain choices for the
     recommended plan and the top transfer choices (the optimiser's move, the
@@ -437,6 +439,8 @@ def build_options(
     if rec_label != HOLD_LABEL:  # the recommendation itself is already gated
         hold = gate_planned_weeks(hold, *solver_args, raw_weekly_xp=raw_weekly_xp, **rules)
     plans.append((hold, rec_label == HOLD_LABEL))
+    if keep is not None:  # the same transfer options for fpl.goal_calls
+        keep.extend(plans)
     t_opts = [{"xi_ids": sorted(p["weeks"][0]["xi_ids"]), "captain_id": p["weeks"][0]["captain_id"],
                "hits": p["weeks"][0]["hits"]} for p, _ in plans]
     t_sims = simulate_options(t_opts, rival_plans, xp_map, leader_id)
@@ -596,15 +600,31 @@ def main() -> None:
 
     results.to_json(OUTPUT_PATH, orient="records", indent=2)
     print(f"  wrote {OUTPUT_PATH} ({len(results)} rows)")
+    option_plans: list = []
     try:
         options = build_options(
             full_plans, meta,
             (pool_ids, adj_weekly_value, pool_info, my_squad_ids, sell_price, bank, effective_free, weeks, discount),
             rules, pool_info, raw_weekly_xp, xp_map, rival_plans, league_picks, league_history, league_managers, team_id,
+            keep=option_plans,
         )
     except Exception as e:  # noqa: BLE001 -- an Analytics extra must never stop the pipeline
         options = {"available": False, "reason": f"options not computed: {e}"}
     OPTIONS_PATH.write_text(json.dumps(options, indent=2, default=float))
+    # Step 17: today's close calls scored on your league goals (display,
+    # and the rule's own pick when fpl.goals.USE_GOAL_AWARE is on)
+    try:
+        solver = {"xp": xp_map, "raw": raw_weekly_xp, "discount": discount, "free": effective_free,
+                  "ft_value": rules.get("ft_value", 0.0), "info": pool_info, "next_gw": next_gw}
+        calls = goal_calls.build(full_plans, option_plans, solver, rival_plans, league_history, team_id)
+    except Exception as e:  # noqa: BLE001 -- a display extra must never stop the pipeline
+        calls = {"available": False, "reason": f"goal chances not computed: {e}"}
+    goal_calls.OUTPUT_PATH.write_text(json.dumps(calls, indent=2, default=goal_calls._np_default))
+    if calls.get("available"):
+        for label, c in calls["captain"].items():
+            print(f"  goal calls ({calls['goals_text']}), {label}: captain {c['verdict']}: {c.get('text') or c['why']}")
+    else:
+        print(f"  goal calls: {calls.get('reason')}")
     print(f"  wrote {OPTIONS_PATH.name} ({len(options.get('captains', []))} captain, {len(options.get('transfers', []))} transfer options)")
     # The hold plan's full squad/transfer tables (same shape as
     # optimise_squad/optimise_transfers), so fpl.publish can switch the

@@ -406,9 +406,18 @@ fn set_setup(team_id: String, league_id: String) -> Result<(), String> {
     Ok(())
 }
 
-/// FPL_TEAM_ID / FPL_LEAGUE_ID for a child process, from the setup.
+/// FPL_TEAM_ID / FPL_LEAGUE_ID (and FPL_GOALS, your league goals) for a
+/// child process, from the setup and Settings.
 fn setup_env(cmd: &mut Command) {
     let v = read_settings();
+    match v.get("goals").and_then(|x| x.as_str()).filter(|s| !s.is_empty()) {
+        Some(g) => {
+            cmd.env("FPL_GOALS", g);
+        }
+        None => {
+            cmd.env_remove("FPL_GOALS");
+        }
+    }
     for (key, env) in [("team_id", "FPL_TEAM_ID"), ("league_id", "FPL_LEAGUE_ID")] {
         match v.get(key).and_then(|x| x.as_str()).filter(|s| !s.is_empty()) {
             Some(val) => {
@@ -419,6 +428,43 @@ fn setup_env(cmd: &mut Command) {
             }
         }
     }
+}
+
+/// League goals (Settings): weighted goals and "by when", passed to the
+/// pipeline, chat and plan review as FPL_GOALS (fpl/goals.py). Stored as a
+/// JSON string; the defaults are your real goals: finish 1st (main) and
+/// stay in the top 2 (secondary), by the end of the season.
+const DEFAULT_GOALS: &str = r#"{"goals":[{"kind":"first","weight":2},{"kind":"top2","weight":1}],"by":"end"}"#;
+const GOAL_KINDS: [&str; 3] = ["first", "top2", "top3"];
+
+#[tauri::command]
+fn get_goals() -> serde_json::Value {
+    read_settings()
+        .get("goals")
+        .and_then(|g| g.as_str())
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(t).ok())
+        .unwrap_or_else(|| serde_json::from_str(DEFAULT_GOALS).unwrap())
+}
+
+#[tauri::command]
+fn set_goals(goals: serde_json::Value) -> Result<(), String> {
+    let list = goals.get("goals").and_then(|g| g.as_array()).ok_or("goals must be a list")?;
+    if list.is_empty() {
+        return Err("Pick at least one goal.".into());
+    }
+    for g in list {
+        let kind = g.get("kind").and_then(|k| k.as_str()).unwrap_or("");
+        let w = g.get("weight").and_then(|w| w.as_f64()).unwrap_or(0.0);
+        if !GOAL_KINDS.contains(&kind) || !(w > 0.0 && w <= 10.0) {
+            return Err(format!("Unknown goal or weight: {g}"));
+        }
+    }
+    match goals.get("by") {
+        Some(serde_json::Value::String(s)) if s == "end" => {}
+        Some(serde_json::Value::Number(n)) if n.as_u64().map_or(false, |g| (1..=38).contains(&g)) => {}
+        _ => return Err("\"by\" is \"end\" or a gameweek from 1 to 38".into()),
+    }
+    write_setting("goals", &goals.to_string())
 }
 
 const STRATEGIES: [&str; 4] = ["auto", "protect", "balanced", "chase"];
@@ -892,6 +938,8 @@ pub fn run() {
             get_chat_model,
             set_chat_model,
             get_strategy,
+            get_goals,
+            set_goals,
             set_strategy,
             get_setup,
             set_setup,

@@ -235,6 +235,21 @@ def check(data: dict[str, Any]) -> list[str]:
             if shown != sorted(plan_moves.get(w["gameweek"], [])):
                 errors.append(f"rule 11: planner GW{w['gameweek']} shows {shown or 'hold'}, "
                               f"the gated plan has {sorted(plan_moves.get(w['gameweek'], [])) or 'hold'}")
+    # rule 13: the close-call panel (Step 17, fpl/goal_calls.py) names the
+    # decision's captain as XPert's pick and only compares players in the XI
+    gc = data.get("goal_calls") or {}
+    if gc.get("available"):
+        for t in (gc, gc.get("other_target") or {}):
+            gcap = t.get("captain") or {}
+            if not gcap:
+                continue
+            shown = (gcap.get("xpert_pick") or {}).get("player_id")
+            if shown != cap.get("player_id"):
+                errors.append(f"rule 13: close-call panel says XPert picks {(gcap.get('xpert_pick') or {}).get('web_name')}, "
+                              f"the captain card says {cap.get('web_name')}")
+            stray = [o.get("web_name") for o in gcap.get("options") or [] if o.get("player_id") not in xi_ids]
+            if stray:
+                errors.append(f"rule 13: close-call panel compares {stray}, who aren't in the recommended XI")
     return errors
 
 
@@ -341,6 +356,11 @@ def _breakers(data: dict[str, Any]) -> list[tuple[str, Any]]:
                     move_gain_xp=(mover.get("required_gain_xp") or 1.75) - 0.3)
         rows.insert(rows.index(mover) + 1, weak)
     tests.append(("rule 12", weak_move_carried))
+
+    def goal_panel_wrong_captain(x):
+        x["goal_calls"]["captain"]["xpert_pick"] = {"player_id": non_cap["player_id"], "web_name": non_cap["web_name"]}
+    if (data.get("goal_calls") or {}).get("available"):
+        tests.append(("rule 13", goal_panel_wrong_captain))
     return tests
 
 

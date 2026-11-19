@@ -257,7 +257,28 @@ def get_league_context() -> dict[str, Any]:
     }
 
 
-TOOLS = {"get_player": get_player, "compare_players": compare_players, "what_if": what_if, "get_league_context": get_league_context}
+def get_goal_chances() -> dict[str, Any]:
+    """Step 17 (fpl/goal_calls.py): this week's close captain and transfer
+    calls, each option's expected points and its chances of your league
+    goals (by the goals' target and by the other common target), which one
+    XPert picks and why."""
+    from fpl.goal_calls import summary_for_chat
+
+    d = json.loads(LATEST.read_text())
+    gc = d.get("goal_calls") or {}
+    if not gc.get("available"):
+        return {"available": False, "reason": gc.get("reason", "not computed yet; press Refresh")}
+    out = summary_for_chat({**gc, "captain": {"plan": gc["captain"]},
+                            "other_target": ({**gc["other_target"], "captain": {"plan": gc["other_target"]["captain"]}}
+                                             if gc.get("other_target") else None)}, "plan")
+    out["goals"] = [{"goal": {"first": "finish 1st", "top2": "top 2", "top3": "top 3"}[g["kind"]], "weight": g["weight"]}
+                    for g in gc.get("goals") or []]
+    out["goals_from"] = "your Settings" if gc.get("goals_source") == "settings" else "the default goals"
+    return out
+
+
+TOOLS = {"get_player": get_player, "compare_players": compare_players, "what_if": what_if,
+         "get_league_context": get_league_context, "get_goal_chances": get_goal_chances}
 
 TOOL_SCHEMAS = [
     {"name": "get_player", "description": "One player's price, club, position, projected points for each of the next 5 gameweeks, chance of playing, fixtures with FPL difficulty, FPL news, league and overall ownership, and whether you own him.",
@@ -268,5 +289,7 @@ TOOL_SCHEMAS = [
      "input_schema": {"type": "object", "properties": {"transfers_in": {"type": "array", "items": {"type": "string"}}, "transfers_out": {"type": "array", "items": {"type": "string"}},
                                                         "captain": {"type": "string"}}, "required": ["transfers_in", "transfers_out"], "additionalProperties": False}},
     {"name": "get_league_context", "description": "Your league position, rivals near you (what they own that you don't and vice versa, free transfers, likely moves, chips), the most-owned players in your league, and the strategy mode with its meaning.",
+     "input_schema": {"type": "object", "properties": {}, "additionalProperties": False}},
+    {"name": "get_goal_chances", "description": "This week's close captain and transfer calls: each close option's expected points and its simulated chance of your league goals (e.g. finish 1st, top 2) by your target gameweek and by the other common target (GW19 or season end), whether the difference is bigger than the simulation's noise, and which option XPert picks and why.",
      "input_schema": {"type": "object", "properties": {}, "additionalProperties": False}},
 ]
