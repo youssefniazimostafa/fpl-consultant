@@ -1,6 +1,6 @@
 {
   "gameweek": 11,
-  "frozen_at": "2026-11-20T23:04:21.636538+00:00",
+  "frozen_at": "2026-11-21T01:57:28.225416+00:00",
   "action": "transfer",
   "starting_xi": [
     {
@@ -81,10 +81,10 @@
       "position": "MID"
     }
   ],
-  "captain_id": 4,
-  "captain_name": "Gabriel",
-  "vice_captain_id": 411,
-  "vice_captain_name": "Haaland",
+  "captain_id": 411,
+  "captain_name": "Haaland",
+  "vice_captain_id": 4,
+  "vice_captain_name": "Gabriel",
   "transfers_in": [
     {
       "player_id": 112,
