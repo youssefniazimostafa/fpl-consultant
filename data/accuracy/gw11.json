@@ -1,0 +1,225 @@
+{
+  "gameweek": 11,
+  "generated_at": "2026-11-24T19:53:04.668154+00:00",
+  "predictions": {
+    "available": true,
+    "gameweek": 11,
+    "snapshot_path": "data/predictions/gw11.parquet",
+    "snapshot_logged_at": "2026-11-21T10:31:47.526706+00:00",
+    "n_players": 672,
+    "missing_actuals": 0,
+    "has_component_breakdown": true,
+    "mae": 1.2402980269749229,
+    "bias": 0.07615404276268412,
+    "by_component": [
+      {
+        "component": "appearance",
+        "mae": 0.34548563218287753,
+        "bias": -0.029074788684434177
+      },
+      {
+        "component": "clean_sheet",
+        "mae": 0.34070932914757707,
+        "bias": 0.05137298814822768
+      },
+      {
+        "component": "expected_goal",
+        "mae": 0.34001077093378723,
+        "bias": 0.0351637291963154
+      },
+      {
+        "component": "expected_assist",
+        "mae": 0.21232115732125495,
+        "bias": 0.014778835851320846
+      },
+      {
+        "component": "bonus",
+        "mae": 0.16325446428571427,
+        "bias": 0.002976190476190476
+      },
+      {
+        "component": "defcon",
+        "mae": 0.14732145962098595,
+        "bias": 0.009095558048728152
+      },
+      {
+        "component": "conceded",
+        "mae": 0.13186604266598725,
+        "bias": 0.006799585811856438
+      },
+      {
+        "component": "card",
+        "mae": 0.11986281203208275,
+        "bias": 0.0028312378352564945
+      },
+      {
+        "component": "saves",
+        "mae": 0.03035342061754727,
+        "bias": -0.014813103444586704
+      },
+      {
+        "component": "unmodeled (own goals / penalty misses / saves)",
+        "mae": 0.002976190476190476,
+        "bias": -0.002976190476190476
+      }
+    ],
+    "worst_predictions": [
+      {
+        "web_name": "Okafor",
+        "position": "MID",
+        "team_short": "LEE",
+        "xp": 1.428158440923559,
+        "actual_total_points": 15,
+        "residual": 13.571841559076441
+      },
+      {
+        "web_name": "Lewis-Potter",
+        "position": "MID",
+        "team_short": "BRE",
+        "xp": 3.096108873117186,
+        "actual_total_points": 16,
+        "residual": 12.903891126882813
+      },
+      {
+        "web_name": "Ngumoha",
+        "position": "MID",
+        "team_short": "LIV",
+        "xp": 0.31459665536884274,
+        "actual_total_points": 13,
+        "residual": 12.685403344631156
+      },
+      {
+        "web_name": "Williams-Barnett",
+        "position": "MID",
+        "team_short": "TOT",
+        "xp": 0.3522394375282991,
+        "actual_total_points": 13,
+        "residual": 12.647760562471701
+      },
+      {
+        "web_name": "McBurnie",
+        "position": "FWD",
+        "team_short": "HUL",
+        "xp": 2.7373905328868036,
+        "actual_total_points": 13,
+        "residual": 10.262609467113197
+      },
+      {
+        "web_name": "Wirtz",
+        "position": "MID",
+        "team_short": "LIV",
+        "xp": 4.367213190537352,
+        "actual_total_points": 14,
+        "residual": 9.632786809462647
+      },
+      {
+        "web_name": "Hill",
+        "position": "DEF",
+        "team_short": "BOU",
+        "xp": 4.602448546564451,
+        "actual_total_points": 14,
+        "residual": 9.397551453435549
+      },
+      {
+        "web_name": "Pedro Porro",
+        "position": "DEF",
+        "team_short": "TOT",
+        "xp": 1.924199975475747,
+        "actual_total_points": 11,
+        "residual": 9.075800024524252
+      },
+      {
+        "web_name": "Yeremy",
+        "position": "MID",
+        "team_short": "CRY",
+        "xp": 3.03052232358948,
+        "actual_total_points": 12,
+        "residual": 8.96947767641052
+      },
+      {
+        "web_name": "Eze",
+        "position": "MID",
+        "team_short": "ARS",
+        "xp": 1.4382144451568182,
+        "actual_total_points": 10,
+        "residual": 8.561785554843182
+      },
+      {
+        "web_name": "Anthony",
+        "position": "MID",
+        "team_short": "BRE",
+        "xp": 1.68419996670202,
+        "actual_total_points": 10,
+        "residual": 8.31580003329798
+      },
+      {
+        "web_name": "Strand Larsen",
+        "position": "FWD",
+        "team_short": "CRY",
+        "xp": 2.2155116534985373,
+        "actual_total_points": 10,
+        "residual": 7.784488346501463
+      },
+      {
+        "web_name": "Muniz",
+        "position": "FWD",
+        "team_short": "FUL",
+        "xp": 0.25751278946304984,
+        "actual_total_points": 8,
+        "residual": 7.74248721053695
+      },
+      {
+        "web_name": "Emegha",
+        "position": "FWD",
+        "team_short": "CHE",
+        "xp": 0.34692346653615314,
+        "actual_total_points": 8,
+        "residual": 7.653076533463847
+      },
+      {
+        "web_name": "Roefs",
+        "position": "GKP",
+        "team_short": "SUN",
+        "xp": 3.3672959317465923,
+        "actual_total_points": 11,
+        "residual": 7.632704068253408
+      }
+    ],
+    "ep_next_experiment": {
+      "available": true,
+      "n_players": 672,
+      "n_likely_starters": 265,
+      "models": {
+        "xp": {
+          "mae": 1.2402980269749224,
+          "starter_spearman": 0.17491090302559376,
+          "top10": 0.325,
+          "top20": 0.5125,
+          "captain_pts": 2.0
+        },
+        "ep_next": {
+          "mae": 1.1995535714285714,
+          "starter_spearman": 0.30766517937896376,
+          "top10": 0.35,
+          "top20": 0.4875,
+          "captain_pts": 2.0
+        },
+        "blend": {
+          "mae": 1.1731351659581073,
+          "starter_spearman": 0.3266178647699291,
+          "top10": 0.35,
+          "top20": 0.5125,
+          "captain_pts": 1.0
+        }
+      }
+    }
+  },
+  "league_results": {
+    "available": false,
+    "reason": "no data/manual_snapshots/11.json -- log this gameweek's standings/squads there (see data/manual/README.md) to get rival GW scores, captains and chips."
+  },
+  "override_log": {
+    "available": false,
+    "reason": "data/manual/override_log.json is empty or missing."
+  }
+}
