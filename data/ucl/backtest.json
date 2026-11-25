@@ -18,7 +18,7 @@
     "top10_points": 5.1,
     "captain_points": 1.0
    },
-   "mae_model": 1.2537331074623628
+   "mae_model": 1.2537331402586933
   },
   {
    "tour": 80,
@@ -38,7 +38,7 @@
     "top10_points": 7.3,
     "captain_points": 2.0
    },
-   "mae_model": 1.3459282282252978
+   "mae_model": 1.345928228623575
   },
   {
    "tour": 80,
@@ -58,7 +58,7 @@
     "top10_points": 2.8,
     "captain_points": 2.0
    },
-   "mae_model": 1.1852099375532708
+   "mae_model": 1.1852099425700866
   },
   {
    "tour": 80,
@@ -78,7 +78,7 @@
     "top10_points": 2.9,
     "captain_points": 0.0
    },
-   "mae_model": 1.3449118347618638
+   "mae_model": 1.3449118303885619
   },
   {
    "tour": 80,
@@ -98,7 +98,7 @@
     "top10_points": 3.7,
     "captain_points": 0.0
    },
-   "mae_model": 1.2407420606723034
+   "mae_model": 1.2407420478888858
   },
   {
    "tour": 80,
@@ -118,7 +118,7 @@
     "top10_points": 4.4,
     "captain_points": 10.0
    },
-   "mae_model": 1.2169185534458247
+   "mae_model": 1.2169206405098199
   },
   {
    "tour": 80,
@@ -138,7 +138,7 @@
     "top10_points": 7.3,
     "captain_points": 10.0
    },
-   "mae_model": 1.2413910625102744
+   "mae_model": 1.2413910441565839
   },
   {
    "tour": 80,
@@ -158,7 +158,7 @@
     "top10_points": 6.5,
     "captain_points": 5.0
    },
-   "mae_model": 1.2256818984661217
+   "mae_model": 1.2256825266068698
   },
   {
    "tour": 80,
@@ -178,7 +178,7 @@
     "top10_points": 4.1,
     "captain_points": 1.0
    },
-   "mae_model": 1.2367613223091587
+   "mae_model": 1.2367589154873093
   },
   {
    "tour": 80,
@@ -198,7 +198,7 @@
     "top10_points": 2.4,
     "captain_points": 1.0
    },
-   "mae_model": 1.3220921846219538
+   "mae_model": 1.3220921784143809
   },
   {
    "tour": 80,
@@ -218,7 +218,7 @@
     "top10_points": 5.8,
     "captain_points": 2.0
    },
-   "mae_model": 1.4394255037029402
+   "mae_model": 1.4394255298668033
   },
   {
    "tour": 80,
@@ -238,7 +238,7 @@
     "top10_points": 4.9,
     "captain_points": 3.0
    },
-   "mae_model": 1.2159080325936817
+   "mae_model": 1.2159080778303553
   },
   {
    "tour": 80,
@@ -258,7 +258,7 @@
     "top10_points": 4.5,
     "captain_points": 3.0
    },
-   "mae_model": 1.332355642485995
+   "mae_model": 1.3323542971316238
   },
   {
    "tour": 80,
@@ -278,7 +278,7 @@
     "top10_points": 4.6,
     "captain_points": 9.0
    },
-   "mae_model": 1.1664443939232245
+   "mae_model": 1.166444395945665
   },
   {
    "tour": 80,
@@ -287,18 +287,18 @@
    "model": {
     "rank_starters": 0.03259022428157309,
     "rank_all": 0.7744326208283071,
-    "top10_hits": 2,
+    "top10_hits": 3,
     "top10_points": 3.3,
     "captain_points": 6.0
    },
    "ppg": {
     "rank_starters": 0.147995333552623,
     "rank_all": 0.7456694272849104,
-    "top10_hits": 5,
+    "top10_hits": 4,
     "top10_points": 4.6,
     "captain_points": 6.0
    },
-   "mae_model": 1.0724197499245982
+   "mae_model": 1.0724186834621643
   },
   {
    "tour": 80,
@@ -307,93 +307,113 @@
    "model": {
     "rank_starters": 0.3728456266526423,
     "rank_all": 0.8000805963285075,
-    "top10_hits": 6,
+    "top10_hits": 7,
     "top10_points": 3.3,
     "captain_points": 4.0
    },
    "ppg": {
     "rank_starters": 0.4250205649735309,
     "rank_all": 0.7917280266730147,
-    "top10_hits": 7,
+    "top10_hits": 8,
     "top10_points": 3.3,
     "captain_points": 4.0
    },
-   "mae_model": 0.7244174689020029
+   "mae_model": 0.7244174978922987
   },
   {
    "tour": 90,
    "md": 2,
-   "players": 1173,
+   "players": 1175,
    "model": {
     "rank_starters": 0.16853790285926576,
-    "rank_all": 0.5635106720202744,
-    "top10_hits": 0,
+    "rank_all": 0.5637920253750925,
+    "top10_hits": 1,
     "top10_points": 5.5,
     "captain_points": 13.0
    },
    "ppg": {
-    "rank_starters": 0.023974284153024328,
-    "rank_all": 0.48942934464910287,
+    "rank_starters": 0.026367291227317853,
+    "rank_all": 0.4826006595255554,
     "top10_hits": 0,
     "top10_points": 3.0,
     "captain_points": -1.0
    },
-   "mae_model": 1.3954056317038641
+   "mae_model": 1.3934535353459458
   },
   {
    "tour": 90,
    "md": 3,
-   "players": 1173,
+   "players": 1175,
    "model": {
     "rank_starters": 0.18510555745101423,
-    "rank_all": 0.6511293560283707,
+    "rank_all": 0.6515113733704451,
     "top10_hits": 0,
     "top10_points": 6.6,
     "captain_points": 0.0
    },
    "ppg": {
-    "rank_starters": -0.01704534953811093,
-    "rank_all": 0.6255380532215749,
+    "rank_starters": -0.023659927767789343,
+    "rank_all": 0.6225096767390862,
     "top10_hits": 0,
     "top10_points": 3.6,
     "captain_points": 7.0
    },
-   "mae_model": 1.266787130385986
+   "mae_model": 1.2648667919183219
   },
   {
    "tour": 90,
    "md": 4,
-   "players": 1173,
+   "players": 1175,
    "model": {
     "rank_starters": 0.22636004071547217,
-    "rank_all": 0.660536967688114,
+    "rank_all": 0.6608863970507652,
     "top10_hits": 0,
     "top10_points": 6.4,
     "captain_points": 6.0
    },
    "ppg": {
-    "rank_starters": 0.10365034093729254,
-    "rank_all": 0.6288883012317316,
+    "rank_starters": 0.10344131100781959,
+    "rank_all": 0.6365609402844181,
     "top10_hits": 0,
     "top10_points": 4.7,
     "captain_points": 5.0
    },
-   "mae_model": 1.3074985494361844
+   "mae_model": 1.305473984387772
+  },
+  {
+   "tour": 90,
+   "md": 5,
+   "players": 1175,
+   "model": {
+    "rank_starters": 0.08763731885452941,
+    "rank_all": 0.3774783487232536,
+    "top10_hits": 1,
+    "top10_points": 2.4,
+    "captain_points": 2.0
+   },
+   "ppg": {
+    "rank_starters": 0.020328984619534283,
+    "rank_all": 0.3578957901157188,
+    "top10_hits": 0,
+    "top10_points": 0.4,
+    "captain_points": 2.0
+   },
+   "mae_model": 1.3104616852962283
   }
  ],
  "summary": {
   "all": {
-   "matchdays": 19,
-   "rank_starters_model": 0.184,
-   "rank_starters_ppg": 0.113,
-   "rank_all_model": 0.666,
-   "rank_all_ppg": 0.632,
-   "top10_hits_model": 1.684,
-   "top10_hits_ppg": 1.632,
-   "top10_points_model": 5.211,
-   "top10_points_ppg": 4.5,
-   "captain_points_model": 7.263,
-   "captain_points_ppg": 3.684
+   "matchdays": 20,
+   "rank_starters_model": 0.18,
+   "rank_starters_ppg": 0.108,
+   "rank_all_model": 0.652,
+   "rank_all_ppg": 0.618,
+   "top10_hits_model": 1.8,
+   "top10_hits_ppg": 1.55,
+   "top10_points_model": 5.07,
+   "top10_points_ppg": 4.295,
+   "captain_points_model": 7.0,
+   "captain_points_ppg": 3.6
   },
   "2025/26": {
    "matchdays": 16,
@@ -401,7 +421,7 @@
    "rank_starters_ppg": 0.128,
    "rank_all_model": 0.674,
    "rank_all_ppg": 0.641,
-   "top10_hits_model": 2.0,
+   "top10_hits_model": 2.125,
    "top10_hits_ppg": 1.938,
    "top10_points_model": 5.031,
    "top10_points_ppg": 4.637,
@@ -409,17 +429,17 @@
    "captain_points_ppg": 3.688
   },
   "2026/27": {
-   "matchdays": 3,
-   "rank_starters_model": 0.193,
-   "rank_starters_ppg": 0.037,
-   "rank_all_model": 0.625,
-   "rank_all_ppg": 0.581,
-   "top10_hits_model": 0.0,
+   "matchdays": 4,
+   "rank_starters_model": 0.167,
+   "rank_starters_ppg": 0.032,
+   "rank_all_model": 0.563,
+   "rank_all_ppg": 0.525,
+   "top10_hits_model": 0.5,
    "top10_hits_ppg": 0.0,
-   "top10_points_model": 6.167,
-   "top10_points_ppg": 3.767,
-   "captain_points_model": 6.333,
-   "captain_points_ppg": 3.667
+   "top10_points_model": 5.225,
+   "top10_points_ppg": 2.925,
+   "captain_points_model": 5.25,
+   "captain_points_ppg": 3.25
   }
  },
  "method": "Each matchday predicted only from matches before it; injury news not used (not stored historically)."
