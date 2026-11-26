@@ -1,6 +1,6 @@
 {
   "gameweek": 12,
-  "frozen_at": "2026-11-26T20:47:58.875379+00:00",
+  "frozen_at": "2026-11-26T23:04:34.891802+00:00",
   "action": "roll",
   "starting_xi": [
     {
@@ -83,8 +83,8 @@
   ],
   "captain_id": 124,
   "captain_name": "Groß",
-  "vice_captain_id": 115,
-  "vice_captain_name": "De Cuyper",
+  "vice_captain_id": 112,
+  "vice_captain_name": "Van Hecke",
   "transfers_in": [],
   "transfers_out": [],
   "hits": 0,
