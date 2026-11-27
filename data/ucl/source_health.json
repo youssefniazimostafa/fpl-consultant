@@ -1,34 +1,34 @@
 {
   "constraints_90": {
     "status": "ok",
-    "fetched_at": "2026-11-26T15:59:27+00:00",
+    "fetched_at": "2026-11-27T01:15:59+00:00",
     "error": null,
     "path": "constraints/constraints_90.json"
   },
   "fixtures_90": {
     "status": "ok",
-    "fetched_at": "2026-11-26T15:59:29+00:00",
+    "fetched_at": "2026-11-27T01:16:01+00:00",
     "error": null,
     "path": "fixtures/fixtures_90_en.json"
   },
   "players_90": {
     "status": "ok",
-    "fetched_at": "2026-11-26T15:59:32+00:00",
+    "fetched_at": "2026-11-27T01:16:02+00:00",
     "error": null,
     "path": "players/players_90_en_6.json"
   },
   "popupstats_90": {
     "status": "ok",
-    "fetched_at": "2026-11-26T15:59:32+00:00",
+    "fetched_at": "2026-11-27T01:16:02+00:00",
     "error": null,
     "fetched": 0
   },
   "domestic": {
     "status": "ok",
-    "fetched_at": "2026-11-26T15:59:50+00:00",
+    "fetched_at": "2026-11-27T01:16:02+00:00",
     "error": null,
     "rows": 9157,
-    "latest": "2026-11-23"
+    "note": "stored copy, 9 h old"
   },
   "odds": {
     "status": "skipped",
